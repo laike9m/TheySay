@@ -39,6 +39,11 @@ A 4-panel parallel Twitter / X monitoring dashboard built with Electron:
    - Uses 4 dedicated offscreen webviews sharing the `persist:x_session` partition.
    - All 4 slots can load, scroll, and extract tweets simultaneously without blocking each other.
    - Each tweet card displays index `#1-#5`, pinned & retweet badges, timestamp, text, copy button, and "Open in Browser ↗".
+4. **Human-like Anti-Bot Jitter & Challenge Detection**:
+   - **Staggered Start**: Concurrent batch requests stagger by `200ms ~ 450ms` intervals to avoid machine-like traffic bursts.
+   - **Randomized Smooth Scrolling**: Dynamic scroll distance (`650px ~ 1050px`) with smooth behavior.
+   - **Reading Pauses**: Injects `300ms ~ 600ms` scan pauses after scrolling to emulate human eye reading time.
+   - **Challenge Detection**: Automatically detects Arkose Labs FunCAPTCHAs and HTTP 429 rate limits, notifying you immediately with guidance.
 
 ## Project Structure
 
@@ -53,6 +58,13 @@ TheySay/
 ├── styles.css          # Dark-theme styling
 └── README.md           # English Documentation
 ```
+
+## References & Anti-Bot Mechanics
+
+For background on Twitter/X bot detection, rate limits, and scraping defenses:
+- [Scrapfly: How to Scrape Twitter (X.com) Data - Rotating Guards, Rate Limits, and Pacing](https://scrapfly.io/blog/how-to-scrape-twitter/)
+- [X API: Official Rate Limits Documentation](https://developer.x.com/en/docs/x-api/rate-limits)
+- [Arkose Labs: How MatchKey / FunCAPTCHA Detects Automation](https://www.arkoselabs.com/)
 
 ## Documentation
 

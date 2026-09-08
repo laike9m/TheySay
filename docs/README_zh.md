@@ -27,3 +27,15 @@ npm start
    - 每次输入自动保存，刷新页面（<kbd>Cmd + R</kbd>）不会丢失已填的用户名及已加载的推文数据。
 3. **多 Webview 并行并发**：
    - 内置 4 个独立的后台离屏 webview 实例，全部共享登录态，实现真正的多用户并发抓取与虚拟列表滚动。
+4. **拟人化随机延迟与防风控感知**：
+   - **错峰启动**：一键并行抓取时按 `200ms ~ 450ms` 阶梯随机错峰，消除机械式的突发流量峰值；
+   - **随机平滑滚动**：每次动态滚动 `650px ~ 1050px`，并加入平滑滚动动画；
+   - **阅读停顿模拟**：滚动后模拟人眼停留阅读 `300ms ~ 600ms`；
+   - **风控主动识别**：自动感知 Arkose Labs 人机验证挑战或 Rate limit 限制，提供即时指引。
+
+## 参考资料与防爬机制解析
+
+关于 Twitter / X 的反爬虫风控模型与限制机制：
+- [Scrapfly: How to Scrape Twitter (X.com) Data - Rotating Guards, Rate Limits, and Pacing](https://scrapfly.io/blog/how-to-scrape-twitter/)（系统解析了 Twitter 隐式 GraphQL API、Guest Token 轮转以及限频策略）
+- [X API: 官方 Rate Limits 速率限制说明](https://developer.x.com/en/docs/x-api/rate-limits)（官方关于接口访问频次的阈值标准）
+- [Arkose Labs: MatchKey / FunCAPTCHA 人机识别技术原理](https://www.arkoselabs.com/)（Twitter 核心采用的防自动化验证系统）

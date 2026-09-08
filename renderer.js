@@ -991,31 +991,14 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null) {
     const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
     const timeDisplay = formatTelegramTime(tweet);
 
-    bubble.innerHTML = `${tagHtml}<span class="im-text-content">${escapeHtml(previewText)}</span>${isLong ? '<span class="im-text-ellipsis">...</span><button class="im-btn-expand" title="点击展开全文">展开</button>' : ''}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="在浏览器中打开原推文">↗</a>` : ''}`;
-
-    // Expand / collapse toggle for long tweets
+    let textHtml = '';
     if (isLong) {
-      const expandBtn = bubble.querySelector('.im-btn-expand');
-      const textContent = bubble.querySelector('.im-text-content');
-      const ellipsis = bubble.querySelector('.im-text-ellipsis');
-      let isExpanded = false;
-
-      expandBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        isExpanded = !isExpanded;
-        if (isExpanded) {
-          textContent.innerHTML = escapeHtml(rawText);
-          if (ellipsis) ellipsis.style.display = 'none';
-          expandBtn.innerText = '收起';
-          expandBtn.title = '点击收起推文';
-        } else {
-          textContent.innerHTML = escapeHtml(previewText);
-          if (ellipsis) ellipsis.style.display = 'inline';
-          expandBtn.innerText = '展开';
-          expandBtn.title = '点击展开全文';
-        }
-      });
+      textHtml = `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span><span class="im-text-full">${escapeHtml(rawText)}</span></span>`;
+    } else {
+      textHtml = `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
     }
+
+    bubble.innerHTML = `${tagHtml}${textHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="在浏览器中打开原推文">↗</a>` : ''}`;
 
     // Open external tweet link (hover button in top-right)
     if (tweet.url) {

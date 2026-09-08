@@ -6,7 +6,7 @@ A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with El
 - **Dark Mode / Light Mode**: One-click theme toggle in the header with persistent state.
 - **Telegram-Style Chat Bubble Feed with Date Dividers**: Replicates Telegram's clean aesthetics with centered capsule date dividers (e.g. `June 29, 2025`) displayed above each day's messages (with only one date pill per day). Chat bubbles hug content naturally with inline specific timestamps (`11:45 AM`) at the bottom right, status tags (`Pinned`, `Retweet`), removed message numbers, and a hover-revealed link button (`↗`) in the top-right corner.
 - **Oldest-to-Newest Chronological Order (Chat Flow)**: Tweets flow naturally from top to bottom (oldest to newest, with the latest tweet at the bottom), automatically scrolling down like an IM chat window.
-- **100-Character Truncation & Expand/Collapse**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy. Easily toggle full text with inline "展开" (Expand) / "收起" (Collapse) buttons, with zero redundant whitespace.
+- **100-Character Truncation & Hover-to-Expand**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy. Hovering over any bubble automatically expands it to display full text, and unhovering neatly collapses it back.
 - **Flexible 2×2 to 4×4 Grid Layouts**: Switch seamlessly between `2×2`, `2×3`, `3×2`, `3×3`, and `4×4` presets, strictly matching slot counts without lingering artifacts.
 - **Card Header with Avatar & Name, Icon-Only Refresh Button**: Header height slimmed to 34px, displays user avatar, name, and handle in a clean line. Click on the name anytime to switch to editing the handle. Replaces text buttons with a sleek, textless icon refresh button that spins during fetching, eliminating redundant counters and copy buttons to keep the interface minimal.
 - **Hidden Scrollbars by Default**: Card scrollbars remain invisible by default and gently fade in on hover, keeping the UI minimal and clean.
@@ -32,7 +32,7 @@ npm start
    - Date Divider Pills: Displays a centered translucent capsule date divider (e.g., `June 29, 2025`) above each day's group of tweets, with only one date header shown per calendar day.
    - Natural IM timeline order: sorted chronologically from top to bottom (oldest to newest), with the latest post at the bottom and auto-scrolling to the newest message upon load.
    - Hovering over any bubble reveals an external browser link (`↗`) in the top-right corner to open the original tweet.
-   - Long tweets automatically truncate to the first 100 characters by default, featuring an inline `[展开]` (Expand) / `[收起]` (Collapse) toggle with zero extraneous whitespace.
+   - Long tweets automatically truncate to the first 100 characters with an ellipsis by default. Hovering over the bubble automatically expands it to full text, and moving the cursor away (unhover) neatly collapses it back.
 2. **Theme Switcher & Clean Header with Avatar & Name**:
    - Integrated dark mode / light mode toggle button (☀️/🌙) in the navigation bar.
    - Ultra-compact card headers (~34px) with unnecessary card numbers and separate status bars removed, maximizing vertical viewport for tweets.

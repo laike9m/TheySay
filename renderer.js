@@ -1,61 +1,69 @@
 const { ipcRenderer, shell } = require('electron');
 
-const SLOTS_COUNT = 4;
-const DEFAULT_HANDLES = ['elonmusk', 'OpenAI', 'sama', 'karpathy'];
+const MAX_SLOTS = 16;
+const DEFAULT_HANDLES = [
+  'elonmusk', 'OpenAI', 'sama', 'karpathy',
+  'ylecun', 'sama', 'sama', 'sama',
+  'sama', 'sama', 'sama', 'sama',
+  'sama', 'sama', 'sama', 'sama'
+];
+
 const STORAGE_HANDLES_KEY = 'theysay_slot_handles';
 const STORAGE_CACHE_KEY = 'theysay_slot_cache';
+const STORAGE_PRESET_KEY = 'theysay_grid_preset';
+const STORAGE_GRID_LAYOUT_KEY = 'theysay_grid_layout';
 
-// Global UI Elements
+// UI Elements - Global
 const btnLoginStatus = document.getElementById('btn-login-status');
 const loginStatusText = document.getElementById('login-status-text');
 const btnFetchAll = document.getElementById('btn-fetch-all');
 const btnFetchAllText = document.getElementById('btn-fetch-all-text');
+const layoutSelect = document.getElementById('layout-select');
+const btnResetLayout = document.getElementById('btn-reset-layout');
+const gridContainer = document.getElementById('grid-stack-container');
+const bgWebviewsContainer = document.getElementById('bg-webviews-container');
 
-// State per slot
+let grid = null;
+let currentRows = 2;
+let currentCols = 2;
+
+// Slots Data Registry
 const slots = [];
 
-// Initialize Slot References
-for (let i = 0; i < SLOTS_COUNT; i++) {
-  slots.push({
-    index: i,
-    bgWebview: document.getElementById(`x-bg-webview-${i}`),
-    handleInput: document.getElementById(`handle-input-${i}`),
-    btnFetch: document.getElementById(`btn-fetch-${i}`),
-    statusBar: document.getElementById(`slot-status-bar-${i}`),
-    authorName: document.getElementById(`author-name-${i}`),
-    authorHandle: document.getElementById(`author-handle-${i}`),
-    counter: document.getElementById(`slot-counter-${i}`),
-    btnCopyAll: document.getElementById(`btn-copy-all-${i}`),
-    contentContainer: document.getElementById(`slot-content-${i}`),
-    placeholder: document.getElementById(`slot-placeholder-${i}`),
-    loading: document.getElementById(`slot-loading-${i}`),
-    loadingText: document.getElementById(`slot-loading-text-${i}`),
-    error: document.getElementById(`slot-error-${i}`),
-    tweetsList: document.getElementById(`slot-tweets-list-${i}`),
-    isFetching: false,
-    loadedTweets: []
-  });
+// ----------------------------------------------------
+// Human-like Jitter Utilities
+// ----------------------------------------------------
+function randomBetween(min, max) {
+  return Math.floor(min + Math.random() * (max - min));
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.innerText = text;
+  return div.innerHTML;
 }
 
 // ----------------------------------------------------
-// LocalStorage Persistence for Handles & Cached Tweets
+// LocalStorage Persistence
 // ----------------------------------------------------
 function getSavedHandles() {
   try {
     const raw = localStorage.getItem(STORAGE_HANDLES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length === SLOTS_COUNT) {
-        return parsed;
-      }
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
   return DEFAULT_HANDLES;
 }
 
 function saveHandles() {
-  const currentHandles = slots.map(s => s.handleInput.value.trim());
-  localStorage.setItem(STORAGE_HANDLES_KEY, JSON.stringify(currentHandles));
+  const current = slots.map(s => (s.handleInput ? s.handleInput.value.trim() : ''));
+  localStorage.setItem(STORAGE_HANDLES_KEY, JSON.stringify(current));
 }
 
 function saveSlotCache(slotIndex, data) {
@@ -72,57 +80,261 @@ function loadSlotCache() {
     const raw = localStorage.getItem(STORAGE_CACHE_KEY);
     if (raw) {
       const cache = JSON.parse(raw);
-      for (let i = 0; i < SLOTS_COUNT; i++) {
-        if (cache[i] && Array.isArray(cache[i].tweets) && cache[i].tweets.length > 0) {
-          renderSlotTweets(slots[i], cache[i].tweets, cache[i].handle);
+      slots.forEach(slot => {
+        if (cache[slot.index] && Array.isArray(cache[slot.index].tweets)) {
+          renderSlotTweets(slot, cache[slot.index].tweets, cache[slot.index].handle);
         }
-      }
+      });
     }
   } catch (e) {}
 }
 
-// ----------------------------------------------------
-// Login Status Checking & Popup Window Handling
-// ----------------------------------------------------
-function updateLoginUI(isLoggedIn) {
-  btnLoginStatus.classList.remove('checking', 'logged-in', 'logged-out');
-  if (isLoggedIn) {
-    btnLoginStatus.classList.add('logged-in');
-    loginStatusText.innerText = '已登录 X';
-    btnLoginStatus.title = '点击重新登录或切换账号';
-  } else {
-    btnLoginStatus.classList.add('logged-out');
-    loginStatusText.innerText = '🔑 登录 X 账号';
-    btnLoginStatus.title = '点击弹出窗口登录 Twitter / X 账号';
-  }
-}
-
-async function checkLoginStatus() {
+function saveGridLayout() {
+  if (!grid) return;
   try {
-    const isLoggedIn = await ipcRenderer.invoke('check-login-status');
-    updateLoginUI(isLoggedIn);
-  } catch (e) {
-    updateLoginUI(false);
+    const layoutData = grid.save(false);
+    localStorage.setItem(STORAGE_GRID_LAYOUT_KEY, JSON.stringify(layoutData));
+  } catch (e) {}
+}
+
+// ----------------------------------------------------
+// Background Webviews Pool Initialization
+// ----------------------------------------------------
+function initBackgroundWebviews() {
+  bgWebviewsContainer.innerHTML = '';
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const wv = document.createElement('webview');
+    wv.id = `x-bg-webview-${i}`;
+    wv.src = 'about:blank';
+    wv.setAttribute('partition', 'persist:x_session');
+    wv.setAttribute('allowpopups', 'true');
+    wv.setAttribute('useragent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    wv.setAttribute('webpreferences', 'backgroundThrottling=no');
+    bgWebviewsContainer.appendChild(wv);
   }
 }
 
-btnLoginStatus.addEventListener('click', () => {
-  ipcRenderer.send('open-login-window');
-});
-
-ipcRenderer.on('login-status-changed', (event, { loggedIn }) => {
-  updateLoginUI(loggedIn);
-});
-
 // ----------------------------------------------------
-// UI State Helpers per Slot
+// Slot DOM Element Generator
 // ----------------------------------------------------
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.innerText = text;
-  return div.innerHTML;
+function createSlotWidget(index) {
+  const widget = document.createElement('div');
+  widget.className = 'grid-stack-item';
+  widget.setAttribute('gs-id', `slot-${index}`);
+  widget.setAttribute('data-slot-index', index);
+
+  widget.innerHTML = `
+    <div class="grid-stack-item-content">
+      <div class="slot-card" id="slot-card-${index}">
+        <!-- Header & Drag Handle -->
+        <div class="slot-header slot-drag-handle">
+          <span class="slot-drag-indicator" title="按住拖拽卡片">⠿</span>
+          <span class="slot-index-badge">#${index + 1}</span>
+          <div class="slot-input-wrapper">
+            <span class="slot-input-prefix">@</span>
+            <input type="text" class="slot-handle-input" id="handle-input-${index}" placeholder="用户名" autocomplete="off" spellcheck="false">
+          </div>
+          <button class="slot-btn-fetch" id="btn-fetch-${index}">抓取</button>
+          <button class="slot-btn-expand" id="btn-expand-${index}" title="放大 / 还原重点关注空间 (Toggle 2×2 / 1×1)">⤢</button>
+        </div>
+
+        <!-- Status & Author Bar -->
+        <div class="slot-status-bar" id="slot-status-bar-${index}" style="display: none;">
+          <div class="slot-author-info">
+            <span class="slot-author-name" id="author-name-${index}"></span>
+            <span class="slot-author-handle" id="author-handle-${index}"></span>
+          </div>
+          <div class="slot-status-actions">
+            <span class="slot-counter" id="slot-counter-${index}">0 条</span>
+            <button class="slot-btn-copy-all" id="btn-copy-all-${index}" title="复制本栏全部推文">复制</button>
+          </div>
+        </div>
+
+        <!-- Scrollable Content Viewport -->
+        <div class="slot-content-container" id="slot-content-${index}">
+          <div class="slot-placeholder" id="slot-placeholder-${index}">
+            <span class="slot-placeholder-icon">💬</span>
+            <p>输入 handle 并按回车或点击抓取</p>
+          </div>
+          <div class="slot-loading" id="slot-loading-${index}" style="display: none;">
+            <div class="spinner-small"></div>
+            <span class="slot-loading-text" id="slot-loading-text-${index}">后台抓取中...</span>
+          </div>
+          <div class="slot-error" id="slot-error-${index}" style="display: none;"></div>
+          <div class="slot-tweets-list" id="slot-tweets-list-${index}" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return widget;
 }
 
+// ----------------------------------------------------
+// GridStack Initialization & Layout Management
+// ----------------------------------------------------
+function calculateCellHeight(rows) {
+  const availableHeight = window.innerHeight - 74; // top nav + padding
+  const margin = 10;
+  const totalMargin = (rows - 1) * margin;
+  return Math.max(160, Math.floor((availableHeight - totalMargin) / rows));
+}
+
+function initSlotsRegistry() {
+  const savedHandles = getSavedHandles();
+
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const el = createSlotWidget(i);
+    const slot = {
+      index: i,
+      element: el,
+      card: el.querySelector(`#slot-card-${i}`),
+      bgWebview: document.getElementById(`x-bg-webview-${i}`),
+      handleInput: el.querySelector(`#handle-input-${i}`),
+      btnFetch: el.querySelector(`#btn-fetch-${i}`),
+      btnExpand: el.querySelector(`#btn-expand-${i}`),
+      statusBar: el.querySelector(`#slot-status-bar-${i}`),
+      authorName: el.querySelector(`#author-name-${i}`),
+      authorHandle: el.querySelector(`#author-handle-${i}`),
+      counter: el.querySelector(`#slot-counter-${i}`),
+      btnCopyAll: el.querySelector(`#btn-copy-all-${i}`),
+      contentContainer: el.querySelector(`#slot-content-${i}`),
+      placeholder: el.querySelector(`#slot-placeholder-${i}`),
+      loading: el.querySelector(`#slot-loading-${i}`),
+      loadingText: el.querySelector(`#slot-loading-text-${i}`),
+      error: el.querySelector(`#slot-error-${i}`),
+      tweetsList: el.querySelector(`#slot-tweets-list-${i}`),
+      isFetching: false,
+      isExpanded: false,
+      loadedTweets: []
+    };
+
+    // Pre-fill saved handle
+    if (savedHandles[i]) {
+      slot.handleInput.value = savedHandles[i];
+    }
+
+    bindSlotEvents(slot);
+    slots.push(slot);
+  }
+}
+
+function bindSlotEvents(slot) {
+  // Input changes
+  slot.handleInput.addEventListener('input', saveHandles);
+  slot.handleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') fetchSlot(slot.index);
+  });
+
+  // Fetch button
+  slot.btnFetch.addEventListener('click', () => fetchSlot(slot.index));
+
+  // Expand / Priority Focus Toggle
+  slot.btnExpand.addEventListener('click', () => {
+    toggleSlotExpand(slot);
+  });
+
+  // Copy all tweets
+  slot.btnCopyAll.addEventListener('click', async () => {
+    if (!slot.loadedTweets || slot.loadedTweets.length === 0) return;
+
+    const handle = slot.handleInput.value.trim();
+    const formatted = slot.loadedTweets.map((t, idx) => {
+      const meta = [
+        `#${idx + 1}`,
+        t.time ? `(${t.time})` : '',
+        t.isPinned ? '[置顶]' : '',
+        t.isRetweet ? '[转推]' : ''
+      ].filter(Boolean).join(' ');
+      return `${meta}\n${t.text}`;
+    }).join('\n\n--------------------\n\n');
+
+    const text = `@${handle} 的最新 ${slot.loadedTweets.length} 条推文：\n\n${formatted}`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      const orig = slot.btnCopyAll.innerText;
+      slot.btnCopyAll.innerText = '已复制 ✓';
+      slot.btnCopyAll.style.color = '#00ba7c';
+      setTimeout(() => {
+        slot.btnCopyAll.innerText = orig;
+        slot.btnCopyAll.style.color = '#71767b';
+      }, 1800);
+    } catch (e) {
+      console.error(e);
+    }
+  });
+}
+
+function toggleSlotExpand(slot) {
+  if (!grid) return;
+  const node = slot.element.gridstackNode;
+  if (!node) return;
+
+  const isCurrentlyExpanded = (node.w > 1 || node.h > 1);
+
+  if (isCurrentlyExpanded) {
+    grid.update(slot.element, { w: 1, h: 1 });
+    slot.card.classList.remove('is-priority');
+    slot.btnExpand.classList.remove('expanded');
+    slot.btnExpand.title = '放大重点关注空间 (2×2)';
+  } else {
+    const targetW = Math.min(2, currentCols);
+    const targetH = Math.min(2, currentRows);
+    grid.update(slot.element, { w: targetW, h: targetH });
+    slot.card.classList.add('is-priority');
+    slot.btnExpand.classList.add('expanded');
+    slot.btnExpand.title = '还原正常卡片大小 (1×1)';
+  }
+
+  saveGridLayout();
+}
+
+function applyGridLayout(rows, cols, resetPositions = false) {
+  currentRows = rows;
+  currentCols = cols;
+
+  grid.column(cols);
+  grid.cellHeight(calculateCellHeight(rows));
+
+  const totalSlots = rows * cols;
+
+  // Detach or add widgets based on target total slots
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const slot = slots[i];
+    const isAttached = !!slot.element.parentElement;
+
+    if (i < totalSlots) {
+      if (!isAttached) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        grid.makeWidget(slot.element);
+        grid.update(slot.element, { x: col, y: row, w: 1, h: 1 });
+      } else if (resetPositions) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        grid.update(slot.element, { x: col, y: row, w: 1, h: 1 });
+        slot.card.classList.remove('is-priority');
+        slot.btnExpand.classList.remove('expanded');
+      }
+    } else {
+      if (isAttached) {
+        grid.removeWidget(slot.element, false, false);
+      }
+    }
+  }
+
+  saveGridLayout();
+}
+
+function parsePreset(presetStr) {
+  const [r, c] = presetStr.split('x').map(Number);
+  return { rows: r || 2, cols: c || 2 };
+}
+
+// ----------------------------------------------------
+// UI Render Helpers
+// ----------------------------------------------------
 function showSlotLoading(slot, text) {
   slot.placeholder.style.display = 'none';
   slot.loading.style.display = 'flex';
@@ -154,7 +366,7 @@ function renderSlotTweets(slot, tweets, handle) {
   const name = firstTweet.displayName || handle;
   slot.authorName.innerText = name;
   slot.authorHandle.innerText = firstTweet.userHandle || `@${handle}`;
-  slot.counter.innerText = `${tweets.length} 条推文`;
+  slot.counter.innerText = `${tweets.length} 条`;
   slot.btnCopyAll.innerText = `复制全部 (${tweets.length})`;
 
   slot.tweetsList.innerHTML = '';
@@ -215,30 +427,17 @@ function renderSlotTweets(slot, tweets, handle) {
     slot.tweetsList.appendChild(card);
   });
 
-  // Save to cache
   saveSlotCache(slot.index, { handle, tweets });
 }
 
 // ----------------------------------------------------
-// Human-like Random Delay & Jitter Utilities
-// ----------------------------------------------------
-function randomBetween(min, max) {
-  return Math.floor(min + Math.random() * (max - min));
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// ----------------------------------------------------
-// Parallel Scraping Execution
+// Parallel Scraping with Jitter & Anti-Bot Protection
 // ----------------------------------------------------
 const EXTRACTION_SCRIPT = `
   (() => {
     try {
       const bodyText = document.body ? document.body.innerText : '';
       
-      // Check for rate limit or Arkose captcha challenges
       if (bodyText.includes("Rate limit exceeded") || bodyText.includes("超出频率限制")) {
         return { error: '已触碰 Twitter 频率限制 (Rate limit exceeded)，请稍候 10~15 分钟再试' };
       }
@@ -332,13 +531,12 @@ async function fetchSlot(slotIndex) {
     const TARGET_COUNT = 5;
     const collectedTweets = [];
     const seenKeys = new Set();
-    const maxAttempts = 35; // ~18s
+    const maxAttempts = 35;
     let attempts = 0;
     let consecutiveEmptyScrolls = 0;
 
     while (attempts < maxAttempts) {
       attempts++;
-      // Jitter delay: random wait between 450ms and 800ms
       await sleep(randomBetween(450, 800));
 
       try {
@@ -373,11 +571,8 @@ async function fetchSlot(slotIndex) {
             break;
           }
 
-          // Human-like randomized smooth scroll (between 650px and 1050px)
           const scrollDistance = randomBetween(650, 1050);
           await slot.bgWebview.executeJavaScript(`window.scrollBy({ top: ${scrollDistance}, behavior: 'smooth' });`);
-
-          // Human-like reading/scan pause after scroll (between 300ms and 600ms)
           await sleep(randomBetween(300, 600));
 
           if (collectedTweets.length > 0 && consecutiveEmptyScrolls >= 6) {
@@ -385,7 +580,7 @@ async function fetchSlot(slotIndex) {
           }
         }
       } catch (e) {
-        // Ignore navigation re-evaluation errors
+        // Ignore temporary navigation re-evaluation errors
       }
     }
 
@@ -404,22 +599,22 @@ async function fetchSlot(slotIndex) {
 }
 
 // ----------------------------------------------------
-// Parallel "Fetch All" Handler with Staggered Jitter Start
+// Parallel "Fetch All" Handler with Staggered Jitter
 // ----------------------------------------------------
 async function fetchAllSlotsParallel() {
   btnFetchAll.disabled = true;
-  btnFetchAllText.innerText = '4 栏并行抓取中...';
+  btnFetchAllText.innerText = '并行抓取中...';
 
-  // Stagger start requests slightly (200ms~450ms) to avoid instantaneous burst
+  const totalSlots = currentRows * currentCols;
   const promises = [];
-  for (let i = 0; i < SLOTS_COUNT; i++) {
-    const handle = slots[i].handleInput.value.trim();
+
+  for (let i = 0; i < totalSlots; i++) {
+    const slot = slots[i];
+    const handle = slot.handleInput.value.trim();
     if (handle) {
       const staggerDelay = i * randomBetween(200, 450);
       promises.push((async () => {
-        if (staggerDelay > 0) {
-          await sleep(staggerDelay);
-        }
+        if (staggerDelay > 0) await sleep(staggerDelay);
         return fetchSlot(i);
       })());
     }
@@ -434,72 +629,93 @@ async function fetchAllSlotsParallel() {
 btnFetchAll.addEventListener('click', fetchAllSlotsParallel);
 
 // ----------------------------------------------------
-// Event Listeners Initialization
+// Login Status & Popup Window Handling
 // ----------------------------------------------------
-slots.forEach((slot, i) => {
-  // Input enter key triggers fetch
-  slot.handleInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      fetchSlot(i);
-    }
-  });
+function updateLoginUI(isLoggedIn) {
+  btnLoginStatus.classList.remove('checking', 'logged-in', 'logged-out');
+  if (isLoggedIn) {
+    btnLoginStatus.classList.add('logged-in');
+    loginStatusText.innerText = '已登录 X';
+    btnLoginStatus.title = '点击重新登录或切换账号';
+  } else {
+    btnLoginStatus.classList.add('logged-out');
+    loginStatusText.innerText = '🔑 登录 X 账号';
+    btnLoginStatus.title = '点击弹出窗口登录 Twitter / X 账号';
+  }
+}
 
-  // Save handles whenever user edits
-  slot.handleInput.addEventListener('input', () => {
-    saveHandles();
-  });
+async function checkLoginStatus() {
+  try {
+    const isLoggedIn = await ipcRenderer.invoke('check-login-status');
+    updateLoginUI(isLoggedIn);
+  } catch (e) {
+    updateLoginUI(false);
+  }
+}
 
-  // Slot fetch button
-  slot.btnFetch.addEventListener('click', () => {
-    fetchSlot(i);
-  });
+btnLoginStatus.addEventListener('click', () => {
+  ipcRenderer.send('open-login-window');
+});
 
-  // Copy all tweets for this slot
-  slot.btnCopyAll.addEventListener('click', async () => {
-    if (!slot.loadedTweets || slot.loadedTweets.length === 0) return;
-
-    const handle = slot.handleInput.value.trim();
-    const formatted = slot.loadedTweets.map((t, idx) => {
-      const meta = [
-        `#${idx + 1}`,
-        t.time ? `(${t.time})` : '',
-        t.isPinned ? '[置顶]' : '',
-        t.isRetweet ? '[转推]' : ''
-      ].filter(Boolean).join(' ');
-      return `${meta}\n${t.text}`;
-    }).join('\n\n--------------------\n\n');
-
-    const text = `@${handle} 的最新 ${slot.loadedTweets.length} 条推文：\n\n${formatted}`;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      const orig = slot.btnCopyAll.innerText;
-      slot.btnCopyAll.innerText = '已复制全部 ✓';
-      slot.btnCopyAll.style.color = '#00ba7c';
-      slot.btnCopyAll.style.borderColor = '#00ba7c';
-      setTimeout(() => {
-        slot.btnCopyAll.innerText = orig;
-        slot.btnCopyAll.style.color = '#71767b';
-        slot.btnCopyAll.style.borderColor = '#333639';
-      }, 1800);
-    } catch (e) {
-      console.error(e);
-    }
-  });
+ipcRenderer.on('login-status-changed', (event, { loggedIn }) => {
+  updateLoginUI(loggedIn);
 });
 
 // ----------------------------------------------------
-// Page Startup & State Restoration
+// Lifecycle Initialization & Window Resize
 // ----------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
+  initBackgroundWebviews();
+  initSlotsRegistry();
   checkLoginStatus();
 
-  // Restore saved handles from localStorage
-  const savedHandles = getSavedHandles();
-  slots.forEach((slot, i) => {
-    slot.handleInput.value = savedHandles[i] || '';
+  // Initialize GridStack
+  const savedPreset = localStorage.getItem(STORAGE_PRESET_KEY) || '2x2';
+  layoutSelect.value = savedPreset;
+  const { rows, cols } = parsePreset(savedPreset);
+
+  grid = GridStack.init({
+    column: cols,
+    cellHeight: calculateCellHeight(rows),
+    margin: 10,
+    animate: true,
+    float: false,
+    handle: '.slot-drag-handle',
+    resizable: {
+      handles: 'e,se,s,sw,w'
+    }
   });
 
-  // Restore previously cached tweets if available
+  // Apply layout
+  applyGridLayout(rows, cols, false);
+
+  // Restore cached tweets
   loadSlotCache();
+
+  // Save on layout changes (drag, resize)
+  grid.on('change', () => {
+    saveGridLayout();
+  });
+
+  // Layout preset dropdown change
+  layoutSelect.addEventListener('change', () => {
+    const val = layoutSelect.value;
+    localStorage.setItem(STORAGE_PRESET_KEY, val);
+    const { rows, cols } = parsePreset(val);
+    applyGridLayout(rows, cols, true);
+  });
+
+  // Reset layout button
+  btnResetLayout.addEventListener('click', () => {
+    const val = layoutSelect.value;
+    const { rows, cols } = parsePreset(val);
+    applyGridLayout(rows, cols, true);
+  });
+
+  // Responsive dynamic cellHeight on window resize
+  window.addEventListener('resize', () => {
+    if (grid) {
+      grid.cellHeight(calculateCellHeight(currentRows));
+    }
+  });
 });

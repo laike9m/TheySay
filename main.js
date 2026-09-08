@@ -6,11 +6,11 @@ let loginWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 880,
+    width: 1360,
+    height: 900,
     minWidth: 850,
     minHeight: 650,
-    title: 'TheySay - Twitter / X 4 栏推文看板',
+    title: 'TheySay - Twitter / X 动态网格看板 (GridStack)',
     webPreferences: {
       webviewTag: true,
       nodeIntegration: true,

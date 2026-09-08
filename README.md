@@ -2,11 +2,12 @@
 
 [English](README.md) | [中文说明](docs/README_zh.md)
 
-A 4-panel parallel Twitter / X monitoring dashboard built with Electron:
-- **4-Panel Multi-Account Grid**: The screen is split into 4 independent slots (2x2 grid). Each slot can track a distinct Twitter handle and display its latest tweets with dedicated scrollbars.
-- **Input Persistence**: Twitter handles entered in all 4 slots are automatically saved to `localStorage`. Refreshing the app (<kbd>Cmd + R</kbd>) preserves all input handles and cached tweets.
-- **Parallel Background Scraping**: Each slot runs its own offscreen webview instance in the background. Slots can be scraped individually or all 4 at the same time concurrently via **"Fetch All in Parallel"**.
-- **Popup Login**: A dedicated login status button in the top navigation opens an isolated pop-up window for Twitter/X login. Once logged in, the session is shared across all 4 background scrapers and persists across restarts.
+A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with Electron and [GridStack.js](https://gridstackjs.com/):
+- **Flexible 2×2 to 4×4 Grid Layouts**: Switch seamlessly between `2×2`, `2×3`, `3×2`, `3×3`, and `4×4`.
+- **Drag-and-Drop Organization**: Freely reorder, drag, and drop account monitoring cards to customize your dashboard layout.
+- **Enlarge Priority Accounts**: Click the expand button (`⤢`) or drag the resize handle on any card to enlarge key accounts (e.g. 2×2 focus view) while keeping other cards compact.
+- **Input & Layout Persistence**: Handles and customized grid arrangements are saved in real time to `localStorage`. Refreshing (<kbd>Cmd + R</kbd>) preserves your entire workspace.
+- **True Parallel Background Scraping**: Powered by up to 16 offscreen webviews sharing the `persist:x_session` partition with human-like anti-bot jitter.
 
 ## Getting Started
 
@@ -28,17 +29,17 @@ A 4-panel parallel Twitter / X monitoring dashboard built with Electron:
 
 ## Features
 
-1. **4-Panel Grid Dashboard**:
-   - 2x2 grid layout designed for monitoring multiple Twitter/X accounts side-by-side.
-   - Each slot has its own handle input, fetch button, author banner, and a scrollable tweet viewport.
-   - Global **"Fetch All in Parallel"** button triggers concurrent fetching across all 4 slots.
+1. **GridStack Drag-and-Drop & Resizing**:
+   - Powered by GridStack.js: rearrange cards by dragging the header handle (`⠿`).
+   - Priority Account Focus: Click the `⤢` button on any card to instantly expand it to a 2×2 spotlight card, or manually drag the bottom-right resize handle.
+   - Layout Selector: Switch between `2×2`, `2×3`, `3×2`, `3×3`, and `4×4` grid presets at any time.
+   - Click "Reset Layout" to neatly realign all cards.
 2. **Handle & Cache Persistence**:
-   - Automatically saves input handles to `localStorage` in real time. Refreshing the app retains your configuration.
-   - Restores previously fetched tweets upon startup/reload.
+   - Real-time `localStorage` persistence for Twitter handles, cached tweets, and custom grid coordinates.
+   - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, and tweets.
 3. **True Parallel Background Scraping**:
-   - Uses 4 dedicated offscreen webviews sharing the `persist:x_session` partition.
-   - All 4 slots can load, scroll, and extract tweets simultaneously without blocking each other.
-   - Each tweet card displays index `#1-#5`, pinned & retweet badges, timestamp, text, copy button, and "Open in Browser ↗".
+   - Up to 16 isolated background webview instances executing concurrently without interfering with each other.
+   - Global **"Fetch All in Parallel"** button with staggered jitter delays.
 4. **Human-like Anti-Bot Jitter & Challenge Detection**:
    - **Staggered Start**: Concurrent batch requests stagger by `200ms ~ 450ms` intervals to avoid machine-like traffic bursts.
    - **Randomized Smooth Scrolling**: Dynamic scroll distance (`650px ~ 1050px`) with smooth behavior.

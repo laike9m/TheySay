@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TheySay - Twitter / X 4 栏推文看板</title>
+  <title>TheySay - Twitter / X 动态网格看板</title>
+  <link rel="stylesheet" href="node_modules/gridstack/dist/gridstack.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -16,12 +17,30 @@
         </svg>
         <div class="brand-text">
           <h1 class="brand-title">TheySay</h1>
-          <span class="brand-badge">4 栏实时看板</span>
+          <span class="brand-badge">GridStack 看板</span>
         </div>
       </div>
 
-      <div class="nav-actions">
-        <button id="btn-fetch-all" class="btn-fetch-all" title="同时在后台并发抓取所有 4 栏的内容">
+      <div class="nav-controls">
+        <!-- 布局切换选择器 -->
+        <div class="layout-control-group">
+          <label for="layout-select" class="control-label">网格布局:</label>
+          <select id="layout-select" class="layout-select">
+            <option value="2x2" selected>2 × 2</option>
+            <option value="2x3">2 × 3</option>
+            <option value="3x2">3 × 2</option>
+            <option value="3x3">3 × 3</option>
+            <option value="4x4">4 × 4</option>
+          </select>
+        </div>
+
+        <button id="btn-reset-layout" class="btn-tool" title="重置卡片大小与排序为当前网格整齐排布">
+          <span>重置排版</span>
+        </button>
+
+        <div class="nav-divider"></div>
+
+        <button id="btn-fetch-all" class="btn-fetch-all" title="并发抓取所有已配置的账号推文">
           <span class="lightning-icon">⚡</span>
           <span id="btn-fetch-all-text">全部并行抓取</span>
         </button>
@@ -33,162 +52,17 @@
       </div>
     </header>
 
-    <!-- 4 栏仪表板网格布局 -->
-    <main class="dashboard-grid">
-      <!-- 栏目 #1 -->
-      <section class="slot-card" id="slot-card-0">
-        <div class="slot-header">
-          <span class="slot-index-badge">#1</span>
-          <div class="slot-input-wrapper">
-            <span class="slot-input-prefix">@</span>
-            <input type="text" class="slot-handle-input" id="handle-input-0" placeholder="Twitter 用户名" autocomplete="off" spellcheck="false">
-          </div>
-          <button class="slot-btn-fetch" id="btn-fetch-0">抓取</button>
-        </div>
-
-        <div class="slot-status-bar" id="slot-status-bar-0" style="display: none;">
-          <div class="slot-author-info">
-            <span class="slot-author-name" id="author-name-0"></span>
-            <span class="slot-author-handle" id="author-handle-0"></span>
-          </div>
-          <div class="slot-status-actions">
-            <span class="slot-counter" id="slot-counter-0">0 条</span>
-            <button class="slot-btn-copy-all" id="btn-copy-all-0">复制全部</button>
-          </div>
-        </div>
-
-        <div class="slot-content-container" id="slot-content-0">
-          <div class="slot-placeholder" id="slot-placeholder-0">
-            <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 并按回车或点击抓取</p>
-          </div>
-          <div class="slot-loading" id="slot-loading-0" style="display: none;">
-            <div class="spinner-small"></div>
-            <span class="slot-loading-text" id="slot-loading-text-0">后台抓取中...</span>
-          </div>
-          <div class="slot-error" id="slot-error-0" style="display: none;"></div>
-          <div class="slot-tweets-list" id="slot-tweets-list-0" style="display: none;"></div>
-        </div>
-      </section>
-
-      <!-- 栏目 #2 -->
-      <section class="slot-card" id="slot-card-1">
-        <div class="slot-header">
-          <span class="slot-index-badge">#2</span>
-          <div class="slot-input-wrapper">
-            <span class="slot-input-prefix">@</span>
-            <input type="text" class="slot-handle-input" id="handle-input-1" placeholder="Twitter 用户名" autocomplete="off" spellcheck="false">
-          </div>
-          <button class="slot-btn-fetch" id="btn-fetch-1">抓取</button>
-        </div>
-
-        <div class="slot-status-bar" id="slot-status-bar-1" style="display: none;">
-          <div class="slot-author-info">
-            <span class="slot-author-name" id="author-name-1"></span>
-            <span class="slot-author-handle" id="author-handle-1"></span>
-          </div>
-          <div class="slot-status-actions">
-            <span class="slot-counter" id="slot-counter-1">0 条</span>
-            <button class="slot-btn-copy-all" id="btn-copy-all-1">复制全部</button>
-          </div>
-        </div>
-
-        <div class="slot-content-container" id="slot-content-1">
-          <div class="slot-placeholder" id="slot-placeholder-1">
-            <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 并按回车或点击抓取</p>
-          </div>
-          <div class="slot-loading" id="slot-loading-1" style="display: none;">
-            <div class="spinner-small"></div>
-            <span class="slot-loading-text" id="slot-loading-text-1">后台抓取中...</span>
-          </div>
-          <div class="slot-error" id="slot-error-1" style="display: none;"></div>
-          <div class="slot-tweets-list" id="slot-tweets-list-1" style="display: none;"></div>
-        </div>
-      </section>
-
-      <!-- 栏目 #3 -->
-      <section class="slot-card" id="slot-card-2">
-        <div class="slot-header">
-          <span class="slot-index-badge">#3</span>
-          <div class="slot-input-wrapper">
-            <span class="slot-input-prefix">@</span>
-            <input type="text" class="slot-handle-input" id="handle-input-2" placeholder="Twitter 用户名" autocomplete="off" spellcheck="false">
-          </div>
-          <button class="slot-btn-fetch" id="btn-fetch-2">抓取</button>
-        </div>
-
-        <div class="slot-status-bar" id="slot-status-bar-2" style="display: none;">
-          <div class="slot-author-info">
-            <span class="slot-author-name" id="author-name-2"></span>
-            <span class="slot-author-handle" id="author-handle-2"></span>
-          </div>
-          <div class="slot-status-actions">
-            <span class="slot-counter" id="slot-counter-2">0 条</span>
-            <button class="slot-btn-copy-all" id="btn-copy-all-2">复制全部</button>
-          </div>
-        </div>
-
-        <div class="slot-content-container" id="slot-content-2">
-          <div class="slot-placeholder" id="slot-placeholder-2">
-            <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 并按回车或点击抓取</p>
-          </div>
-          <div class="slot-loading" id="slot-loading-2" style="display: none;">
-            <div class="spinner-small"></div>
-            <span class="slot-loading-text" id="slot-loading-text-2">后台抓取中...</span>
-          </div>
-          <div class="slot-error" id="slot-error-2" style="display: none;"></div>
-          <div class="slot-tweets-list" id="slot-tweets-list-2" style="display: none;"></div>
-        </div>
-      </section>
-
-      <!-- 栏目 #4 -->
-      <section class="slot-card" id="slot-card-3">
-        <div class="slot-header">
-          <span class="slot-index-badge">#4</span>
-          <div class="slot-input-wrapper">
-            <span class="slot-input-prefix">@</span>
-            <input type="text" class="slot-handle-input" id="handle-input-3" placeholder="Twitter 用户名" autocomplete="off" spellcheck="false">
-          </div>
-          <button class="slot-btn-fetch" id="btn-fetch-3">抓取</button>
-        </div>
-
-        <div class="slot-status-bar" id="slot-status-bar-3" style="display: none;">
-          <div class="slot-author-info">
-            <span class="slot-author-name" id="author-name-3"></span>
-            <span class="slot-author-handle" id="author-handle-3"></span>
-          </div>
-          <div class="slot-status-actions">
-            <span class="slot-counter" id="slot-counter-3">0 条</span>
-            <button class="slot-btn-copy-all" id="btn-copy-all-3">复制全部</button>
-          </div>
-        </div>
-
-        <div class="slot-content-container" id="slot-content-3">
-          <div class="slot-placeholder" id="slot-placeholder-3">
-            <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 并按回车或点击抓取</p>
-          </div>
-          <div class="slot-loading" id="slot-loading-3" style="display: none;">
-            <div class="spinner-small"></div>
-            <span class="slot-loading-text" id="slot-loading-text-3">后台抓取中...</span>
-          </div>
-          <div class="slot-error" id="slot-error-3" style="display: none;"></div>
-          <div class="slot-tweets-list" id="slot-tweets-list-3" style="display: none;"></div>
-        </div>
-      </section>
+    <!-- GridStack 动态可拖拽调整网格区域 -->
+    <main class="dashboard-container">
+      <div class="grid-stack" id="grid-stack-container"></div>
     </main>
 
-    <!-- 4 个并发后台静默抓取 Webview（完全脱离可视区域） -->
-    <div class="background-webviews-container">
-      <webview id="x-bg-webview-0" src="about:blank" partition="persist:x_session" allowpopups useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" webpreferences="backgroundThrottling=no"></webview>
-      <webview id="x-bg-webview-1" src="about:blank" partition="persist:x_session" allowpopups useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" webpreferences="backgroundThrottling=no"></webview>
-      <webview id="x-bg-webview-2" src="about:blank" partition="persist:x_session" allowpopups useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" webpreferences="backgroundThrottling=no"></webview>
-      <webview id="x-bg-webview-3" src="about:blank" partition="persist:x_session" allowpopups useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" webpreferences="backgroundThrottling=no"></webview>
-    </div>
+    <!-- 后台并发离屏 Webview 容器 -->
+    <div class="background-webviews-container" id="bg-webviews-container"></div>
   </div>
 
+  <!-- 引入 GridStack 运行时与渲染脚本 -->
+  <script src="node_modules/gridstack/dist/gridstack-all.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

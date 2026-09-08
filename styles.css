@@ -150,8 +150,9 @@ body {
 .logo-icon {
   width: 22px;
   height: 22px;
-  fill: var(--text-main);
-  transition: fill 0.2s ease;
+  color: var(--text-main);
+  transition: color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .brand-text {
@@ -165,15 +166,6 @@ body {
   font-weight: 800;
   letter-spacing: -0.5px;
   color: var(--text-main);
-}
-
-.brand-badge {
-  font-size: 11px;
-  background-color: var(--bg-control);
-  color: var(--text-secondary);
-  padding: 2px 8px;
-  border-radius: 9999px;
-  border: 1px solid var(--border-subtle);
 }
 
 .nav-controls {

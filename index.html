@@ -40,6 +40,14 @@
 
         <div class="nav-divider"></div>
 
+        <!-- 深色 / 浅色模式切换按钮 -->
+        <button id="btn-theme-toggle" class="btn-tool btn-theme-toggle" title="切换深色 / 浅色模式">
+          <span id="theme-toggle-icon">☀️</span>
+          <span id="theme-toggle-text">浅色</span>
+        </button>
+
+        <div class="nav-divider"></div>
+
         <button id="btn-fetch-all" class="btn-fetch-all" title="并发抓取所有已配置的账号推文">
           <span class="lightning-icon">⚡</span>
           <span id="btn-fetch-all-text">全部并行抓取</span>
@@ -51,6 +59,9 @@
         </button>
       </div>
     </header>
+
+    <!-- 全局提示 Toast 容器 -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- GridStack 动态可拖拽调整网格区域 -->
     <main class="dashboard-container">

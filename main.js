@@ -1,6 +1,10 @@
 const { app, BrowserWindow, ipcMain, session, Menu } = require('electron');
 const path = require('path');
 
+// Suppress noisy Chromium internal warnings and OS kernel mismatch logs on macOS
+app.commandLine.appendSwitch('log-level', '3');
+app.commandLine.appendSwitch('disable-logging');
+
 let mainWindow = null;
 let loginWindow = null;
 

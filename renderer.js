@@ -220,6 +220,17 @@ function renderSlotTweets(slot, tweets, handle) {
 }
 
 // ----------------------------------------------------
+// Human-like Random Delay & Jitter Utilities
+// ----------------------------------------------------
+function randomBetween(min, max) {
+  return Math.floor(min + Math.random() * (max - min));
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ----------------------------------------------------
 // Parallel Scraping Execution
 // ----------------------------------------------------
 const EXTRACTION_SCRIPT = `
@@ -227,6 +238,14 @@ const EXTRACTION_SCRIPT = `
     try {
       const bodyText = document.body ? document.body.innerText : '';
       
+      // Check for rate limit or Arkose captcha challenges
+      if (bodyText.includes("Rate limit exceeded") || bodyText.includes("超出频率限制")) {
+        return { error: '已触碰 Twitter 频率限制 (Rate limit exceeded)，请稍候 10~15 分钟再试' };
+      }
+      if (document.querySelector('iframe[src*="arkose"]') || document.querySelector('iframe[src*="challenge"]') || bodyText.includes("Confirm you’re human") || bodyText.includes("请确认您是真人")) {
+        return { error: 'Twitter 要求进行人机验证，请点击右上角【登录 X】在弹出窗口中手动完成验证' };
+      }
+
       if (bodyText.includes("This account doesn’t exist") || bodyText.includes("此账号不存在")) {
         return { error: '该账号不存在 (Account does not exist)' };
       }
@@ -319,7 +338,8 @@ async function fetchSlot(slotIndex) {
 
     while (attempts < maxAttempts) {
       attempts++;
-      await new Promise(r => setTimeout(r, 500));
+      // Jitter delay: random wait between 450ms and 800ms
+      await sleep(randomBetween(450, 800));
 
       try {
         const result = await slot.bgWebview.executeJavaScript(EXTRACTION_SCRIPT);
@@ -353,7 +373,12 @@ async function fetchSlot(slotIndex) {
             break;
           }
 
-          await slot.bgWebview.executeJavaScript('window.scrollBy(0, 900);');
+          // Human-like randomized smooth scroll (between 650px and 1050px)
+          const scrollDistance = randomBetween(650, 1050);
+          await slot.bgWebview.executeJavaScript(`window.scrollBy({ top: ${scrollDistance}, behavior: 'smooth' });`);
+
+          // Human-like reading/scan pause after scroll (between 300ms and 600ms)
+          await sleep(randomBetween(300, 600));
 
           if (collectedTweets.length > 0 && consecutiveEmptyScrolls >= 6) {
             break;
@@ -379,18 +404,24 @@ async function fetchSlot(slotIndex) {
 }
 
 // ----------------------------------------------------
-// Parallel "Fetch All" Handler
+// Parallel "Fetch All" Handler with Staggered Jitter Start
 // ----------------------------------------------------
 async function fetchAllSlotsParallel() {
   btnFetchAll.disabled = true;
   btnFetchAllText.innerText = '4 栏并行抓取中...';
 
-  // Trigger all 4 slots concurrently
+  // Stagger start requests slightly (200ms~450ms) to avoid instantaneous burst
   const promises = [];
   for (let i = 0; i < SLOTS_COUNT; i++) {
     const handle = slots[i].handleInput.value.trim();
     if (handle) {
-      promises.push(fetchSlot(i));
+      const staggerDelay = i * randomBetween(200, 450);
+      promises.push((async () => {
+        if (staggerDelay > 0) {
+          await sleep(staggerDelay);
+        }
+        return fetchSlot(i);
+      })());
     }
   }
 

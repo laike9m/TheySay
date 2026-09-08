@@ -314,13 +314,21 @@ function createSlotWidget(index) {
             </div>
           </div>
 
-          <!-- Counter badge and quick copy in header -->
-          <span class="slot-counter" id="slot-counter-${index}" style="display: none;">0 条</span>
-          <button class="slot-btn-copy-all" id="btn-copy-all-${index}" title="复制本栏全部推文" style="display: none;">复制</button>
-
-          <button class="slot-btn-fetch" id="btn-fetch-${index}">抓取</button>
+          <button class="slot-btn-fetch" id="btn-fetch-${index}" title="刷新推文">
+            <svg class="refresh-icon" viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
           <button class="slot-btn-expand" id="btn-expand-${index}" title="调整格子尺寸 (1×1, 2×1, 3×1, 2×2)">
-            <span class="expand-icon" id="expand-icon-${index}">⤢</span>
+            <span class="expand-icon" id="expand-icon-${index}">
+              <svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="3" y2="21"></line>
+              </svg>
+            </span>
           </button>
           <!-- Size Options Dropdown Popover Menu -->
           <div class="slot-size-menu" id="size-menu-${index}" style="display: none;"></div>
@@ -330,7 +338,7 @@ function createSlotWidget(index) {
         <div class="slot-content-container" id="slot-content-${index}">
           <div class="slot-placeholder" id="slot-placeholder-${index}">
             <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 并按回车或点击抓取</p>
+            <p>输入 handle 并按回车或点击刷新</p>
           </div>
           <div class="slot-loading" id="slot-loading-${index}" style="display: none;">
             <div class="spinner-small"></div>
@@ -380,8 +388,6 @@ function initSlotsRegistry() {
       btnExpand: el.querySelector(`#btn-expand-${i}`),
       expandIcon: el.querySelector(`#expand-icon-${i}`),
       sizeMenu: el.querySelector(`#size-menu-${i}`),
-      counter: el.querySelector(`#slot-counter-${i}`),
-      btnCopyAll: el.querySelector(`#btn-copy-all-${i}`),
       contentContainer: el.querySelector(`#slot-content-${i}`),
       placeholder: el.querySelector(`#slot-placeholder-${i}`),
       loading: el.querySelector(`#slot-loading-${i}`),
@@ -467,37 +473,6 @@ function bindSlotEvents(slot) {
     e.stopPropagation();
     toggleSlotSizeMenu(slot);
   });
-
-  // Copy all tweets
-  slot.btnCopyAll.addEventListener('click', async () => {
-    if (!slot.loadedTweets || slot.loadedTweets.length === 0) return;
-
-    const handle = slot.handleInput.value.trim();
-    const formatted = slot.loadedTweets.map((t, idx) => {
-      const meta = [
-        `#${idx + 1}`,
-        t.time ? `(${t.time})` : '',
-        t.isPinned ? '[置顶]' : '',
-        t.isRetweet ? '[转推]' : ''
-      ].filter(Boolean).join(' ');
-      return `${meta}\n${t.text}`;
-    }).join('\n\n--------------------\n\n');
-
-    const text = `@${handle} 的最新 ${slot.loadedTweets.length} 条推文：\n\n${formatted}`;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      const orig = slot.btnCopyAll.innerText;
-      slot.btnCopyAll.innerText = '已复制 ✓';
-      slot.btnCopyAll.style.color = '#00ba7c';
-      setTimeout(() => {
-        slot.btnCopyAll.innerText = orig;
-        slot.btnCopyAll.style.color = 'var(--text-secondary)';
-      }, 1800);
-    } catch (e) {
-      console.error(e);
-    }
-  });
 }
 
 // ----------------------------------------------------
@@ -526,8 +501,6 @@ function clearSlot(slot) {
   slot.authorHandle.innerText = '';
   if (slot.authorHeader) slot.authorHeader.style.display = 'none';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
-  if (slot.counter) slot.counter.style.display = 'none';
-  if (slot.btnCopyAll) slot.btnCopyAll.style.display = 'none';
   showToast('已清空此栏内容与推文缓存', 'success', 2000);
 }
 
@@ -546,20 +519,18 @@ function updateSlotSizeUI(slot, w, h) {
   if (isExpanded) {
     slot.card.classList.add('is-priority');
     slot.btnExpand.classList.add('expanded');
-    if (r === 2 && c === 2) {
-      slot.expandIcon.innerText = '⤡';
-    } else if (r > 1 && c === 1) {
-      slot.expandIcon.innerText = '↕';
+    if (r > 1 && c === 1) {
+      slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 12 2 17 7"></polyline><polyline points="7 17 12 22 17 17"></polyline><line x1="12" y1="2" x2="12" y2="22"></line></svg>`;
     } else if (c > 1 && r === 1) {
-      slot.expandIcon.innerText = '↔';
+      slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 2 12 7 17"></polyline><polyline points="17 7 22 12 17 17"></polyline><line x1="2" y1="12" x2="22" y2="12"></line></svg>`;
     } else {
-      slot.expandIcon.innerText = '⤡';
+      slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`;
     }
     slot.btnExpand.title = `当前尺寸: ${r}×${c} (点击切换或还原)`;
   } else {
     slot.card.classList.remove('is-priority');
     slot.btnExpand.classList.remove('expanded');
-    slot.expandIcon.innerText = '⤢';
+    slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="3" y2="21"></line></svg>`;
     slot.btnExpand.title = '调整卡片尺寸 (1×1, 2×1, 3×1, 2×2)';
   }
 }
@@ -982,16 +953,6 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null) {
   if (slot.authorHeader) slot.authorHeader.style.display = 'flex';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'none';
 
-  // Header status counters & copy-all button
-  if (slot.counter) {
-    slot.counter.style.display = 'inline-block';
-    slot.counter.innerText = `${tweets.length} 条`;
-  }
-  if (slot.btnCopyAll) {
-    slot.btnCopyAll.style.display = 'inline-block';
-    slot.btnCopyAll.innerText = '复制';
-  }
-
   // Update header avatar
   if (avatarUrl) {
     updateSlotAvatar(slot, avatarUrl);
@@ -1201,7 +1162,7 @@ async function fetchSlot(slotIndex) {
 
   slot.isFetching = true;
   slot.btnFetch.disabled = true;
-  slot.btnFetch.innerText = '抓取中';
+  slot.btnFetch.classList.add('fetching');
   showSlotLoading(slot, `正在后台抓取 @${handle}...`);
 
   const targetUrl = `https://x.com/${handle}`;
@@ -1341,7 +1302,7 @@ async function fetchSlot(slotIndex) {
   } finally {
     slot.isFetching = false;
     slot.btnFetch.disabled = false;
-    slot.btnFetch.innerText = '抓取';
+    slot.btnFetch.classList.remove('fetching');
   }
 }
 

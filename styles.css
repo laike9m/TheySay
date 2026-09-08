@@ -541,33 +541,8 @@ body {
 }
 
 .slot-btn-fetch {
-  background-color: var(--accent-blue);
-  color: #fff;
+  background: none;
   border: none;
-  border-radius: 9999px;
-  padding: 0 9px;
-  height: 24px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background-color 0.15s;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.slot-btn-fetch:hover:not(:disabled) {
-  background-color: var(--accent-blue-hover);
-}
-
-.slot-btn-fetch:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Expand / Size Menu Trigger Button */
-.slot-btn-expand {
-  background: var(--bg-control);
-  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   color: var(--text-secondary);
   width: 24px;
@@ -575,22 +550,69 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, opacity 0.15s;
   flex-shrink: 0;
   padding: 0;
 }
 
+.slot-btn-fetch:hover:not(:disabled) {
+  color: var(--text-main);
+  background-color: var(--bg-control-hover);
+}
+
+.slot-btn-fetch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slot-btn-fetch .refresh-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.slot-btn-fetch.fetching {
+  color: var(--accent-blue);
+}
+
+.slot-btn-fetch.fetching .refresh-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+/* Expand / Size Menu Trigger Button */
+.slot-btn-expand {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.slot-btn-expand .expand-icon,
+.slot-btn-expand .expand-svg {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .slot-btn-expand:hover {
   color: var(--text-main);
-  border-color: var(--accent-blue);
   background-color: var(--bg-control-hover);
 }
 
 .slot-btn-expand.expanded {
   color: var(--accent-blue);
-  border-color: var(--accent-blue);
   background-color: rgba(29, 155, 240, 0.15);
 }
 
@@ -743,35 +765,6 @@ body {
 
 .slot-author-header:hover .slot-author-edit-hint {
   opacity: 0.8;
-}
-
-.slot-counter {
-  font-size: 10px;
-  color: var(--accent-blue);
-  background-color: rgba(29, 155, 240, 0.1);
-  padding: 1px 5px;
-  border-radius: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.slot-btn-copy-all {
-  background: none;
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  padding: 2px 6px;
-  font-size: 10px;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-
-.slot-btn-copy-all:hover {
-  color: var(--text-main);
-  border-color: var(--accent-blue);
-  background-color: var(--bg-control-hover);
 }
 
 /* Slot Content Viewport - Scrollbar hidden by default */

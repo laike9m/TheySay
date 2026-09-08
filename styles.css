@@ -1,0 +1,543 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #0f1419;
+  color: #f7f9f9;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2f3336;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4e5358;
+}
+
+/* App Container */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+}
+
+/* Top Navigation Bar */
+.top-nav {
+  height: 54px;
+  background-color: #16181c;
+  border-bottom: 1px solid #282b2f;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 24px;
+  height: 24px;
+  fill: #f7f9f9;
+}
+
+.brand-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.brand-badge {
+  font-size: 11px;
+  background-color: #202327;
+  color: #71767b;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid #333639;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-fetch-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #1d9bf0, #1a8cd8);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(29, 155, 240, 0.3);
+}
+
+.btn-fetch-all:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.btn-fetch-all:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.lightning-icon {
+  font-size: 14px;
+}
+
+/* Login Status Button */
+.login-status-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.status-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.login-status-btn.logged-in {
+  background-color: rgba(0, 186, 124, 0.12);
+  border-color: rgba(0, 186, 124, 0.35);
+  color: #00ba7c;
+}
+
+.login-status-btn.logged-in .status-indicator {
+  background-color: #00ba7c;
+  box-shadow: 0 0 6px #00ba7c;
+}
+
+.login-status-btn.logged-in:hover {
+  background-color: rgba(0, 186, 124, 0.2);
+}
+
+.login-status-btn.logged-out {
+  background-color: #202327;
+  border-color: #1d9bf0;
+  color: #1d9bf0;
+}
+
+.login-status-btn.logged-out .status-indicator {
+  display: none;
+}
+
+.login-status-btn.logged-out:hover {
+  background-color: #1d9bf0;
+  color: #fff;
+}
+
+.login-status-btn.checking {
+  background-color: #202327;
+  border-color: #333639;
+  color: #71767b;
+}
+
+.login-status-btn.checking .status-indicator {
+  background-color: #71767b;
+}
+
+/* Dashboard Grid: 2x2 */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 12px;
+  padding: 12px;
+  height: calc(100vh - 54px);
+  overflow: hidden;
+}
+
+/* Slot Card */
+.slot-card {
+  background-color: #16181c;
+  border: 1px solid #282b2f;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* Slot Header */
+.slot-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: #1a1d22;
+  border-bottom: 1px solid #282b2f;
+  flex-shrink: 0;
+}
+
+.slot-index-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #1d9bf0;
+  background-color: rgba(29, 155, 240, 0.12);
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(29, 155, 240, 0.25);
+  flex-shrink: 0;
+}
+
+.slot-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.slot-input-prefix {
+  position: absolute;
+  left: 10px;
+  color: #71767b;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.slot-handle-input {
+  width: 100%;
+  padding: 7px 10px 7px 24px;
+  background-color: #202327;
+  border: 1px solid #333639;
+  border-radius: 9999px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.slot-handle-input:focus {
+  border-color: #1d9bf0;
+  background-color: #0f1419;
+}
+
+.slot-btn-fetch {
+  background-color: #1d9bf0;
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.slot-btn-fetch:hover:not(:disabled) {
+  background-color: #1a8cd8;
+}
+
+.slot-btn-fetch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Slot Status / Author Bar */
+.slot-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background-color: #1c2025;
+  border-bottom: 1px solid #282b2f;
+  flex-shrink: 0;
+}
+
+.slot-author-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.slot-author-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f7f9f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot-author-handle {
+  font-size: 11px;
+  color: #71767b;
+  white-space: nowrap;
+}
+
+.slot-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.slot-counter {
+  font-size: 11px;
+  color: #1d9bf0;
+  background-color: rgba(29, 155, 240, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.slot-btn-copy-all {
+  background: none;
+  border: 1px solid #333639;
+  border-radius: 9999px;
+  color: #71767b;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.slot-btn-copy-all:hover {
+  color: #fff;
+  border-color: #1d9bf0;
+}
+
+/* Slot Content Viewport with independent scrollbar */
+.slot-content-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Placeholder */
+.slot-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #71767b;
+  font-size: 12px;
+  text-align: center;
+  padding: 24px;
+}
+
+.slot-placeholder-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+  opacity: 0.6;
+}
+
+/* Loading */
+.slot-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: #71767b;
+  font-size: 12px;
+  padding: 24px;
+}
+
+.spinner-small {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(29, 155, 240, 0.2);
+  border-top-color: #1d9bf0;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error */
+.slot-error {
+  background-color: rgba(244, 33, 46, 0.1);
+  border: 1px solid rgba(244, 33, 46, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f4212e;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 6px 0;
+}
+
+/* Tweets list */
+.slot-tweets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Tweet item card */
+.tweet-item-card {
+  background-color: #202327;
+  border: 1px solid #282b2f;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.tweet-item-card:hover {
+  border-color: #383b40;
+  background-color: #23272c;
+}
+
+.tweet-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tweet-card-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tweet-index-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background-color: #1d9bf0;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.tweet-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: #2a2e33;
+  color: #1d9bf0;
+  border: 1px solid #333639;
+}
+
+.tweet-tag.repost {
+  color: #00ba7c;
+  background-color: rgba(0, 186, 124, 0.1);
+  border-color: rgba(0, 186, 124, 0.3);
+}
+
+.tweet-card-time {
+  font-size: 11px;
+  color: #71767b;
+}
+
+.tweet-card-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e7e9ea;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tweet-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #282b2f;
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.tweet-link-btn {
+  color: #71767b;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.tweet-link-btn:hover {
+  color: #1d9bf0;
+  text-decoration: underline;
+}
+
+.btn-card-copy {
+  background: none;
+  border: 1px solid #333639;
+  border-radius: 9999px;
+  color: #71767b;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-card-copy:hover {
+  color: #fff;
+  border-color: #1d9bf0;
+}
+
+/* Offscreen background webviews for parallel scraping */
+.background-webviews-container {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 1280px;
+  height: 900px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -9999;
+}
+
+.background-webviews-container webview {
+  width: 100%;
+  height: 100%;
+  border: none;
+}

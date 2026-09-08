@@ -166,7 +166,9 @@ function loadSlotCache() {
             updateSlotAvatar(slot, avatarUrl);
           }
           if (Array.isArray(tweets) && tweets.length > 0) {
-            renderSlotTweets(slot, tweets, handle, avatarUrl);
+            slot.monitoredHandle = handle;
+            const sorted = processAndSortTweets(tweets);
+            renderSlotTweets(slot, sorted, handle, avatarUrl);
           }
         }
       });
@@ -183,10 +185,14 @@ function saveGridLayout() {
 }
 
 // ----------------------------------------------------
-// Background Webviews Pool (Lazy Loaded)
+// Background Webviews Pool (Pre-initialized & dom-ready tracking)
 // ----------------------------------------------------
 function initBackgroundWebviews() {
   bgWebviewsContainer.innerHTML = '';
+  // Pre-initialize background webviews for all MAX_SLOTS so they attach to DOM and emit dom-ready upfront
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    getOrCreateSlotWebview(i);
+  }
 }
 
 function getOrCreateSlotWebview(slotIndex) {
@@ -199,12 +205,74 @@ function getOrCreateSlotWebview(slotIndex) {
     wv.setAttribute('allowpopups', 'true');
     wv.setAttribute('useragent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
     wv.setAttribute('webpreferences', 'backgroundThrottling=no');
+
+    wv._isReady = false;
+    wv.addEventListener('dom-ready', () => {
+      wv._isReady = true;
+    }, { once: true });
+
     bgWebviewsContainer.appendChild(wv);
     if (slots[slotIndex]) {
       slots[slotIndex].bgWebview = wv;
     }
   }
   return wv;
+}
+
+function waitForWebviewReady(wv) {
+  if (!wv) return Promise.resolve();
+  if (wv._isReady) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const onReady = () => {
+      if (!done) {
+        done = true;
+        wv._isReady = true;
+        resolve();
+      }
+    };
+    wv.addEventListener('dom-ready', onReady, { once: true });
+    setTimeout(onReady, 2000);
+  });
+}
+
+function loadWebviewTarget(wv, targetUrl) {
+  return new Promise((resolve) => {
+    let done = false;
+    const onReady = () => {
+      if (!done) {
+        done = true;
+        cleanup();
+        resolve();
+      }
+    };
+    const cleanup = () => {
+      wv.removeEventListener('dom-ready', onReady);
+      wv.removeEventListener('did-fail-load', onReady);
+    };
+
+    wv.addEventListener('dom-ready', onReady, { once: true });
+    wv.addEventListener('did-fail-load', onReady, { once: true });
+
+    // Fallback timeout in case dom-ready doesn't fire or page load delays
+    setTimeout(() => {
+      if (!done) {
+        done = true;
+        cleanup();
+        resolve();
+      }
+    }, 6000);
+
+    try {
+      wv.loadURL(targetUrl);
+    } catch (e) {
+      if (!done) {
+        done = true;
+        cleanup();
+        resolve();
+      }
+    }
+  });
 }
 
 // ----------------------------------------------------
@@ -297,7 +365,7 @@ function initSlotsRegistry() {
       index: i,
       element: el,
       card: el.querySelector(`#slot-card-${i}`),
-      bgWebview: null,
+      bgWebview: getOrCreateSlotWebview(i),
       avatarContainer: el.querySelector(`#slot-avatar-${i}`),
       avatarImg: el.querySelector(`#slot-avatar-img-${i}`),
       avatarPlaceholder: el.querySelector(`#slot-avatar-placeholder-${i}`),
@@ -333,6 +401,7 @@ function initSlotsRegistry() {
     if (savedHandles[i]) {
       slot.handleInput.value = savedHandles[i];
     }
+    slot.monitoredHandle = savedHandles[i] || '';
 
     bindSlotEvents(slot);
     slots.push(slot);
@@ -447,6 +516,7 @@ function clearSlot(slot) {
   saveHandles();
   saveSlotCache(slot.index, null);
   slot.loadedTweets = [];
+  slot.monitoredHandle = '';
   slot.tweetsList.innerHTML = '';
   slot.tweetsList.style.display = 'none';
   slot.loading.style.display = 'none';
@@ -715,6 +785,160 @@ function parsePreset(presetStr) {
 }
 
 // ----------------------------------------------------
+// Tweet Key, Timestamp & Chronological Sorting Utilities
+// ----------------------------------------------------
+function getTweetId(tweet) {
+  if (tweet.id) return String(tweet.id);
+  if (tweet.url) {
+    const m = String(tweet.url).match(/\/status\/(\d+)/);
+    if (m) return m[1];
+  }
+  return '';
+}
+
+function getTweetTimestamp(tweet) {
+  if (typeof tweet.timestamp === 'number' && tweet.timestamp > 0) {
+    return tweet.timestamp;
+  }
+  if (tweet.datetime) {
+    const parsed = Date.parse(tweet.datetime);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  const id = getTweetId(tweet);
+  if (id) {
+    try {
+      return Number((BigInt(id) >> 22n) + 1288834974657n);
+    } catch (e) {}
+  }
+  return 0;
+}
+
+function getTweetKey(tweet) {
+  const id = getTweetId(tweet);
+  if (id) return `id_${id}`;
+  if (tweet.url) return `url_${tweet.url}`;
+  return `txt_${(tweet.text || '').slice(0, 40)}_${tweet.time || ''}`;
+}
+
+function processAndSortTweets(tweets) {
+  if (!Array.isArray(tweets) || tweets.length === 0) return [];
+
+  // 1. Ensure id and timestamp are calculated
+  const normalized = tweets.map(t => ({
+    ...t,
+    id: getTweetId(t),
+    timestamp: getTweetTimestamp(t)
+  }));
+
+  // 2. Deduplicate by unique key
+  const uniqueMap = new Map();
+  for (const t of normalized) {
+    const key = getTweetKey(t);
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, t);
+    }
+  }
+  const uniqueTweets = Array.from(uniqueMap.values());
+
+  // 3. Separate non-pinned and pinned tweets
+  const nonPinned = uniqueTweets.filter(t => !t.isPinned);
+  const pinned = uniqueTweets.filter(t => t.isPinned);
+
+  // 4. "如果置顶的帖子比最老的帖子还老，那就不显示它"
+  let validPinned = [];
+  if (nonPinned.length > 0) {
+    let oldestNonPinnedTime = Infinity;
+    for (const t of nonPinned) {
+      if (t.timestamp > 0 && t.timestamp < oldestNonPinnedTime) {
+        oldestNonPinnedTime = t.timestamp;
+      }
+    }
+
+    validPinned = pinned.filter(p => {
+      // If pinned post is older than the oldest non-pinned post, drop it!
+      if (oldestNonPinnedTime !== Infinity && p.timestamp > 0) {
+        return p.timestamp >= oldestNonPinnedTime;
+      }
+      return true;
+    });
+  } else {
+    validPinned = pinned;
+  }
+
+  // 5. "从上到下是从旧到新（升序排序，最新推文在最下面）"
+  const combined = [...validPinned, ...nonPinned];
+  combined.sort((a, b) => {
+    const timeA = a.timestamp || 0;
+    const timeB = b.timestamp || 0;
+    if (timeA !== timeB) {
+      return timeA - timeB; // 升序：时间早的在前(上)，时间晚(新)的在后(下)
+    }
+    // Fallback: compare Snowflake IDs
+    if (a.id && b.id) {
+      try {
+        const diff = BigInt(a.id) - BigInt(b.id);
+        return diff > 0n ? 1 : (diff < 0n ? -1 : 0);
+      } catch (e) {}
+    }
+    return 0;
+  });
+
+  return combined;
+}
+
+function getTweetDateObj(tweet) {
+  if (tweet.datetime) {
+    try {
+      const d = new Date(tweet.datetime);
+      if (!isNaN(d.getTime())) return d;
+    } catch (e) {}
+  }
+  if (typeof tweet.timestamp === 'number' && tweet.timestamp > 0) {
+    const d = new Date(tweet.timestamp);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const ts = getTweetTimestamp(tweet);
+  if (ts && ts > 0) {
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (tweet.time) {
+    const parsed = Date.parse(tweet.time);
+    if (!isNaN(parsed) && parsed > 0) {
+      return new Date(parsed);
+    }
+  }
+  return null;
+}
+
+function getTweetDateKey(tweet) {
+  const d = getTweetDateObj(tweet);
+  if (!d) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getTweetDateLabel(tweet) {
+  const d = getTweetDateObj(tweet);
+  if (!d) return '';
+  return d.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function formatTelegramTime(tweet) {
+  const d = getTweetDateObj(tweet);
+  if (d) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+  return tweet.time || '';
+}
+
+// ----------------------------------------------------
 // UI Render Helpers
 // ----------------------------------------------------
 function showSlotLoading(slot, text) {
@@ -775,63 +999,84 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null) {
 
   slot.tweetsList.innerHTML = '';
 
-  tweets.forEach((tweet, index) => {
-    const card = document.createElement('div');
-    card.className = 'tweet-item-card';
+  const finalAvatar = avatarUrl || (slot.avatarImg && slot.avatarImg.src) || '';
+  const cleanHandle = String(handle || '').replace(/^@/, '').trim();
+
+  let lastDateKey = null;
+
+  tweets.forEach((tweet) => {
+    const dateKey = getTweetDateKey(tweet);
+    const dateLabel = getTweetDateLabel(tweet);
+
+    if (dateKey && dateKey !== lastDateKey) {
+      lastDateKey = dateKey;
+      const dateDivider = document.createElement('div');
+      dateDivider.className = 'im-date-divider';
+      dateDivider.innerHTML = `<span class="im-date-pill">${escapeHtml(dateLabel)}</span>`;
+      slot.tweetsList.appendChild(dateDivider);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = 'im-bubble';
 
     let tagHtml = '';
     if (tweet.isPinned) tagHtml += '<span class="tweet-tag">置顶</span>';
     if (tweet.isRetweet) tagHtml += '<span class="tweet-tag repost">转推</span>';
 
-    card.innerHTML = `
-      <div class="tweet-card-top">
-        <div class="tweet-card-meta-left">
-          <span class="tweet-index-pill">#${index + 1}</span>
-          ${tagHtml}
-        </div>
-        <span class="tweet-card-time">${escapeHtml(tweet.time)}</span>
-      </div>
+    // Clean whitespace and character truncation for long tweets (> 100 characters)
+    const rawText = (tweet.text || '').trim();
+    const chars = Array.from(rawText);
+    const isLong = chars.length > 100;
+    const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
+    const timeDisplay = formatTelegramTime(tweet);
 
-      <div class="tweet-card-body">${escapeHtml(tweet.text)}</div>
+    bubble.innerHTML = `${tagHtml}<span class="im-text-content">${escapeHtml(previewText)}</span>${isLong ? '<span class="im-text-ellipsis">...</span><button class="im-btn-expand" title="点击展开全文">展开</button>' : ''}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="在浏览器中打开原推文">↗</a>` : ''}`;
 
-      <div class="tweet-card-bottom">
-        <div>
-          ${tweet.url ? `<a class="tweet-link-btn" data-url="${escapeHtml(tweet.url)}">在浏览器中查看 ↗</a>` : ''}
-        </div>
-        <button class="btn-card-copy">复制</button>
-      </div>
-    `;
+    // Expand / collapse toggle for long tweets
+    if (isLong) {
+      const expandBtn = bubble.querySelector('.im-btn-expand');
+      const textContent = bubble.querySelector('.im-text-content');
+      const ellipsis = bubble.querySelector('.im-text-ellipsis');
+      let isExpanded = false;
 
-    if (tweet.url) {
-      const linkBtn = card.querySelector('.tweet-link-btn');
-      linkBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        shell.openExternal(tweet.url);
+      expandBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isExpanded = !isExpanded;
+        if (isExpanded) {
+          textContent.innerHTML = escapeHtml(rawText);
+          if (ellipsis) ellipsis.style.display = 'none';
+          expandBtn.innerText = '收起';
+          expandBtn.title = '点击收起推文';
+        } else {
+          textContent.innerHTML = escapeHtml(previewText);
+          if (ellipsis) ellipsis.style.display = 'inline';
+          expandBtn.innerText = '展开';
+          expandBtn.title = '点击展开全文';
+        }
       });
     }
 
-    const copyBtn = card.querySelector('.btn-card-copy');
-    copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(tweet.text);
-        const origText = copyBtn.innerText;
-        copyBtn.innerText = '已复制 ✓';
-        copyBtn.style.color = '#00ba7c';
-        copyBtn.style.borderColor = '#00ba7c';
-        setTimeout(() => {
-          copyBtn.innerText = origText;
-          copyBtn.style.color = '#71767b';
-          copyBtn.style.borderColor = '#333639';
-        }, 1500);
-      } catch (err) {
-        console.error('Failed to copy tweet:', err);
+    // Open external tweet link (hover button in top-right)
+    if (tweet.url) {
+      const linkBtn = bubble.querySelector('.im-btn-link');
+      if (linkBtn) {
+        linkBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          shell.openExternal(tweet.url);
+        });
       }
-    });
+    }
 
-    slot.tweetsList.appendChild(card);
+    slot.tweetsList.appendChild(bubble);
   });
 
-  const finalAvatar = avatarUrl || slot.avatarImg.src || '';
+  // Auto-scroll to bottom to show the latest tweets (Telegram style)
+  requestAnimationFrame(() => {
+    if (slot.contentContainer) {
+      slot.contentContainer.scrollTop = slot.contentContainer.scrollHeight;
+    }
+  });
+
   saveSlotCache(slot.index, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar });
 }
 
@@ -891,8 +1136,19 @@ const EXTRACTION_SCRIPT = `
         const textEl = article.querySelector('[data-testid="tweetText"]');
         const timeEl = article.querySelector('time');
         const userNameEl = article.querySelector('[data-testid="User-Name"]');
-        const isPinned = article.innerText.includes("Pinned") || article.innerText.includes("置顶");
-        const isRetweet = article.innerText.includes("reposted") || article.innerText.includes("Retweeted") || article.innerText.includes("转推");
+
+        let isPinned = false;
+        let isRetweet = false;
+        const socialContext = article.querySelector('[data-testid="socialContext"]');
+        if (socialContext) {
+          const scText = socialContext.innerText || '';
+          if (scText.includes("Pinned") || scText.includes("置顶")) isPinned = true;
+          if (scText.includes("reposted") || scText.includes("Retweeted") || scText.includes("转推")) isRetweet = true;
+        } else {
+          const topText = article.innerText.slice(0, 100);
+          if (topText.includes("Pinned") || topText.includes("置顶")) isPinned = true;
+          if (topText.includes("reposted") || topText.includes("Retweeted") || topText.includes("转推")) isRetweet = true;
+        }
 
         let displayName = '';
         let userHandle = '';
@@ -904,12 +1160,14 @@ const EXTRACTION_SCRIPT = `
         }
 
         const text = textEl ? textEl.innerText.trim() : '(该推文为纯媒体/卡片内容，无文本)';
-        const time = timeEl ? (timeEl.innerText || timeEl.getAttribute('datetime')) : '';
+        const displayTime = timeEl ? timeEl.innerText.trim() : '';
+        const datetime = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
 
         items.push({
-          url: tweetUrl ? 'https://x.com' + tweetUrl : '',
+          url: tweetUrl ? ('https://x.com' + tweetUrl) : '',
           text: text,
-          time: time,
+          time: displayTime || datetime,
+          datetime: datetime,
           displayName: displayName,
           userHandle: userHandle,
           isPinned: isPinned,
@@ -948,21 +1206,43 @@ async function fetchSlot(slotIndex) {
 
   const targetUrl = `https://x.com/${handle}`;
 
+  // Check if we already have existing tweets for this exact handle
+  const hasExisting = (slot.monitoredHandle === handle && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0);
+  const existingTweets = hasExisting ? slot.loadedTweets : [];
+  const existingKeys = new Set(existingTweets.map(t => getTweetKey(t)));
+
+  // Identify newest non-pinned tweet key as our timeline boundary (last element in ascending sort)
+  const existingNonPinned = existingTweets.filter(t => !t.isPinned);
+  const boundaryTweet = existingNonPinned.length > 0 ? existingNonPinned[existingNonPinned.length - 1] : null;
+  const boundaryKey = boundaryTweet ? getTweetKey(boundaryTweet) : null;
+
   try {
     const bgWebview = getOrCreateSlotWebview(slotIndex);
-    bgWebview.loadURL(targetUrl);
+    await waitForWebviewReady(bgWebview);
+    await loadWebviewTarget(bgWebview, targetUrl);
 
-    const TARGET_COUNT = 5;
-    const collectedTweets = [];
-    const seenKeys = new Set();
-    const maxAttempts = 35;
+    // Brief grace period for Twitter SPA hydration
+    await sleep(400);
+
+    const INITIAL_TARGET_COUNT = 5;
+    const collectedNewTweets = [];
+    const seenInThisRun = new Set();
+    const maxAttempts = hasExisting ? 15 : 35;
     let attempts = 0;
     let consecutiveEmptyScrolls = 0;
     let latestAvatarUrl = '';
+    let reachedBoundary = false;
 
     while (attempts < maxAttempts) {
       attempts++;
-      await sleep(randomBetween(450, 800));
+
+      // Guard: do not execute script if webview is currently navigating
+      if (typeof bgWebview.isLoading === 'function' && bgWebview.isLoading()) {
+        await sleep(350);
+        continue;
+      }
+
+      await sleep(randomBetween(450, 750));
 
       try {
         const result = await bgWebview.executeJavaScript(EXTRACTION_SCRIPT);
@@ -978,34 +1258,53 @@ async function fetchSlot(slotIndex) {
         }
 
         if (result && result.success && Array.isArray(result.items)) {
-          let newlyAdded = 0;
-          for (const item of result.items) {
-            if (collectedTweets.length >= TARGET_COUNT) break;
+          let foundNewOnThisScroll = 0;
 
-            const key = item.url || `${item.text.slice(0, 40)}_${item.time}`;
-            if (!seenKeys.has(key)) {
-              seenKeys.add(key);
-              collectedTweets.push(item);
-              newlyAdded++;
+          for (const item of result.items) {
+            const key = getTweetKey(item);
+            if (seenInThisRun.has(key)) continue;
+            seenInThisRun.add(key);
+
+            // Boundary detection: if this normal tweet was already fetched before
+            if (hasExisting && !item.isPinned) {
+              if (boundaryKey && key === boundaryKey) {
+                reachedBoundary = true;
+                break;
+              }
+              if (existingKeys.has(key)) {
+                reachedBoundary = true;
+                break;
+              }
+            }
+
+            if (!existingKeys.has(key)) {
+              collectedNewTweets.push(item);
+              foundNewOnThisScroll++;
             }
           }
 
-          if (newlyAdded > 0) {
-            consecutiveEmptyScrolls = 0;
-            slot.loadingText.innerText = `已获取 (${collectedTweets.length}/${TARGET_COUNT})...`;
-          } else {
-            consecutiveEmptyScrolls++;
+          if (reachedBoundary) {
+            break;
           }
 
-          if (collectedTweets.length >= TARGET_COUNT) {
+          if (!hasExisting && collectedNewTweets.length >= INITIAL_TARGET_COUNT) {
             break;
+          }
+
+          if (foundNewOnThisScroll > 0) {
+            consecutiveEmptyScrolls = 0;
+            slot.loadingText.innerText = hasExisting
+              ? `发现新推文 (${collectedNewTweets.length})...`
+              : `已获取 (${collectedNewTweets.length}/${INITIAL_TARGET_COUNT})...`;
+          } else {
+            consecutiveEmptyScrolls++;
           }
 
           const scrollDistance = randomBetween(650, 1050);
           await bgWebview.executeJavaScript(`window.scrollBy({ top: ${scrollDistance}, behavior: 'smooth' });`);
           await sleep(randomBetween(300, 600));
 
-          if (collectedTweets.length > 0 && consecutiveEmptyScrolls >= 6) {
+          if (consecutiveEmptyScrolls >= 5) {
             break;
           }
         }
@@ -1014,10 +1313,28 @@ async function fetchSlot(slotIndex) {
       }
     }
 
-    if (collectedTweets.length > 0) {
-      renderSlotTweets(slot, collectedTweets, handle, latestAvatarUrl);
+    slot.monitoredHandle = handle;
+
+    if (hasExisting) {
+      if (collectedNewTweets.length === 0) {
+        showToast(`@${handle} 已是最新，暂无新推文`, 'info', 2000);
+        const sortedExisting = processAndSortTweets(existingTweets);
+        renderSlotTweets(slot, sortedExisting, handle, latestAvatarUrl);
+      } else {
+        showToast(`@${handle} 抓取到 ${collectedNewTweets.length} 条新推文`, 'success', 2500);
+        const merged = [...collectedNewTweets, ...existingTweets];
+        const sorted = processAndSortTweets(merged);
+        const finalTweets = sorted.slice(-20);
+        renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl);
+      }
     } else {
-      showSlotError(slot, '抓取超时：未检测到推文。请确认右上角已登录，或该用户近期是否发过推文。');
+      if (collectedNewTweets.length > 0) {
+        const sorted = processAndSortTweets(collectedNewTweets);
+        const finalTweets = sorted.slice(-20);
+        renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl);
+      } else {
+        showSlotError(slot, '抓取超时：未检测到推文。请确认右上角已登录，或该用户近期是否发过推文。');
+      }
     }
   } catch (err) {
     showSlotError(slot, `发生异常: ${err.message}`);

@@ -165,7 +165,9 @@ function saveSlotCache(slotIndex, data) {
 
 function updateSlotAvatar(slot, avatarUrl) {
   if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim()) {
-    slot.avatarImg.src = avatarUrl;
+    // Automatically upgrade Twitter avatar to high-resolution 400x400 if it was normal
+    const upgraded = avatarUrl.includes('_normal.') ? avatarUrl.replace('_normal.', '_400x400.') : avatarUrl;
+    slot.avatarImg.src = upgraded;
     slot.avatarImg.style.display = 'block';
     slot.avatarPlaceholder.style.display = 'none';
   } else {
@@ -180,9 +182,27 @@ function loadSlotCache() {
     const raw = localStorage.getItem(STORAGE_CACHE_KEY);
     if (raw) {
       const cache = JSON.parse(raw);
+      let hasCacheFix = false;
       slots.forEach(slot => {
         if (cache[slot.index]) {
-          const { tweets, handle, avatarUrl, lastFetchedAt } = cache[slot.index];
+          let { tweets, handle, avatarUrl, lastFetchedAt } = cache[slot.index];
+          const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
+
+          // Auto-correct mismatched OpenAI avatars from past bug
+          if (cleanHandle && cleanHandle !== 'openai') {
+            if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
+              if (cleanHandle === 'sama') {
+                avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
+              } else if (cleanHandle === 'karpathy') {
+                avatarUrl = 'https://pbs.twimg.com/profile_images/1296667294148382721/9Pr6XrPB_400x400.jpg';
+              } else {
+                avatarUrl = `https://unavatar.io/x/${cleanHandle}`;
+              }
+              cache[slot.index].avatarUrl = avatarUrl;
+              hasCacheFix = true;
+            }
+          }
+
           if (lastFetchedAt) {
             slot.lastFetchedAt = lastFetchedAt;
             updateSlotFetchTimeUI(slot, lastFetchedAt);
@@ -197,6 +217,9 @@ function loadSlotCache() {
           }
         }
       });
+      if (hasCacheFix) {
+        localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(cache));
+      }
     }
   } catch (e) {}
 }
@@ -424,8 +447,12 @@ function initSlotsRegistry() {
     };
 
     slot.avatarImg.addEventListener('error', () => {
-      slot.avatarImg.style.display = 'none';
-      slot.avatarPlaceholder.style.display = 'flex';
+      if (slot.avatarImg.src.includes('_400x400.')) {
+        slot.avatarImg.src = slot.avatarImg.src.replace('_400x400.', '_normal.');
+      } else {
+        slot.avatarImg.style.display = 'none';
+        slot.avatarPlaceholder.style.display = 'flex';
+      }
     });
 
     // Pre-fill saved handle
@@ -1064,9 +1091,12 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null) {
 // ----------------------------------------------------
 // Parallel Scraping with Jitter & Anti-Bot Protection
 // ----------------------------------------------------
-const EXTRACTION_SCRIPT = `
+function buildExtractionScript(handle) {
+  const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
+  return `
   (() => {
     try {
+      const targetHandle = ${JSON.stringify(cleanHandle)};
       const bodyText = document.body ? document.body.innerText : '';
       
       if (bodyText.includes("Rate limit exceeded") || bodyText.includes("超出频率限制")) {
@@ -1094,19 +1124,58 @@ const EXTRACTION_SCRIPT = `
         return { pending: true };
       }
 
-      // Extract user profile avatar URL
+      // Extract user profile avatar URL strictly matching targetHandle
       let avatarUrl = '';
-      const avatarSelectors = [
-        'a[href$="/photo"] img',
-        'div[data-testid="primaryColumn"] img[src*="profile_images"]',
-        'img[src*="profile_images"]',
-        'article [data-testid="Tweet-User-Avatar"] img'
-      ];
-      for (const sel of avatarSelectors) {
-        const img = document.querySelector(sel);
-        if (img && img.src && !img.src.includes('default_profile')) {
-          avatarUrl = img.src;
-          break;
+
+      if (targetHandle) {
+        // 1. Check profile header photo link: <a href="/handle/photo"> or <a href="/handle/photo?xxx">
+        const photoImgs = Array.from(document.querySelectorAll('a[href*="/photo"] img'));
+        for (const img of photoImgs) {
+          const a = img.closest('a');
+          const href = a ? (a.getAttribute('href') || '') : '';
+          // Make sure it is the target user's profile photo (e.g. /sama/photo) and not inside a tweet
+          if (href.toLowerCase().includes('/' + targetHandle + '/photo') && !img.closest('article')) {
+            if (img.src && !img.src.includes('default_profile')) {
+              avatarUrl = img.src;
+              break;
+            }
+          }
+        }
+
+        // 2. Check profile avatar by alt="@handle" or alt="handle" (excluding sidebar and recommendations)
+        if (!avatarUrl) {
+          const profileImgs = Array.from(document.querySelectorAll('img[src*="profile_images"]'));
+          for (const img of profileImgs) {
+            if (img.closest('aside') || img.closest('[data-testid="sidebarColumn"]')) continue;
+            const alt = (img.getAttribute('alt') || '').toLowerCase();
+            if (alt === '@' + targetHandle || alt === targetHandle || alt.includes('@' + targetHandle)) {
+              if (img.src && !img.src.includes('default_profile')) {
+                avatarUrl = img.src;
+                break;
+              }
+            }
+          }
+        }
+
+        // 3. Check author's own tweet avatar: article where the avatar link specifically points to /handle
+        if (!avatarUrl) {
+          for (const article of articles) {
+            const authorAvatarImg = article.querySelector(\`[data-testid="Tweet-User-Avatar"] a[href^="/\${targetHandle}" i] img, [data-testid="Tweet-User-Avatar"] a[href="/\${targetHandle}" i] img\`);
+            if (authorAvatarImg && authorAvatarImg.src && !authorAvatarImg.src.includes('default_profile')) {
+              avatarUrl = authorAvatarImg.src;
+              break;
+            }
+          }
+        }
+      }
+
+      // 4. Fallback: Generic profile header photo link (only in primaryColumn/header, NEVER in tweets or sidebar)
+      if (!avatarUrl) {
+        const headerImg = document.querySelector('header a[href$="/photo"] img, [data-testid="primaryColumn"] a[href$="/photo"] img, a[href$="/photo"] img');
+        if (headerImg && !headerImg.closest('article') && !headerImg.closest('aside') && !headerImg.closest('[data-testid="sidebarColumn"]')) {
+          if (headerImg.src && !headerImg.src.includes('default_profile')) {
+            avatarUrl = headerImg.src;
+          }
         }
       }
 
@@ -1134,7 +1203,7 @@ const EXTRACTION_SCRIPT = `
         let displayName = '';
         let userHandle = '';
         if (userNameEl) {
-          const lines = userNameEl.innerText.split('\\n').filter(s => s.trim());
+          const lines = userNameEl.innerText.split('\\\\n').filter(s => s.trim());
           if (lines.length > 0) displayName = lines[0];
           const foundHandle = lines.find(s => s.startsWith('@'));
           if (foundHandle) userHandle = foundHandle;
@@ -1161,7 +1230,8 @@ const EXTRACTION_SCRIPT = `
       return { error: e.message };
     }
   })()
-`;
+  `;
+}
 
 async function fetchSlot(slotIndex, { isBackground = false } = {}) {
   const slot = slots[slotIndex];
@@ -1233,7 +1303,8 @@ async function fetchSlot(slotIndex, { isBackground = false } = {}) {
       await sleep(randomBetween(450, 750));
 
       try {
-        const result = await bgWebview.executeJavaScript(EXTRACTION_SCRIPT);
+        const extractionScript = buildExtractionScript(handle);
+        const result = await bgWebview.executeJavaScript(extractionScript);
 
         if (result && result.error) {
           if (!isBackground || !hasExisting) {
@@ -1245,8 +1316,11 @@ async function fetchSlot(slotIndex, { isBackground = false } = {}) {
         }
 
         if (result && result.avatarUrl) {
-          latestAvatarUrl = result.avatarUrl;
-          updateSlotAvatar(slot, latestAvatarUrl);
+          const isHighRes = result.avatarUrl.includes('_400x400');
+          if (!latestAvatarUrl || (isHighRes && !latestAvatarUrl.includes('_400x400'))) {
+            latestAvatarUrl = result.avatarUrl;
+            updateSlotAvatar(slot, latestAvatarUrl);
+          }
         }
 
         if (result && result.success && Array.isArray(result.items)) {
@@ -1306,6 +1380,11 @@ async function fetchSlot(slotIndex, { isBackground = false } = {}) {
       } catch (e) {
         // Ignore temporary navigation re-evaluation errors
       }
+    }
+
+    if (!latestAvatarUrl && handle) {
+      latestAvatarUrl = `https://unavatar.io/x/${handle}`;
+      updateSlotAvatar(slot, latestAvatarUrl);
     }
 
     slot.monitoredHandle = handle;

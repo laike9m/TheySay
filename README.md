@@ -3,7 +3,7 @@
 [English](README.md) | [中文说明](docs/README_zh.md)
 
 A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with Electron and [GridStack.js](https://gridstackjs.com/):
-- **Dark Mode / Light Mode**: One-click theme toggle in the header with persistent state.
+- **Dark Mode / Light Mode Toggle Switch**: Header features a sleek, animated pill toggle switch with sun and moon icons to smoothly transition between dark and light themes, automatically persisting user preference.
 - **Telegram-Style Chat Bubble Feed with Date Dividers**: Replicates Telegram's clean aesthetics with centered capsule date dividers (e.g. `June 29, 2025`) displayed above each day's messages (with only one date pill per day). Chat bubbles hug content naturally with inline specific timestamps (`11:45 AM`) at the bottom right, status tags (`Pinned`, `Retweet`), removed message numbers, and a hover-revealed link button (`↗`) in the top-right corner.
 - **Oldest-to-Newest Chronological Order (Chat Flow)**: Tweets flow naturally from top to bottom (oldest to newest, with the latest tweet at the bottom), automatically scrolling down like an IM chat window.
 - **100-Character Truncation & Hover-to-Expand**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy. Hovering over any bubble automatically expands it to display full text, and unhovering neatly collapses it back.
@@ -14,7 +14,7 @@ A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with El
 - **Surrounding Content Conflict Protection**: Prevents accidental displacement of active cards. Alerts you with visual red shaking and prompts when adjacent slots already contain monitored accounts.
 - **Smart Incremental Scraping**: Avoids redundant fetching! Remembers previously fetched tweets, stops scrolling immediately upon hitting known timeline boundaries, and completes in ~1s if there are no new tweets, minimizing network traffic and rate limit triggers.
 - **Input, Avatar & Layout Persistence**: Handles, avatars, cached tweets, and custom grid arrangements are saved in real time to `localStorage`. Refreshing (<kbd>Cmd + R</kbd>) preserves your entire workspace.
-- **Unread Tweet Highlighting & One-Click "Mark All as Read"**: Newly scraped tweet bubbles are highlighted with a distinct soft blue tint. Hovering over any bubble instantly marks it as read and restores it to the default color. A "Mark All as Read" button in the header marks all feed bubbles as read with one click.
+- **Unread Tweet Highlighting & One-Click "Mark All as Read"**: Newly scraped tweet bubbles are highlighted with a distinct soft blue tint. Hovering over any bubble instantly marks it as read and restores it to the default color. A double-checkmark ("✓✓") "Mark All as Read" button in the header marks all feed bubbles as read with one click, perfectly height-aligned with the grid layout selector.
 - **Default Background Polling (10-Minute Interval) & Timestamp Tracking**: Tracks and records the exact timestamp of every fetch with card tooltip display. Refreshing the page (<kbd>Cmd + R</kbd>) never triggers an immediate scrape, instead scheduling the next crawl strictly based on elapsed time since the last fetch.
 
 ## Getting Started
@@ -35,7 +35,7 @@ npm start
    - Hovering over any bubble reveals an external browser link (`↗`) in the top-right corner to open the original tweet.
    - Long tweets automatically truncate to the first 100 characters with an ellipsis by default. Hovering over the bubble automatically expands it to full text, and moving the cursor away (unhover) neatly collapses it back.
 2. **Theme Switcher & Clean Header with Avatar & Name**:
-   - Integrated dark mode / light mode toggle button (☀️/🌙) in the navigation bar.
+   - Animated pill toggle switch with sun/moon icons in the navigation bar to easily switch between dark and light themes.
    - Ultra-compact card headers (~34px) with unnecessary card numbers and separate status bars removed, maximizing vertical viewport for tweets.
    - Profile avatar and real name shown side-by-side in header with click-to-edit support and local cache.
    - Scrollbars hidden by default, revealing smoothly upon hover.

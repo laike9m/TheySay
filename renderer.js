@@ -19,8 +19,6 @@ const STORAGE_LAST_FETCH_KEY = 'theysay_last_fetch_time';
 const btnLoginStatus = document.getElementById('btn-login-status');
 const loginStatusText = document.getElementById('login-status-text');
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
-const themeToggleIcon = document.getElementById('theme-toggle-icon');
-const themeToggleText = document.getElementById('theme-toggle-text');
 const layoutSelect = document.getElementById('layout-select');
 const btnMarkAllRead = document.getElementById('btn-mark-all-read');
 const gridContainer = document.getElementById('grid-stack-container');
@@ -72,14 +70,9 @@ function showToast(message, type = 'warning', duration = 4000) {
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem(STORAGE_THEME_KEY, theme);
-  if (theme === 'light') {
-    if (themeToggleIcon) themeToggleIcon.innerText = '🌙';
-    if (themeToggleText) themeToggleText.innerText = '深色';
-    if (btnThemeToggle) btnThemeToggle.title = '切换深色模式';
-  } else {
-    if (themeToggleIcon) themeToggleIcon.innerText = '☀️';
-    if (themeToggleText) themeToggleText.innerText = '浅色';
-    if (btnThemeToggle) btnThemeToggle.title = '切换浅色模式';
+  if (btnThemeToggle) {
+    btnThemeToggle.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
+    btnThemeToggle.title = theme === 'light' ? '切换深色模式' : '切换浅色模式';
   }
 }
 

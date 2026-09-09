@@ -26,6 +26,10 @@
       <div class="nav-controls">
         <!-- 全部已读按钮 -->
         <button id="btn-mark-all-read" class="btn-tool" title="将所有推文标记为已读">
+          <svg class="icon-check-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 7 17l-5-5"></path>
+            <path d="m22 10-7.5 7.5L13 16"></path>
+          </svg>
           <span>全部已读</span>
         </button>
 
@@ -43,10 +47,30 @@
 
         <div class="nav-divider"></div>
 
-        <!-- 深色 / 浅色模式切换按钮 -->
-        <button id="btn-theme-toggle" class="btn-tool btn-theme-toggle" title="切换深色 / 浅色模式">
-          <span id="theme-toggle-icon">☀️</span>
-          <span id="theme-toggle-text">浅色</span>
+        <!-- 深色 / 浅色模式切换 Toggle -->
+        <button id="btn-theme-toggle" class="theme-toggle" role="switch" aria-checked="false" title="切换深色 / 浅色模式">
+          <span class="theme-toggle-track">
+            <span class="theme-toggle-bg-icon sun" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+              </svg>
+            </span>
+            <span class="theme-toggle-bg-icon moon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </span>
+            <span class="theme-toggle-thumb">
+              <svg class="theme-thumb-icon sun" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+              </svg>
+              <svg class="theme-thumb-icon moon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </span>
+          </span>
         </button>
 
         <div class="nav-divider"></div>

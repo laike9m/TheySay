@@ -8,8 +8,10 @@
   --bg-tweet-card-hover: #202d3b;
   --bg-bubble: #182533;
   --bg-bubble-hover: #202d3b;
+  --bg-bubble-unread: #173852;
   --border-bubble: rgba(255, 255, 255, 0.05);
   --border-bubble-hover: rgba(255, 255, 255, 0.1);
+  --border-bubble-unread: rgba(29, 155, 240, 0.45);
   --shadow-bubble: 0 1px 2px rgba(0, 0, 0, 0.25);
   --bg-date-pill: rgba(0, 0, 0, 0.42);
   --text-date-pill: #ffffff;
@@ -51,8 +53,10 @@
   --bg-tweet-card-hover: #ffffff;
   --bg-bubble: #ffffff;
   --bg-bubble-hover: #ffffff;
+  --bg-bubble-unread: #e7f3fd;
   --border-bubble: rgba(0, 0, 0, 0.04);
   --border-bubble-hover: rgba(0, 0, 0, 0.08);
+  --border-bubble-unread: rgba(29, 155, 240, 0.38);
   --shadow-bubble: 0 1px 2px rgba(16, 35, 47, 0.16);
   --bg-date-pill: rgba(16, 35, 47, 0.38);
   --text-date-pill: #ffffff;
@@ -238,37 +242,6 @@ body {
   background-color: var(--border-color);
 }
 
-/* Fetch All Button */
-.btn-fetch-all {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: linear-gradient(135deg, #1d9bf0, #1a8cd8);
-  color: #fff;
-  border: none;
-  border-radius: 9999px;
-  padding: 5px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 6px rgba(29, 155, 240, 0.25);
-}
-
-.btn-fetch-all:hover:not(:disabled) {
-  opacity: 0.92;
-  transform: translateY(-1px);
-}
-
-.btn-fetch-all:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.lightning-icon {
-  font-size: 12px;
-}
 
 /* Login Status Button */
 .login-status-btn {
@@ -897,8 +870,13 @@ body {
   padding: 5px 9px 5px 10px;
   box-shadow: var(--shadow-bubble);
   word-break: break-word;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.15s ease;
   cursor: default;
+}
+
+.im-bubble.unread {
+  background-color: var(--bg-bubble-unread);
+  border-color: var(--border-bubble-unread);
 }
 
 .im-bubble::after {
@@ -909,6 +887,7 @@ body {
 
 .im-bubble:hover {
   background-color: var(--bg-bubble-hover);
+  border-color: var(--border-bubble-hover);
 }
 
 /* Tag (Pinned / Repost) inside bubble */

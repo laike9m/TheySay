@@ -24,6 +24,11 @@
       </div>
 
       <div class="nav-controls">
+        <!-- 全部已读按钮 -->
+        <button id="btn-mark-all-read" class="btn-tool" title="将所有推文标记为已读">
+          <span>全部已读</span>
+        </button>
+
         <!-- 布局切换选择器 -->
         <div class="layout-control-group">
           <label for="layout-select" class="control-label">网格布局:</label>
@@ -36,10 +41,6 @@
           </select>
         </div>
 
-        <button id="btn-reset-layout" class="btn-tool" title="重置卡片大小与排序为当前网格整齐排布">
-          <span>重置排版</span>
-        </button>
-
         <div class="nav-divider"></div>
 
         <!-- 深色 / 浅色模式切换按钮 -->
@@ -49,11 +50,6 @@
         </button>
 
         <div class="nav-divider"></div>
-
-        <button id="btn-fetch-all" class="btn-fetch-all" title="并发抓取所有已配置的账号推文">
-          <span class="lightning-icon">⚡</span>
-          <span id="btn-fetch-all-text">全部并行抓取</span>
-        </button>
 
         <button id="btn-login-status" class="login-status-btn checking" title="点击打开 Twitter / X 登录窗口">
           <span class="status-indicator"></span>

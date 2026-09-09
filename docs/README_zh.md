@@ -62,6 +62,31 @@ npm start
    - **阅读停顿模拟**：滚动后模拟人眼停留阅读 `300ms ~ 600ms`；
    - **风控主动识别**：自动感知 Arkose Labs 人机验证挑战或 Rate limit 限制，提供即时指引。
 
+## 项目结构
+
+```
+TheySay/
+├── docs/
+│   └── README_zh.md    # 中文文档
+├── src/
+│   ├── auth.js         # Twitter 登录状态检测与 IPC 授权弹窗管理
+│   ├── constants.js    # 槽位上限、存储键名与轮询间隔等常量
+│   ├── grid.js         # GridStack 网格布局计算与防冲撞调整
+│   ├── scraper.js      # 页面爬虫提取脚本与后台平滑定时轮询器
+│   ├── slot.js         # 卡片组件 UI、头像加载、交互与推文气泡渲染
+│   ├── storage.js      # LocalStorage 本地持久化读写封装
+│   ├── theme.js        # 深色/浅色主题管理与切换
+│   ├── tweet.js        # Snowflake 推文 ID 解析、去重与时间升序排序
+│   ├── utils.js        # 拟人随机延迟、时间格式化与 Toast 提示
+│   └── webview.js      # 离屏 Webview 进程池生命周期管理
+├── index.html          # 主窗口 HTML 骨架
+├── main.js             # Electron 主进程
+├── package.json        # 项目元数据与脚本配置
+├── renderer.js         # 渲染进程主入口与模块协调器
+├── styles.css          # 应用样式表（深浅主题、网格排版、气泡美化）
+└── README.md           # 英文说明文档
+```
+
 ## 参考资料与防爬机制解析
 
 关于 Twitter / X 的反爬虫风控模型与限制机制：

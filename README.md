@@ -69,11 +69,22 @@ npm start
 TheySay/
 ├── docs/
 │   └── README_zh.md    # Chinese Documentation (中文文档)
+├── src/
+│   ├── auth.js         # Twitter login status check & IPC dialogs
+│   ├── constants.js    # Layout limits, storage keys, and presets
+│   ├── grid.js         # GridStack layout management & resize collision checks
+│   ├── scraper.js      # In-page scraping script & periodic background crawler
+│   ├── slot.js         # Card component UI, avatars, interactions & tweets list
+│   ├── storage.js      # LocalStorage persistence layer
+│   ├── theme.js        # Dark/light theme state management
+│   ├── tweet.js        # Snowflake timestamp parsing, deduplication & sorting
+│   ├── utils.js        # Jitter, delay, string escaping & toast notifications
+│   └── webview.js      # Offscreen webview pool lifecycle & navigation
 ├── index.html          # Main application window layout
 ├── main.js             # Electron main process
 ├── package.json        # Project metadata and run scripts
-├── renderer.js         # UI logic and tweet extraction script
-├── styles.css          # Dark-theme styling
+├── renderer.js         # Main renderer process orchestrator
+├── styles.css          # App styling (themes, layout, animations)
 └── README.md           # English Documentation
 ```
 

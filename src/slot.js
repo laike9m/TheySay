@@ -5,8 +5,11 @@ const {
   processAndSortTweets,
   getTweetDateKey,
   getTweetDateLabel,
-  formatTelegramTime
+  formatTelegramTime,
+  shouldShowTweetPopup,
+  isTweetWithQuote
 } = require('./tweet');
+const { openTweetPopup } = require('./popup');
 const {
   getSavedHandles,
   saveHandles,
@@ -201,6 +204,12 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
     let tagHtml = '';
     if (tweet.isPinned) tagHtml += '<span class="tweet-tag">置顶</span>';
     if (tweet.isRetweet) tagHtml += '<span class="tweet-tag repost">转推</span>';
+    if (isTweetWithQuote(tweet)) tagHtml += '<span class="tweet-tag quote">引用</span>';
+
+    // Store avatar reference on tweet object if available
+    if (!tweet.avatarUrl && finalAvatar) {
+      tweet.avatarUrl = finalAvatar;
+    }
 
     // Clean whitespace and character truncation for long tweets (> 100 characters)
     const rawText = (tweet.text || '').trim();
@@ -211,7 +220,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
 
     let textHtml = '';
     if (isLong) {
-      textHtml = `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span><span class="im-text-full">${escapeHtml(rawText)}</span></span>`;
+      textHtml = `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`;
     } else {
       textHtml = `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
     }
@@ -224,9 +233,20 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
       if (linkBtn) {
         linkBtn.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
           shell.openExternal(tweet.url);
         });
       }
+    }
+
+    // Click on bubble to open centered tweet embed popup (click-to-open, no hover trigger)
+    const hasPopup = shouldShowTweetPopup(tweet);
+    if (hasPopup) {
+      bubble.classList.add('has-popup');
+      bubble.addEventListener('click', (e) => {
+        if (e.target.closest('.im-btn-link')) return;
+        openTweetPopup(tweet);
+      });
     }
 
     slot.tweetsList.appendChild(bubble);
@@ -525,6 +545,8 @@ function loadSlotCache(slots) {
           updateSlotAvatar(slot, avatarUrl);
         }
         if (Array.isArray(tweets) && tweets.length > 0) {
+          tweets.forEach(t => {
+          });
           slot.monitoredHandle = handle;
           const sorted = processAndSortTweets(tweets);
           renderSlotTweets(slot, sorted, handle, avatarUrl, slots);

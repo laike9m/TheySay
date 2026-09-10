@@ -20,6 +20,7 @@ const {
   fetchSlot,
   startPeriodicBackgroundFetch
 } = require('./src/scraper');
+const { initTweetPopup } = require('./src/popup');
 
 // UI Elements - Global
 const btnLoginStatus = document.getElementById('btn-login-status');
@@ -64,6 +65,7 @@ function getActiveSlotCount() {
 // ----------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
   initTheme(btnThemeToggle);
+  initTweetPopup();
   initBackgroundWebviews(bgWebviewsContainer, slots, MAX_SLOTS);
 
   slots = initSlotsRegistry({

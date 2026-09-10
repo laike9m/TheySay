@@ -39,7 +39,8 @@ function buildExtractionScript(handle) {
         return { error: '尚未登录 X 账号，请先点击右上角登录' };
       }
 
-      const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"], article'));
+      const allArticles = Array.from(document.querySelectorAll('article[data-testid="tweet"], article'));
+      const articles = allArticles.filter(a => !a.parentElement.closest('article'));
       if (!articles || articles.length === 0) {
         return { pending: true };
       }
@@ -133,6 +134,57 @@ function buildExtractionScript(handle) {
         const displayTime = timeEl ? timeEl.innerText.trim() : '';
         const datetime = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
 
+        // Quote detection
+        let hasQuote = false;
+        let quoteUrl = '';
+
+        // 1. Nested article indicates a quote tweet card
+        if (article.querySelector('article')) {
+          hasQuote = true;
+        }
+
+        // 2. Element with data-href or role="link" pointing to another status
+        const quoteCardEl = article.querySelector('[data-href*="/status/"]');
+        if (quoteCardEl) {
+          hasQuote = true;
+          const dh = quoteCardEl.getAttribute('data-href') || '';
+          if (dh) quoteUrl = dh.startsWith('http') ? dh : ('https://x.com' + dh);
+        }
+
+        // 3. Status links in href or data-href (with properly escaped template regex)
+        const allStatusLinks = Array.from(article.querySelectorAll('a[href*="/status/"], [data-href*="/status/"]'));
+        const mainStatusMatch = tweetUrl ? tweetUrl.match(/\\/status\\/(\\d+)/) : null;
+        const mainStatusId = mainStatusMatch ? mainStatusMatch[1] : '';
+
+        for (const link of allStatusLinks) {
+          const href = link.getAttribute('data-href') || link.getAttribute('href') || '';
+          const m = href.match(/\\/status\\/(\\d+)/);
+          if (m && m[1] && m[1] !== mainStatusId) {
+            hasQuote = true;
+            if (!quoteUrl) {
+              quoteUrl = href.startsWith('http') ? href : ('https://x.com' + href);
+            }
+            break;
+          }
+        }
+
+        // 4. Other known quote card markers
+        if (!hasQuote) {
+          if (article.querySelector('[data-testid="quoteTweet"]') ||
+              article.querySelector('[role="link"] [data-testid="User-Name"]') ||
+              article.querySelectorAll('time').length > 1 ||
+              article.querySelectorAll('[data-testid="tweetText"]').length > 1) {
+            hasQuote = true;
+          }
+        }
+
+        // Truncated detection on Twitter web
+        let isTruncated = false;
+        if (article.querySelector('[data-testid="tweet-text-show-more-link"]') ||
+            (textEl && (textEl.innerText.includes('Show more') || textEl.innerText.includes('显示更多')))) {
+          isTruncated = true;
+        }
+
         items.push({
           url: tweetUrl ? ('https://x.com' + tweetUrl) : '',
           text: text,
@@ -141,7 +193,10 @@ function buildExtractionScript(handle) {
           displayName: displayName,
           userHandle: userHandle,
           isPinned: isPinned,
-          isRetweet: isRetweet
+          isRetweet: isRetweet,
+          hasQuote: hasQuote,
+          quoteUrl: quoteUrl,
+          isTruncated: isTruncated
         });
       }
 

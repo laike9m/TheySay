@@ -149,6 +149,36 @@ function formatTelegramTime(tweet) {
   return tweet.time || '';
 }
 
+function isTweetTruncated(tweet) {
+  if (!tweet) return false;
+  const rawText = (tweet.text || '').trim();
+  const chars = Array.from(rawText);
+  if (chars.length > 100) return true;
+  if (tweet.isTruncated) return true;
+  if (rawText.endsWith('…') || rawText.endsWith('...')) return true;
+  return false;
+}
+
+function isTweetWithQuote(tweet) {
+  if (!tweet) return false;
+  if (tweet.hasQuote) return true;
+  if (tweet.quoteUrl) return true;
+  if (tweet.isQuote) return true;
+  const tweetId = getTweetId(tweet);
+  if (tweet.text) {
+    const m = tweet.text.match(/(?:twitter|x)\.com\/[^/]+\/status\/(\d+)/);
+    if (m && m[1]) {
+      if (tweetId && m[1] !== tweetId) return true;
+    }
+  }
+  return false;
+}
+
+function shouldShowTweetPopup(tweet) {
+  if (!tweet) return false;
+  return !!(tweet.url || tweet.id);
+}
+
 module.exports = {
   getTweetId,
   getTweetTimestamp,
@@ -157,5 +187,9 @@ module.exports = {
   getTweetDateObj,
   getTweetDateKey,
   getTweetDateLabel,
-  formatTelegramTime
+  formatTelegramTime,
+  isTweetTruncated,
+  isTweetWithQuote,
+  shouldShowTweetPopup
 };
+

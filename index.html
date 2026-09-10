@@ -6,6 +6,24 @@
   <title>TheySay - Twitter / X 动态网格看板</title>
   <link rel="stylesheet" href="node_modules/gridstack/dist/gridstack.min.css">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    window.twttr = (function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0],
+        t = window.twttr || {};
+      if (d.getElementById(id)) return t;
+      js = d.createElement(s);
+      js.id = id;
+      js.src = "https://platform.twitter.com/widgets.js";
+      fjs.parentNode.insertBefore(js, fjs);
+
+      t._e = [];
+      t.ready = function(f) {
+        t._e.push(f);
+      };
+
+      return t;
+    }(document, "script", "twitter-wjs"));
+  </script>
 </head>
 <body>
   <div class="app-layout">
@@ -92,6 +110,17 @@
 
     <!-- 后台并发离屏 Webview 容器 -->
     <div class="background-webviews-container" id="bg-webviews-container"></div>
+  </div>
+
+  <!-- 全局推文 Embed 悬浮弹窗 Modal (居中浮层，挡住原本底下的内容且不影响底层排版) -->
+  <div id="tweet-popup-overlay" class="tweet-popup-overlay" style="display: none;" tabindex="-1">
+    <div class="tweet-popup-dialog" role="dialog" aria-modal="true" aria-label="推文详情">
+      <div class="tweet-popup-loading" id="tweet-popup-loading">
+        <div class="spinner-small"></div>
+        <span>正在加载嵌入推文...</span>
+      </div>
+      <div class="tweet-popup-embed-container" id="tweet-popup-embed-container"></div>
+    </div>
   </div>
 
   <!-- 引入 GridStack 运行时与渲染脚本 -->

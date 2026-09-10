@@ -6,7 +6,7 @@ A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with El
 - **Dark Mode / Light Mode Toggle Switch**: Header features a sleek, animated pill toggle switch with sun and moon icons to smoothly transition between dark and light themes, automatically persisting user preference.
 - **Telegram-Style Chat Bubble Feed with Date Dividers**: Replicates Telegram's clean aesthetics with centered capsule date dividers (e.g. `June 29, 2025`) displayed above each day's messages (with only one date pill per day). Chat bubbles hug content naturally with inline specific timestamps (`11:45 AM`) at the bottom right, status tags (`Pinned`, `Retweet`), removed message numbers, and a hover-revealed link button (`↗`) in the top-right corner.
 - **Oldest-to-Newest Chronological Order (Chat Flow)**: Tweets flow naturally from top to bottom (oldest to newest, with the latest tweet at the bottom), automatically scrolling down like an IM chat window.
-- **100-Character Truncation & Hover-to-Expand**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy. Hovering over any bubble automatically expands it to display full text, and unhovering neatly collapses it back.
+- **100-Character Truncation & Centered Embed Popup on Click**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy, while quote tweets are recognized with a purple "Quote" badge. Clicking on any tweet bubble triggers a sleek, centered modal popup displaying the frameless embedded Twitter/X post directly on screen (with full media, quoted tweet cards, and dark/light theme support) without extra container borders or clutter. Hover triggers are avoided to prevent accidental activation. The popup closes seamlessly by clicking the surrounding backdrop area or pressing <kbd>Esc</kbd>.
 - **Flexible 2×2 to 4×4 Grid Layouts**: Switch seamlessly between `2×2`, `2×3`, `3×2`, `3×3`, and `4×4` presets, strictly matching slot counts without lingering artifacts.
 - **Card Header with Avatar & Name, Icon-Only Refresh Button**: Header height slimmed to 34px, displays user avatar (with handle-targeted HD profile extraction to prevent sidebar recommendation contamination), name, and handle in a clean line. Click on the name anytime to switch to editing the handle. Replaces text buttons with a sleek, textless icon refresh button that spins during fetching, eliminating redundant counters and copy buttons to keep the interface minimal.
 - **Hidden Scrollbars by Default**: Card scrollbars remain invisible by default and gently fade in on hover, keeping the UI minimal and clean.
@@ -33,7 +33,7 @@ npm start
    - Date Divider Pills: Displays a centered translucent capsule date divider (e.g., `June 29, 2025`) above each day's group of tweets, with only one date header shown per calendar day.
    - Natural IM timeline order: sorted chronologically from top to bottom (oldest to newest), with the latest post at the bottom and auto-scrolling to the newest message upon load.
    - Hovering over any bubble reveals an external browser link (`↗`) in the top-right corner to open the original tweet.
-   - Long tweets automatically truncate to the first 100 characters with an ellipsis by default. Hovering over the bubble automatically expands it to full text, and moving the cursor away (unhover) neatly collapses it back.
+   - Truncated Tweets (>100 characters) & Quoted Tweets: Instead of expanding inline and shifting subsequent messages, clicking on any tweet bubble triggers a centered modal popup embedding the complete, original Twitter/X post in a clean, frameless view. Hover triggers are omitted to prevent accidental popups. Clicking anywhere on the surrounding backdrop or pressing <kbd>Esc</kbd> cleanly closes the popup.
 2. **Theme Switcher & Clean Header with Avatar & Name**:
    - Animated pill toggle switch with sun/moon icons in the navigation bar to easily switch between dark and light themes.
    - Ultra-compact card headers (~34px) with unnecessary card numbers and separate status bars removed, maximizing vertical viewport for tweets.
@@ -73,6 +73,7 @@ TheySay/
 │   ├── auth.js         # Twitter login status check & IPC dialogs
 │   ├── constants.js    # Layout limits, storage keys, and presets
 │   ├── grid.js         # GridStack layout management & resize collision checks
+│   ├── popup.js        # Centered tweet embed modal popup & Twitter widget loader
 │   ├── scraper.js      # In-page scraping script & periodic background crawler
 │   ├── slot.js         # Card component UI, avatars, interactions & tweets list
 │   ├── storage.js      # LocalStorage persistence layer

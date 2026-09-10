@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, shell } = require('electron');
 const path = require('path');
 
 // Suppress noisy Chromium internal warnings and OS kernel mismatch logs on macOS
@@ -25,12 +25,20 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // Ensure Cmd+R / Ctrl+R always reloads the main app window
+  // Ensure external links clicked in iframes / embedded widgets open in system browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  // Ensure Cmd+R / Ctrl+R always reloads the main app window, and Escape closes open popups across frames
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown') {
       if ((input.meta || input.control) && input.key.toLowerCase() === 'r') {
         event.preventDefault();
         mainWindow.reload();
+      } else if (input.key === 'Escape') {
+        mainWindow.webContents.send('global-escape');
       }
     }
   });

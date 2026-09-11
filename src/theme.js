@@ -1,8 +1,12 @@
 const { getStoredTheme, saveStoredTheme } = require('./storage');
+const { clearTweetWidgetCache } = require('./popup');
 
 function applyTheme(theme, btnThemeToggle) {
   document.documentElement.setAttribute('data-theme', theme);
   saveStoredTheme(theme);
+  if (typeof clearTweetWidgetCache === 'function') {
+    clearTweetWidgetCache();
+  }
   if (btnThemeToggle) {
     btnThemeToggle.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
     btnThemeToggle.title = theme === 'light' ? '切换深色模式' : '切换浅色模式';

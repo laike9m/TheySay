@@ -9,7 +9,7 @@ const {
   shouldShowTweetPopup,
   isTweetWithQuote
 } = require('./tweet');
-const { openTweetPopup } = require('./popup');
+const { openTweetPopup, prefetchTweet } = require('./popup');
 const {
   getSavedHandles,
   saveHandles,
@@ -243,6 +243,11 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
     const hasPopup = shouldShowTweetPopup(tweet);
     if (hasPopup) {
       bubble.classList.add('has-popup');
+      // Hovering is a strong hint the user is about to click, so jump this
+      // tweet to the front of the embed render queue.
+      bubble.addEventListener('mouseenter', () => {
+        prefetchTweet(tweet, { priority: true });
+      });
       bubble.addEventListener('click', (e) => {
         if (e.target.closest('.im-btn-link')) return;
         openTweetPopup(tweet);
@@ -260,6 +265,18 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
   });
 
   saveSlotCache(slot.index, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
+
+  // Background idle prefetch for tweets eligible for popups.
+  // The list auto-scrolls to the bottom, so the newest tweets are the ones on
+  // screen and the most likely to be clicked.
+  if (Array.isArray(tweets) && tweets.length > 0) {
+    const popTweets = tweets.filter(shouldShowTweetPopup);
+    if (popTweets.length > 0) {
+      setTimeout(() => {
+        popTweets.slice(-4).reverse().forEach((t) => prefetchTweet(t));
+      }, 1000);
+    }
+  }
 }
 
 function clearSlot(slot, { slots } = {}) {

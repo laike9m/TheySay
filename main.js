@@ -4,6 +4,9 @@ const path = require('path');
 // Suppress noisy Chromium internal warnings and OS kernel mismatch logs on macOS
 app.commandLine.appendSwitch('log-level', '3');
 app.commandLine.appendSwitch('disable-logging');
+// Expand Chromium disk and media cache to speed up tweet embeds & static assets
+app.commandLine.appendSwitch('disk-cache-size', '524288000'); // 500MB
+app.commandLine.appendSwitch('media-cache-size', '268435456'); // 250MB
 
 let mainWindow = null;
 let loginWindow = null;
@@ -108,6 +111,27 @@ ipcMain.on('open-login-window', () => {
 });
 
 app.whenReady().then(() => {
+  // Optimize & aggressively cache Twitter/X static assets and syndication data locally
+  session.defaultSession.webRequest.onHeadersReceived({
+    urls: [
+      '*://platform.twitter.com/*',
+      '*://cdn.syndication.twimg.com/*',
+      '*://pbs.twimg.com/*',
+      '*://abs.twimg.com/*'
+    ]
+  }, (details, callback) => {
+    const responseHeaders = Object.assign({}, details.responseHeaders);
+    const url = details.url || '';
+    if (url.includes('/embed/') || url.includes('widgets.js') || url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.woff2')) {
+      responseHeaders['cache-control'] = ['public, max-age=31536000, immutable'];
+    } else if (url.includes('tweet-result')) {
+      responseHeaders['cache-control'] = ['public, max-age=86400, stale-while-revalidate=604800'];
+    } else if (url.includes('pbs.twimg.com')) {
+      responseHeaders['cache-control'] = ['public, max-age=2592000'];
+    }
+    callback({ responseHeaders });
+  });
+
   createWindow();
 
   app.on('activate', () => {

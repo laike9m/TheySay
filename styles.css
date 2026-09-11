@@ -1205,7 +1205,25 @@ body {
   justify-content: center;
   padding: 20px;
   box-sizing: border-box;
+}
+
+/* Closed state. The overlay deliberately stays laid out (no `display: none`)
+   so tweets can be pre-rendered inside it while it is hidden — a zero-width
+   host would make Twitter's widget factory bail out. */
+.tweet-popup-overlay.is-closed {
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Animations are attached to the open state so they replay on every open. */
+.tweet-popup-overlay:not(.is-closed) {
   animation: tweetPopupFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tweet-popup-overlay:not(.is-closed) .tweet-popup-dialog {
+  animation: tweetPopupScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes tweetPopupFadeIn {
@@ -1239,10 +1257,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Must not be `center`: when content is taller than the dialog, centered
+     flex overflow makes the top of the content unreachable while scrolling. */
+  justify-content: flex-start;
   overflow-y: auto;
   overflow-x: hidden;
-  animation: tweetPopupScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
   outline: none;
 }
@@ -1270,9 +1289,39 @@ body {
 }
 
 .tweet-popup-embed-container {
+  position: relative;
   width: 100%;
   display: flex;
   justify-content: center;
+}
+
+/* Each tweet gets a persistent host element. While staged it is pulled out of
+   flow and made invisible, but keeps a real width so the embed can render.
+   Revealing it is a pure class toggle: the iframe is never re-parented, which
+   would otherwise force it to reload.
+
+   `height: 0` + `overflow: hidden` is essential: an absolutely positioned slot
+   still contributes to an ancestor's scrollable overflow, so a tall staged
+   tweet would otherwise let the user scroll the visible tweet off screen into
+   blank space. Collapsing and clipping keeps the scroll area equal to the
+   active tweet, while `width` stays intact so the embed still renders. */
+.tweet-embed-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tweet-embed-slot.is-active {
+  position: relative;
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tweet-popup-embed-container .twitter-tweet {
@@ -1403,5 +1452,3 @@ body {
 .tweet-popup-fallback-btn:hover {
   background-color: rgba(29, 155, 240, 0.12);
 }
-
-

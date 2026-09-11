@@ -2,21 +2,169 @@ const { shell, ipcRenderer } = require('electron');
 const { getTweetId } = require('./tweet');
 const { escapeHtml } = require('./utils');
 
-let currentTweet = null;
-let loadTimeout = null;
+// Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
+// Each embed is a real iframe, so this is a memory/latency trade-off.
+const MAX_PRERENDERED = 10;
+// How many embeds may be rendering at the same time.
+const MAX_CONCURRENT_RENDERS = 2;
+// Give up on an embed after this long and show the fallback card instead.
+const RENDER_TIMEOUT_MS = 15000;
 
-function getTweetIdentifier(tweet) {
-  if (!tweet) return '';
-  return getTweetId(tweet) || tweet.url || '';
+// tweetId -> { el, status, promise, job, tweet }
+//   status: 'idle' | 'pending' | 'ready' | 'failed'
+const embedSlots = new Map();
+
+let activeTweetId = null;
+let currentTweet = null;
+let renderQueue = [];
+let activeRenders = 0;
+
+function getOverlay() {
+  return document.getElementById('tweet-popup-overlay');
+}
+
+function getEmbedContainer() {
+  return document.getElementById('tweet-popup-embed-container');
+}
+
+function getLoadingEl() {
+  return document.getElementById('tweet-popup-loading');
+}
+
+function getCurrentTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
 }
 
 function isTweetPopupOpen() {
-  const overlay = document.getElementById('tweet-popup-overlay');
-  return !!(overlay && overlay.style.display !== 'none');
+  const overlay = getOverlay();
+  return !!(overlay && !overlay.classList.contains('is-closed'));
 }
 
-function renderFallbackTweet(tweet, containerEl) {
-  if (!containerEl) return;
+/* ----------------------------------------------------------------
+   Render queue
+   ---------------------------------------------------------------- */
+
+function pumpRenderQueue() {
+  while (activeRenders < MAX_CONCURRENT_RENDERS && renderQueue.length > 0) {
+    const job = renderQueue.shift();
+    job();
+  }
+}
+
+// Move a queued job to the front so a tweet the user is actually waiting on
+// jumps ahead of background prefetch work.
+function prioritizeSlot(entry) {
+  if (!entry || !entry.job) return;
+  const idx = renderQueue.indexOf(entry.job);
+  if (idx > 0) {
+    renderQueue.splice(idx, 1);
+    renderQueue.unshift(entry.job);
+  }
+}
+
+/* ----------------------------------------------------------------
+   Slot management
+   ---------------------------------------------------------------- */
+
+function evictStaleSlots() {
+  if (embedSlots.size <= MAX_PRERENDERED) return;
+  // Map preserves insertion order, so the oldest entries come first.
+  for (const [id, entry] of embedSlots) {
+    if (embedSlots.size <= MAX_PRERENDERED) break;
+    // Never evict what's on screen or still being built.
+    if (id === activeTweetId || entry.status === 'pending') continue;
+    if (entry.el && entry.el.parentNode) {
+      entry.el.parentNode.removeChild(entry.el);
+    }
+    embedSlots.delete(id);
+  }
+}
+
+function ensureSlot(tweetId, tweet) {
+  let entry = embedSlots.get(tweetId);
+  if (entry) {
+    if (tweet) entry.tweet = tweet;
+    return entry;
+  }
+
+  const container = getEmbedContainer();
+  if (!container) return null;
+
+  // Each tweet keeps its own persistent host element. It is created once and
+  // never re-parented, because moving an iframe in the DOM forces it to reload.
+  const el = document.createElement('div');
+  el.className = 'tweet-embed-slot';
+  el.setAttribute('data-tweet-id', tweetId);
+  container.appendChild(el);
+
+  entry = { el, status: 'idle', promise: null, job: null, tweet: tweet || null };
+  embedSlots.set(tweetId, entry);
+  evictStaleSlots();
+  return entry;
+}
+
+function renderSlot(entry, tweetId) {
+  if (entry.promise) return entry.promise;
+
+  entry.status = 'pending';
+  entry.promise = new Promise((resolve) => {
+    const start = () => {
+      activeRenders++;
+      let settled = false;
+
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        activeRenders--;
+        entry.job = null;
+        entry.status = ok ? 'ready' : 'failed';
+        if (!ok) renderFallbackInto(entry);
+        pumpRenderQueue();
+        resolve(entry.status);
+      };
+
+      const timer = setTimeout(() => done(false), RENDER_TIMEOUT_MS);
+
+      const twttr = window.twttr;
+      if (!twttr || !twttr.widgets || !twttr.widgets.createTweet) {
+        done(false);
+        return;
+      }
+
+      // The slot must have a real, non-zero layout width here: Twitter's widget
+      // factory measures the host element to size its iframe, and a zero-width
+      // host makes it silently bail out.
+      twttr.widgets.createTweet(tweetId, entry.el, {
+        theme: getCurrentTheme(),
+        align: 'center',
+        dnt: true
+      })
+        .then((el) => done(!!el))
+        .catch(() => done(false));
+    };
+
+    entry.job = start;
+    renderQueue.push(start);
+    pumpRenderQueue();
+  });
+
+  return entry.promise;
+}
+
+function deactivateSlot(tweetId) {
+  const entry = embedSlots.get(tweetId);
+  if (entry && entry.el) entry.el.classList.remove('is-active');
+}
+
+/* ----------------------------------------------------------------
+   Fallback card (offline / deleted / protected tweets)
+   ---------------------------------------------------------------- */
+
+function renderFallbackInto(entry) {
+  const tweet = entry.tweet;
+  if (!entry.el || !tweet) return;
+
   const rawText = (tweet.text || '').trim();
   const timeDisplay = tweet.time || (tweet.datetime ? new Date(tweet.datetime).toLocaleString() : '');
   const displayName = tweet.displayName || tweet.userHandle || '';
@@ -60,131 +208,140 @@ function renderFallbackTweet(tweet, containerEl) {
     });
   });
 
-  containerEl.innerHTML = '';
-  containerEl.appendChild(fallbackDiv);
+  entry.el.innerHTML = '';
+  entry.el.appendChild(fallbackDiv);
+}
+
+/* ----------------------------------------------------------------
+   Public API
+   ---------------------------------------------------------------- */
+
+// Warm a tweet's embed in the background so a later click is instant.
+function prefetchTweet(tweet, { priority = false } = {}) {
+  const tweetId = getTweetId(tweet);
+  if (!tweetId) return;
+
+  const existing = embedSlots.get(tweetId);
+  if (existing) {
+    if (tweet) existing.tweet = tweet;
+    if (priority) prioritizeSlot(existing);
+    if (!existing.promise) renderSlot(existing, tweetId);
+    return;
+  }
+
+  // Don't let background prefetching blow past the memory budget; an explicit
+  // (hover/click) request is allowed to evict something older.
+  if (!priority && embedSlots.size >= MAX_PRERENDERED) return;
+
+  const entry = ensureSlot(tweetId, tweet);
+  if (!entry) return;
+  renderSlot(entry, tweetId);
+  if (priority) prioritizeSlot(entry);
 }
 
 function openTweetPopup(tweet) {
   if (!tweet) return;
 
+  const overlay = getOverlay();
+  const loadingEl = getLoadingEl();
+  if (!overlay) return;
+
   const tweetId = getTweetId(tweet);
   currentTweet = tweet;
 
-  const overlay = document.getElementById('tweet-popup-overlay');
-  const loadingEl = document.getElementById('tweet-popup-loading');
-  const containerEl = document.getElementById('tweet-popup-embed-container');
-
-  if (!overlay || !containerEl) return;
-
-  containerEl.innerHTML = '';
-  if (loadingEl) loadingEl.style.display = 'flex';
-  overlay.style.display = 'flex';
-
-  // Ensure keyboard focus is captured so Esc works immediately
-  overlay.setAttribute('tabindex', '-1');
-  overlay.focus();
-
-  if (loadTimeout) {
-    clearTimeout(loadTimeout);
-    loadTimeout = null;
+  // Hide whatever was shown before.
+  if (activeTweetId && activeTweetId !== tweetId) {
+    deactivateSlot(activeTweetId);
   }
 
-  let hasFinished = false;
-  const finish = (fallback = false) => {
-    if (hasFinished) return;
-    hasFinished = true;
-    if (loadTimeout) {
-      clearTimeout(loadTimeout);
-      loadTimeout = null;
-    }
+  if (!tweetId) {
     if (loadingEl) loadingEl.style.display = 'none';
-    if (fallback) {
-      renderFallbackTweet(tweet, containerEl);
-    }
-  };
-
-  // Timeout fallback if widget takes too long (e.g. offline / rate-limited)
-  loadTimeout = setTimeout(() => {
-    finish(true);
-  }, 4500);
-
-  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-
-  const renderWithTwttr = (twttrObj) => {
-    if (!twttrObj || !twttrObj.widgets || !twttrObj.widgets.createTweet || !tweetId) {
-      finish(true);
-      return;
-    }
-    twttrObj.widgets.createTweet(tweetId, containerEl, {
-      theme: theme,
-      align: 'center',
-      dnt: true
-    }).then((el) => {
-      if (!el) {
-        finish(true);
-      } else {
-        finish(false);
-      }
-    }).catch(() => {
-      finish(true);
-    });
-  };
-
-  if (window.twttr && window.twttr.widgets && window.twttr.widgets.createTweet) {
-    renderWithTwttr(window.twttr);
-  } else if (window.twttr && window.twttr.ready) {
-    window.twttr.ready((twttr) => {
-      renderWithTwttr(twttr);
-    });
-  } else {
-    finish(true);
+    openOverlay();
+    return;
   }
+
+  const entry = ensureSlot(tweetId, tweet);
+  if (!entry) return;
+
+  activeTweetId = tweetId;
+  entry.el.classList.add('is-active');
+  openOverlay();
+
+  if (entry.status === 'ready' || entry.status === 'failed') {
+    // Already pre-rendered: the card is on screen immediately, no swap, no spinner.
+    if (loadingEl) loadingEl.style.display = 'none';
+    return;
+  }
+
+  // Not warmed up yet: show the spinner until the real card is ready, then
+  // reveal the card directly. No intermediate placeholder is ever shown.
+  if (loadingEl) loadingEl.style.display = 'flex';
+  prioritizeSlot(entry);
+
+  renderSlot(entry, tweetId).then(() => {
+    if (activeTweetId !== tweetId) return;
+    if (loadingEl) loadingEl.style.display = 'none';
+  });
+}
+
+function openOverlay() {
+  const overlay = getOverlay();
+  if (!overlay) return;
+  overlay.classList.remove('is-closed');
+  overlay.setAttribute('aria-hidden', 'false');
+  overlay.focus();
 }
 
 function closeTweetPopup() {
-  const overlay = document.getElementById('tweet-popup-overlay');
-  const containerEl = document.getElementById('tweet-popup-embed-container');
-  const loadingEl = document.getElementById('tweet-popup-loading');
+  const overlay = getOverlay();
+  const loadingEl = getLoadingEl();
 
-  if (overlay) overlay.style.display = 'none';
-  if (containerEl) containerEl.innerHTML = '';
-  if (loadingEl) loadingEl.style.display = 'none';
-
-  if (loadTimeout) {
-    clearTimeout(loadTimeout);
-    loadTimeout = null;
+  if (overlay) {
+    overlay.classList.add('is-closed');
+    overlay.setAttribute('aria-hidden', 'true');
   }
 
+  // Only hide the active slot; the rendered iframe stays in the DOM so that
+  // reopening the same tweet is instant.
+  if (activeTweetId) deactivateSlot(activeTweetId);
+  activeTweetId = null;
+
+  if (loadingEl) loadingEl.style.display = 'none';
   currentTweet = null;
 }
 
+// Twitter bakes the colour scheme into the embed at creation time, so every
+// pre-rendered card has to be thrown away when the theme flips.
+function clearTweetWidgetCache() {
+  const wasOpen = isTweetPopupOpen();
+  const tweet = currentTweet;
+
+  renderQueue = [];
+  for (const entry of embedSlots.values()) {
+    if (entry.el && entry.el.parentNode) {
+      entry.el.parentNode.removeChild(entry.el);
+    }
+  }
+  embedSlots.clear();
+  activeTweetId = null;
+
+  if (wasOpen && tweet) {
+    openTweetPopup(tweet);
+  }
+}
+
 function initTweetPopup() {
-  const overlay = document.getElementById('tweet-popup-overlay');
+  const overlay = getOverlay();
 
   if (overlay) {
     overlay.addEventListener('click', (e) => {
-      // Don't close if user clicked inside fallback card or loading indicator
-      const fallback = overlay.querySelector('.tweet-popup-fallback');
-      if (fallback && fallback.contains(e.target)) {
-        return;
-      }
-      const loading = document.getElementById('tweet-popup-loading');
-      if (loading && loading.contains(e.target)) {
-        return;
-      }
+      // Clicking the card itself shouldn't dismiss the popup.
+      if (e.target.closest('.tweet-embed-slot')) return;
+      if (e.target.closest('.tweet-popup-loading')) return;
       closeTweetPopup();
-    });
-
-    overlay.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && isTweetPopupOpen()) {
-        e.preventDefault();
-        e.stopPropagation();
-        closeTweetPopup();
-      }
     });
   }
 
-  // Pressing Escape closes the popup (capture on window and document)
   const handleEscKey = (e) => {
     if (e.key === 'Escape' && isTweetPopupOpen()) {
       e.preventDefault();
@@ -196,12 +353,11 @@ function initTweetPopup() {
   window.addEventListener('keydown', handleEscKey, true);
   document.addEventListener('keydown', handleEscKey, true);
 
-  // Global escape from main process (intercepts Esc even if focus is inside Twitter iframe)
+  // Escape needs to work even while focus sits inside the Twitter iframe,
+  // which the renderer can't observe directly.
   if (ipcRenderer) {
     ipcRenderer.on('global-escape', () => {
-      if (isTweetPopupOpen()) {
-        closeTweetPopup();
-      }
+      if (isTweetPopupOpen()) closeTweetPopup();
     });
   }
 }
@@ -210,5 +366,7 @@ module.exports = {
   initTweetPopup,
   openTweetPopup,
   closeTweetPopup,
-  isTweetPopupOpen
+  isTweetPopupOpen,
+  prefetchTweet,
+  clearTweetWidgetCache
 };

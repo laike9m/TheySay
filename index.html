@@ -113,7 +113,9 @@
   </div>
 
   <!-- 全局推文 Embed 悬浮弹窗 Modal (居中浮层，挡住原本底下的内容且不影响底层排版) -->
-  <div id="tweet-popup-overlay" class="tweet-popup-overlay" style="display: none;" tabindex="-1">
+  <!-- 注意: 关闭态使用 .is-closed 而非 display:none —— 隐藏元素宽度为 0，
+       会导致 Twitter 无法在后台预渲染嵌入卡片 -->
+  <div id="tweet-popup-overlay" class="tweet-popup-overlay is-closed" tabindex="-1" aria-hidden="true">
     <div class="tweet-popup-dialog" role="dialog" aria-modal="true" aria-label="推文详情">
       <div class="tweet-popup-loading" id="tweet-popup-loading">
         <div class="spinner-small"></div>

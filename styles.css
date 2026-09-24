@@ -361,67 +361,227 @@ body {
   background-color: var(--border-color);
 }
 
-/* Login Status Button */
-.login-status-btn {
-  height: 28px;
-  box-sizing: border-box;
+/* Login Accounts Dropdown Menu */
+.login-dropdown-wrapper {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-  outline: none;
 }
 
-.status-indicator {
+.login-dropdown-btn {
+  position: relative;
+  gap: 6px;
+}
+
+.login-dropdown-btn.active {
+  color: var(--text-main);
+  border-color: var(--accent-blue);
+  background-color: var(--bg-control-hover);
+}
+
+.dropdown-chevron {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-secondary);
+}
+
+.login-dropdown-btn.active .dropdown-chevron {
+  transform: rotate(180deg);
+  color: var(--text-main);
+}
+
+.login-menu-icon {
+  flex-shrink: 0;
+}
+
+.login-menu-status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
+  background-color: var(--text-muted);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-.login-status-btn.logged-in {
+.login-menu-status-dot.has-login {
+  background-color: var(--accent-success);
+  box-shadow: 0 0 6px var(--accent-success);
+}
+
+.login-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 230px;
+  background-color: var(--bg-popover);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-popover);
+  z-index: 1000;
+  overflow: hidden;
+  animation: loginDropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes loginDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-menu-header {
+  padding: 10px 14px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.login-menu-list {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-menu-item {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  color: inherit;
+}
+
+.login-menu-item:hover {
+  background-color: var(--bg-control-hover);
+  border-color: var(--border-subtle);
+}
+
+.login-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.platform-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.platform-icon.twitter {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+[data-theme="light"] .platform-icon.twitter {
+  background-color: rgba(0, 0, 0, 0.06);
+  color: #0f1419;
+}
+
+.platform-icon.discord {
+  background-color: rgba(88, 101, 242, 0.15);
+  color: #5865f2;
+}
+
+.platform-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1;
+}
+
+.login-item-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.platform-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.platform-status-badge .status-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Logged in state */
+.platform-status-badge.logged-in {
   background-color: rgba(0, 186, 124, 0.12);
   border-color: rgba(0, 186, 124, 0.35);
   color: var(--accent-success);
 }
 
-.login-status-btn.logged-in .status-indicator {
+.platform-status-badge.logged-in .status-indicator-dot {
   background-color: var(--accent-success);
-  box-shadow: 0 0 6px var(--accent-success);
+  box-shadow: 0 0 5px var(--accent-success);
 }
 
-.login-status-btn.logged-in:hover {
-  background-color: rgba(0, 186, 124, 0.2);
-}
-
-.login-status-btn.logged-out {
-  background-color: var(--bg-control);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
-.login-status-btn.logged-out .status-indicator {
-  display: none;
-}
-
-.login-status-btn.logged-out:hover {
-  background-color: var(--accent-blue);
-  color: #fff;
-}
-
-.login-status-btn.checking {
+/* Logged out state */
+.platform-status-badge.logged-out {
   background-color: var(--bg-control);
   border-color: var(--border-subtle);
   color: var(--text-secondary);
 }
 
-.login-status-btn.checking .status-indicator {
-  background-color: var(--text-secondary);
+.platform-status-badge.logged-out .status-indicator-dot {
+  background-color: var(--text-muted);
+}
+
+.login-menu-item:hover .platform-status-badge.logged-out {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+/* Checking state */
+.platform-status-badge.checking {
+  background-color: var(--bg-control);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.platform-status-badge.checking .status-indicator-dot {
+  background-color: var(--accent-blue);
+  animation: pulse-dot 1s infinite alternate;
+}
+
+@keyframes pulse-dot {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 /* Dashboard Container */

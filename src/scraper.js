@@ -467,6 +467,7 @@ async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Twitter Background Fetch] Error during sequential crawl:', err);
   } finally {
     isTwitterBackgroundFetching = false;
+    saveLastFetchTimeTwitter(Date.now());
   }
 }
 
@@ -490,6 +491,7 @@ async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Discord Background Fetch] Error during sequential crawl:', err);
   } finally {
     isDiscordBackgroundFetching = false;
+    saveLastFetchTimeDiscord(Date.now());
   }
 }
 
@@ -541,7 +543,9 @@ function startPeriodicBackgroundFetch(context) {
     const lastTwitterTime = lastTwitterRaw ? parseInt(lastTwitterRaw, 10) : 0;
     const elapsedTwitter = lastTwitterTime > 0 ? (now - lastTwitterTime) : Infinity;
 
-    let delayUntilTwitter = twitterIntervalMs;
+    // If fetch is due (elapsed >= interval, or never fetched), trigger in 5s;
+    // otherwise wait for the remainder of the interval.
+    let delayUntilTwitter = 5000;
     if (elapsedTwitter < twitterIntervalMs) {
       delayUntilTwitter = Math.max(twitterIntervalMs - elapsedTwitter, 5000);
     }
@@ -562,7 +566,9 @@ function startPeriodicBackgroundFetch(context) {
     const lastDiscordTime = lastDiscordRaw ? parseInt(lastDiscordRaw, 10) : 0;
     const elapsedDiscord = lastDiscordTime > 0 ? (now - lastDiscordTime) : Infinity;
 
-    let delayUntilDiscord = discordIntervalMs;
+    // If fetch is due (elapsed >= interval, or never fetched), trigger in 5s;
+    // otherwise wait for the remainder of the interval.
+    let delayUntilDiscord = 5000;
     if (elapsedDiscord < discordIntervalMs) {
       delayUntilDiscord = Math.max(discordIntervalMs - elapsedDiscord, 5000);
     }

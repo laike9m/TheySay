@@ -54,7 +54,7 @@ npm start
    - **Private Channels & Dedicated Login**: Accessible via the "登录账号" dropdown menu in the top navigation bar with persistent session partition (`persist:discord_session`). Once logged in, private server and guild channels are fully accessible.
    - **Telegram-Style Group Chat Aesthetics**: Renders chat messages with per-author colored names, collapses consecutive messages from the same sender, displays quoted reply context (`↩ author: text`), and summarizes attachments/media with neat badge chips.
    - **Click-to-Expand Modal**: Clicking any Discord chat bubble opens a centered message detail modal displaying the full text, author info, reply context, and attachment summary, with a button to jump directly to the message in Discord.
-   - **Shared Offscreen Client & SPA Channel Switching**: Runs an offscreen background Discord webview that switches channels via in-app router navigation rather than reloading, preserving gateway connection and saving memory.
+   - **Shared Offscreen Client, Active Remount & SPA Switching**: Runs an offscreen background Discord webview that switches channels via in-app router navigation rather than reloading, preserving gateway connection and saving memory. Automatic polling and manual refreshes cleanly remount the channel view to pull newest messages via Discord's REST API.
 7. **Handle, Channel URL, Avatar & Cache Persistence**:
    - Real-time `localStorage` persistence for Twitter handles, Discord channel links, avatars, cached messages, and custom grid coordinates.
    - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, avatars, tweets, and Discord channel feeds.

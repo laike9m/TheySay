@@ -137,7 +137,6 @@ function buildSpaNavigateScript(guildId, channelId) {
   (() => {
     try {
       const target = '/channels/' + ${JSON.stringify(String(guildId))} + '/' + ${JSON.stringify(String(channelId))};
-      if (location.pathname === target) return { ok: true, noop: true };
       history.pushState({}, '', target);
       window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
       return { ok: true, path: location.pathname };
@@ -160,7 +159,10 @@ const JUMP_TO_PRESENT_SCRIPT = `
       const scroller = getScroller();
 
       // The "Jump to Present" bar skips the whole unread backlog in one hop.
-      const bar = document.querySelector('[class*="jumpToPresentBar"] button, [class*="jumpToPresentBar"] [role="button"]');
+      const bar = document.querySelector(
+        '[class*="jumpToPresentBar"] button, [class*="jumpToPresentBar"] [role="button"], button[class*="jumpToPresentBar"], [class*="jumpToPresentBar"], ' +
+        '[class*="newMessagesBar"] button, [class*="newMessagesBar"] [role="button"], button[class*="newMessagesBar"], [class*="newMessagesBar"]'
+      );
       if (bar) {
         bar.click();
         return { jumped: true, atBottom: false };
@@ -528,8 +530,35 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     if (onProgress) onProgress('正在启动 Discord 客户端...');
     timeout = BOOT_TIMEOUT_MS;
     await loadWebviewTarget(wv, buildDiscordChannelUrl(guildId, channelId));
-  } else if (currentUrl.indexOf(targetPath) < 0) {
-    if (onProgress) onProgress('正在切换频道...');
+  } else {
+    // If the webview is already showing this channel, route away to @me first
+    // so Discord's SPA unmounts the channel and mounts it again fresh, triggering
+    // a REST API fetch for the latest messages.
+    if (currentUrl.indexOf(targetPath) >= 0) {
+      if (onProgress) onProgress('正在刷新频道消息...');
+      await runScript(wv, `
+        (() => {
+          try {
+            history.pushState({}, '', '/channels/@me');
+            window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+            return { ok: true };
+          } catch (e) {
+            return { ok: false };
+          }
+        })()
+      `);
+      // Wait briefly for Discord's router to process leaving the channel
+      const unmountDeadline = Date.now() + 1500;
+      while (Date.now() < unmountDeadline) {
+        const p = await runScript(wv, `(() => location.pathname)()`);
+        if (p && p.indexOf(targetPath) < 0) break;
+        await sleep(100);
+      }
+      await sleep(150);
+    } else {
+      if (onProgress) onProgress('正在切换频道...');
+    }
+
     const res = await runScript(wv, buildSpaNavigateScript(guildId, channelId));
     if (!res || !res.ok) {
       // The in-app router refused; fall back to a hard reload.
@@ -704,7 +733,6 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       slot.monitoredHandle = rawInput;
       slot.source = SOURCE_DISCORD;
       slot.lastFetchedAt = Date.now();
-      saveLastFetchTime(slot.lastFetchedAt);
       saveLastFetchTimeDiscord(slot.lastFetchedAt);
       updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 

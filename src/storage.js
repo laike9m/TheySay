@@ -111,7 +111,7 @@ function saveLastFetchTimeTwitter(timestamp) {
 
 function getLastFetchTimeDiscord() {
   try {
-    return localStorage.getItem(STORAGE_LAST_FETCH_DISCORD_KEY) || localStorage.getItem(STORAGE_LAST_FETCH_KEY);
+    return localStorage.getItem(STORAGE_LAST_FETCH_DISCORD_KEY);
   } catch (e) {
     return null;
   }
@@ -120,7 +120,6 @@ function getLastFetchTimeDiscord() {
 function saveLastFetchTimeDiscord(timestamp) {
   try {
     localStorage.setItem(STORAGE_LAST_FETCH_DISCORD_KEY, String(timestamp));
-    localStorage.setItem(STORAGE_LAST_FETCH_KEY, String(timestamp));
   } catch (e) {}
 }
 

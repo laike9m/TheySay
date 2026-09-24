@@ -1374,10 +1374,10 @@ body {
 .background-webviews-container {
   position: fixed;
   top: 0;
-  left: 0;
+  left: -99999px;
   width: 1280px;
   height: 900px;
-  opacity: 0;
+  opacity: 0.01;
   pointer-events: none;
   z-index: -9999;
 }

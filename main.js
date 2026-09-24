@@ -173,6 +173,11 @@ ipcMain.on('open-discord-login-window', () => {
 });
 
 app.whenReady().then(() => {
+  // Ensure background webviews (especially Discord client) are never throttled
+  app.on('web-contents-created', (event, contents) => {
+    contents.setBackgroundThrottling(false);
+  });
+
   // The Discord client runs unattended in the background, so silence anything
   // that would try to prompt the user (notifications, mic, camera, ...).
   session.fromPartition(DISCORD_PARTITION)

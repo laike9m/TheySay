@@ -56,7 +56,7 @@ npm start
    - **私有频道授权登录**：顶栏“登录账号”下拉菜单提供专用的 Discord 授权登录入口，使用独立的会话分区（`persist:discord_session`），登录后即可无缝监控需要成员身份的私有 Guild 频道；
    - **Telegram 风格群聊视觉美化**：采用 Telegram 风格群聊气泡，基于用户名为每位发言者分配专属色彩，连续同一人发言自动折叠作者信息，优雅渲染回复引用（`↩ author: text`），并提取图片/视频/附件/嵌入卡片标签摘要；
    - **居中消息详情弹窗**：点击任何 Discord 聊天气泡即可居中弹出消息卡片，完整阅读全文、引用信息和附件，并提供在 Discord 网页或客户端一键直达原消息的跳转按钮；
-   - **单例共享 Webview 与 SPA 频道秒级切换**：所有 Discord 槽位共享一个后台轻量 Webview，通过前端路由（pushState + popstate）切换频道，保留网关长连接并极大降低内存占用。
+   - **单例共享 Webview、主动重载与 SPA 频道秒级切换**：所有 Discord 槽位共享一个后台轻量 Webview，通过前端路由（pushState + popstate）切换频道，保留网关长连接并极大降低内存占用。定时轮询与手动刷新自动执行路由重新挂载，强制拉取 Discord 官方 REST API 最新消息，杜绝 DOM 停滞漏更。
 7. **Handle、频道链接、缓存与布局持久化**：
    - 每次输入 Twitter handle 或 Discord 频道链接、卡片排版自动实时保存，刷新页面（<kbd>Cmd + R</kbd>）保留所有状态与消息缓存。
 8. **独立后台定时轮询与刷新频率设置（Twitter 与 Discord 分离）**：

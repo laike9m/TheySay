@@ -218,6 +218,10 @@ function renderFallbackInto(entry) {
 
 // Warm a tweet's embed in the background so a later click is instant.
 function prefetchTweet(tweet, { priority = false } = {}) {
+  // Discord messages are rendered from data we already hold; there is no
+  // third-party widget to warm up.
+  if (!tweet || tweet.source === 'discord') return;
+
   const tweetId = getTweetId(tweet);
   if (!tweetId) return;
 
@@ -239,8 +243,100 @@ function prefetchTweet(tweet, { priority = false } = {}) {
   if (priority) prioritizeSlot(entry);
 }
 
+/* ----------------------------------------------------------------
+   Discord message card
+   ---------------------------------------------------------------- */
+
+// Discord messages are already fully scraped, so there is nothing to pre-render
+// or cache: one reusable host element is enough.
+let discordSlotEl = null;
+
+function getDiscordSlotEl() {
+  if (discordSlotEl) return discordSlotEl;
+  const container = getEmbedContainer();
+  if (!container) return null;
+
+  discordSlotEl = document.createElement('div');
+  discordSlotEl.className = 'tweet-embed-slot discord-embed-slot';
+  container.appendChild(discordSlotEl);
+  return discordSlotEl;
+}
+
+function renderDiscordCardInto(el, msg) {
+  const rawText = (msg.text || '').trim();
+  const timeDisplay = msg.datetime ? new Date(msg.datetime).toLocaleString() : (msg.time || '');
+
+  let replyHtml = '';
+  if (msg.replyText || msg.replyAuthor) {
+    replyHtml = `
+      <div class="discord-popup-reply">
+        <span class="discord-popup-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
+        <span class="discord-popup-reply-text">${escapeHtml(msg.replyText || '')}</span>
+      </div>
+    `;
+  }
+
+  let attachmentsHtml = '';
+  if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+    attachmentsHtml = `
+      <div class="discord-popup-attachments">
+        ${msg.attachments.map(a => `<span class="im-attachment-chip">${escapeHtml(a)}</span>`).join('')}
+      </div>
+    `;
+  }
+
+  el.innerHTML = `
+    <div class="discord-popup-card">
+      <div class="discord-popup-header">
+        ${msg.avatarUrl
+          ? `<img class="discord-popup-avatar" src="${escapeHtml(msg.avatarUrl)}" alt="">`
+          : '<div class="discord-popup-avatar-placeholder">#</div>'}
+        <div class="discord-popup-names">
+          <span class="discord-popup-name">${escapeHtml(msg.displayName || '')}</span>
+          ${msg.isBot ? '<span class="tweet-tag bot">BOT</span>' : ''}
+        </div>
+      </div>
+      ${replyHtml}
+      <div class="discord-popup-text">${escapeHtml(rawText)}</div>
+      ${attachmentsHtml}
+      <div class="discord-popup-footer">
+        <span class="discord-popup-time">${escapeHtml(timeDisplay)}</span>
+        ${msg.url ? '<button class="tweet-popup-fallback-btn" data-url="' + escapeHtml(msg.url) + '">在 Discord 中打开 ↗</button>' : ''}
+      </div>
+    </div>
+  `;
+
+  el.querySelectorAll('[data-url]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const url = btn.getAttribute('data-url');
+      if (url) shell.openExternal(url);
+    });
+  });
+}
+
+function openDiscordPopup(msg) {
+  const el = getDiscordSlotEl();
+  if (!el) return;
+
+  if (activeTweetId) deactivateSlot(activeTweetId);
+  activeTweetId = null;
+  currentTweet = msg;
+
+  renderDiscordCardInto(el, msg);
+  el.classList.add('is-active');
+
+  const loadingEl = getLoadingEl();
+  if (loadingEl) loadingEl.style.display = 'none';
+  openOverlay();
+}
+
 function openTweetPopup(tweet) {
   if (!tweet) return;
+  if (tweet.source === 'discord') {
+    openDiscordPopup(tweet);
+    return;
+  }
 
   const overlay = getOverlay();
   const loadingEl = getLoadingEl();
@@ -250,6 +346,7 @@ function openTweetPopup(tweet) {
   currentTweet = tweet;
 
   // Hide whatever was shown before.
+  if (discordSlotEl) discordSlotEl.classList.remove('is-active');
   if (activeTweetId && activeTweetId !== tweetId) {
     deactivateSlot(activeTweetId);
   }
@@ -304,6 +401,7 @@ function closeTweetPopup() {
   // Only hide the active slot; the rendered iframe stays in the DOM so that
   // reopening the same tweet is instant.
   if (activeTweetId) deactivateSlot(activeTweetId);
+  if (discordSlotEl) discordSlotEl.classList.remove('is-active');
   activeTweetId = null;
 
   if (loadingEl) loadingEl.style.display = 'none';

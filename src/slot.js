@@ -18,6 +18,7 @@ const {
   saveAllSlotCache
 } = require('./storage');
 const { getOrCreateSlotWebview } = require('./webview');
+const { SOURCE_DISCORD, detectSourceType } = require('./source');
 
 function createSlotWidget(index) {
   const widget = document.createElement('div');
@@ -49,8 +50,8 @@ function createSlotWidget(index) {
 
             <!-- Handle input field (shown initially or when editing) -->
             <div class="slot-input-wrapper" id="slot-input-wrapper-${index}">
-              <span class="slot-input-prefix">@</span>
-              <input type="text" class="slot-handle-input" id="handle-input-${index}" placeholder="Twitter 用户名" autocomplete="off" spellcheck="false">
+              <span class="slot-input-prefix" id="slot-input-prefix-${index}">@</span>
+              <input type="text" class="slot-handle-input" id="handle-input-${index}" placeholder="Twitter 用户名 或 Discord 频道链接" autocomplete="off" spellcheck="false">
               <button class="slot-btn-clear" id="btn-clear-${index}" title="清空" style="display: none;">✕</button>
             </div>
           </div>
@@ -110,15 +111,80 @@ function updateSlotAvatar(slot, avatarUrl) {
   }
 }
 
+function getSlotSource(slot) {
+  if (!slot) return 'twitter';
+  if (slot.source) return slot.source;
+  return detectSourceType(slot.handleInput ? slot.handleInput.value : '');
+}
+
+function isDiscordSlot(slot) {
+  return getSlotSource(slot) === SOURCE_DISCORD;
+}
+
+/**
+ * Keeps the input affordances in sync with whatever the user is typing: a bare
+ * Twitter handle reads as "@name", a pasted Discord link as a "#channel".
+ */
+function updateSlotSourceUI(slot) {
+  if (!slot) return;
+  const isDiscord = detectSourceType(slot.handleInput ? slot.handleInput.value : '') === SOURCE_DISCORD;
+
+  if (slot.inputPrefix) {
+    slot.inputPrefix.innerText = isDiscord ? '#' : '@';
+    slot.inputPrefix.classList.toggle('is-discord', isDiscord);
+  }
+  if (slot.avatarPlaceholder) {
+    slot.avatarPlaceholder.innerText = (isDiscord || slot.source === SOURCE_DISCORD) ? '#' : '👤';
+  }
+  if (slot.card) {
+    slot.card.classList.toggle('is-discord', isDiscord || slot.source === SOURCE_DISCORD);
+  }
+}
+
+/**
+ * Single funnel for slot persistence so that the source and the resolved
+ * channel / server names are never dropped on the way into localStorage.
+ */
+function persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl }, slots = []) {
+  saveSlotCache(slot.index, {
+    handle,
+    displayName,
+    userHandle,
+    tweets,
+    avatarUrl,
+    source: slot.source || 'twitter',
+    sourceTitle: slot.sourceTitle || '',
+    sourceSubtitle: slot.sourceSubtitle || ''
+  }, slots);
+}
+
+function sanitizeSingleLine(str) {
+  return String(str || '')
+    .split(/[\r\n]+/)[0]
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim();
+}
+
 function updateSlotFetchTimeUI(slot, timestamp) {
   if (!slot) return;
   const timeStr = formatFetchTime(timestamp);
+  const isDiscord = isDiscordSlot(slot);
+
   if (slot.btnFetch) {
-    slot.btnFetch.title = timeStr ? `上次抓取: ${timeStr} (点击立即刷新)` : '刷新推文';
+    const label = isDiscord ? '刷新消息' : '刷新推文';
+    slot.btnFetch.title = timeStr ? `上次抓取: ${timeStr} (点击立即刷新)` : label;
   }
   if (slot.authorHeader) {
-    const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
-    slot.authorHeader.title = timeStr ? `@${handle} · 上次抓取: ${timeStr} (点击修改账号)` : '点击修改账号';
+    let name;
+    if (isDiscord) {
+      const title = slot.sourceTitle || '#频道';
+      const subtitle = slot.sourceSubtitle || '';
+      name = subtitle ? `${title} · ${subtitle}` : title;
+    } else {
+      name = `@${slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')}`;
+    }
+    const editHint = isDiscord ? '点击修改频道' : '点击修改账号';
+    slot.authorHeader.title = timeStr ? `${name} · 上次抓取: ${timeStr} (${editHint})` : `${name} (${editHint})`;
   }
 }
 
@@ -138,7 +204,81 @@ function showSlotError(slot, errorMsg) {
   slot.tweetsList.style.display = 'none';
 }
 
-function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
+// Stable per-author tint, so the same person keeps the same colour across
+// refreshes without having to store anything.
+function authorColor(name) {
+  let hash = 0;
+  const str = String(name || '');
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) % 360;
+  }
+  return `hsl(${hash}, 62%, 52%)`;
+}
+
+function buildDiscordBubbleHtml(msg, { showAuthor }) {
+  const rawText = (msg.text || '').trim();
+  const chars = Array.from(rawText);
+  const isLong = chars.length > 100;
+  const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
+
+  let html = '';
+
+  if (showAuthor && msg.displayName) {
+    html += `<span class="im-author" style="color: ${authorColor(msg.displayName)}">${escapeHtml(msg.displayName)}</span>`;
+    if (msg.isBot) html += '<span class="tweet-tag bot">BOT</span>';
+  }
+
+  if (msg.replyText || msg.replyAuthor) {
+    html += `
+      <span class="im-reply-ref">
+        <span class="im-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
+        <span class="im-reply-text">${escapeHtml(msg.replyText || '')}</span>
+      </span>
+    `;
+  }
+
+  if (rawText) {
+    html += isLong
+      ? `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`
+      : `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
+  }
+
+  if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+    html += '<span class="im-attachments">';
+    msg.attachments.forEach(a => {
+      html += `<span class="im-attachment-chip">${escapeHtml(a)}</span>`;
+    });
+    html += '</span>';
+  }
+
+  return html;
+}
+
+function buildTweetBubbleHtml(tweet) {
+  const rawText = (tweet.text || '').trim();
+  const chars = Array.from(rawText);
+  const isLong = chars.length > 100;
+  const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
+
+  let tagHtml = '';
+  if (tweet.isPinned) tagHtml += '<span class="tweet-tag">置顶</span>';
+  if (tweet.isRetweet) tagHtml += '<span class="tweet-tag repost">转推</span>';
+  if (isTweetWithQuote(tweet)) tagHtml += '<span class="tweet-tag quote">引用</span>';
+
+  const textHtml = isLong
+    ? `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`
+    : `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
+
+  return `${tagHtml}${textHtml}`;
+}
+
+/**
+ * Renders a slot's feed.
+ *
+ * `meta` is only supplied by non-Twitter sources; when it is omitted the header
+ * keeps deriving its identity from the first tweet, exactly as before.
+ */
+function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], meta = null) {
   slot.placeholder.style.display = 'none';
   slot.loading.style.display = 'none';
   slot.error.style.display = 'none';
@@ -146,18 +286,122 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
 
   slot.loadedTweets = tweets;
 
-  const firstTweet = tweets[0] || {};
-  const displayName = (firstTweet.displayName || '').trim();
-  const userHandle = (firstTweet.userHandle || `@${handle}`).trim();
+  const isDiscord = !!(meta && meta.source === SOURCE_DISCORD);
+  slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
 
-  // Set author name next to avatar
-  if (displayName && displayName !== userHandle && displayName !== handle) {
+  const firstTweet = tweets[0] || {};
+
+  let displayName;
+  let userHandle;
+
+  if (isDiscord) {
+    let rawTitle = meta && meta.title ? meta.title : (slot.sourceTitle || '#频道');
+    let rawSubtitle = meta && meta.subtitle !== undefined ? meta.subtitle : (slot.sourceSubtitle || '');
+
+    let cleanChan = '';
+    let cleanGuild = rawSubtitle;
+
+    const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+    if (rawLines.length >= 2) {
+      const l0 = rawLines[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+      const l1 = rawLines[1].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+      if (l1) {
+        cleanChan = l1;
+        if (!cleanGuild || cleanGuild === l1) cleanGuild = l0;
+      }
+    }
+
+    if (!cleanChan && (rawTitle.includes(':') || rawTitle.includes('：'))) {
+      const cparts = rawTitle.split(/[:：]/);
+      const p0 = cparts[0].replace(/^[#@]+/, '').trim();
+      const p1 = cparts.slice(1).join(':').replace(/^[#@]+/, '').trim();
+      if (p1) {
+        cleanChan = p1;
+        if (!cleanGuild || cleanGuild === p1) cleanGuild = p0;
+      }
+    }
+
+    if (!cleanChan) {
+      cleanChan = sanitizeSingleLine(rawTitle)
+        .replace(/^[#@]+/, '')
+        .replace(/[:：\s]+$/, '')
+        .trim();
+    }
+
+    if (cleanGuild) {
+      cleanGuild = sanitizeSingleLine(cleanGuild)
+        .replace(/\s*[-|]\s*Discord$/i, '')
+        .trim();
+      if (cleanGuild.toLowerCase() === cleanChan.toLowerCase()) {
+        cleanGuild = '';
+      }
+    }
+
+    displayName = cleanChan ? `#${cleanChan}` : '#频道';
+    userHandle = cleanGuild;
+
+    slot.sourceTitle = displayName;
+    slot.sourceSubtitle = userHandle;
     slot.authorName.innerText = displayName;
     slot.authorHandle.innerText = userHandle;
   } else {
-    slot.authorName.innerText = userHandle || `@${handle}`;
-    slot.authorHandle.innerText = '';
+    let rawName = sanitizeSingleLine(meta && meta.displayName ? meta.displayName : '');
+    let rawHandle = sanitizeSingleLine(meta && meta.userHandle ? meta.userHandle : '');
+
+    if (!rawName) {
+      for (const t of tweets) {
+        if (t.displayName) {
+          const cleaned = sanitizeSingleLine(t.displayName);
+          if (cleaned && cleaned.toLowerCase() !== handle.toLowerCase()) {
+            rawName = cleaned;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!rawName && firstTweet.displayName) {
+      rawName = sanitizeSingleLine(firstTweet.displayName);
+    }
+
+    if (!rawHandle) {
+      for (const t of tweets) {
+        if (t.userHandle) {
+          const cleanedH = sanitizeSingleLine(t.userHandle);
+          if (cleanedH) {
+            rawHandle = cleanedH;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!rawHandle) {
+      rawHandle = sanitizeSingleLine(firstTweet.userHandle || `@${handle}`);
+    }
+    if (!rawHandle.startsWith('@') && rawHandle) rawHandle = `@${rawHandle}`;
+
+    const bareHandle = rawHandle.replace(/^@/, '').toLowerCase();
+    const bareName = rawName.replace(/^@/, '').toLowerCase();
+
+    slot.sourceTitle = '';
+    slot.sourceSubtitle = '';
+
+    // Set author name next to avatar
+    if (rawName && bareName !== bareHandle) {
+      displayName = rawName;
+      userHandle = rawHandle;
+      slot.authorName.innerText = displayName;
+      slot.authorHandle.innerText = userHandle;
+    } else {
+      displayName = rawHandle || `@${handle}`;
+      userHandle = '';
+      slot.authorName.innerText = displayName;
+      slot.authorHandle.innerText = '';
+    }
   }
+
+  updateSlotSourceUI(slot);
 
   // Switch to author badge view in header
   if (slot.authorHeader) slot.authorHeader.style.display = 'flex';
@@ -173,13 +417,16 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
   const finalAvatar = avatarUrl || (slot.avatarImg && slot.avatarImg.src) || '';
 
   let lastDateKey = null;
+  let lastAuthorName = null;
 
   tweets.forEach((tweet) => {
     const dateKey = getTweetDateKey(tweet);
     const dateLabel = getTweetDateLabel(tweet);
+    let startedNewDay = false;
 
     if (dateKey && dateKey !== lastDateKey) {
       lastDateKey = dateKey;
+      startedNewDay = true;
       const dateDivider = document.createElement('div');
       dateDivider.className = 'im-date-divider';
       dateDivider.innerHTML = `<span class="im-date-pill">${escapeHtml(dateLabel)}</span>`;
@@ -197,35 +444,32 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
       if (bubble.classList.contains('unread')) {
         bubble.classList.remove('unread');
         tweet.isUnread = false;
-        saveSlotCache(slot.index, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
+        persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
       }
     });
-
-    let tagHtml = '';
-    if (tweet.isPinned) tagHtml += '<span class="tweet-tag">置顶</span>';
-    if (tweet.isRetweet) tagHtml += '<span class="tweet-tag repost">转推</span>';
-    if (isTweetWithQuote(tweet)) tagHtml += '<span class="tweet-tag quote">引用</span>';
 
     // Store avatar reference on tweet object if available
     if (!tweet.avatarUrl && finalAvatar) {
       tweet.avatarUrl = finalAvatar;
     }
 
-    // Clean whitespace and character truncation for long tweets (> 100 characters)
-    const rawText = (tweet.text || '').trim();
-    const chars = Array.from(rawText);
-    const isLong = chars.length > 100;
-    const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
     const timeDisplay = formatTelegramTime(tweet);
+    const linkTitle = isDiscord ? '在浏览器 / Discord 中打开原消息' : '在浏览器中打开原推文';
 
-    let textHtml = '';
-    if (isLong) {
-      textHtml = `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`;
+    let bodyHtml;
+    if (isDiscord) {
+      // Consecutive messages from the same person collapse into one visual
+      // group, the way every chat client renders them.
+      const showAuthor = startedNewDay || tweet.displayName !== lastAuthorName;
+      bodyHtml = buildDiscordBubbleHtml(tweet, { showAuthor });
+      bubble.classList.add('discord');
+      if (!showAuthor) bubble.classList.add('grouped');
+      lastAuthorName = tweet.displayName;
     } else {
-      textHtml = `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
+      bodyHtml = buildTweetBubbleHtml(tweet);
     }
 
-    bubble.innerHTML = `${tagHtml}${textHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="在浏览器中打开原推文">↗</a>` : ''}`;
+    bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="${linkTitle}">↗</a>` : ''}`;
 
     // Open external tweet link (hover button in top-right)
     if (tweet.url) {
@@ -239,15 +483,18 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
       }
     }
 
-    // Click on bubble to open centered tweet embed popup (click-to-open, no hover trigger)
+    // Click on bubble to open centered popup (click-to-open, no hover trigger)
     const hasPopup = shouldShowTweetPopup(tweet);
     if (hasPopup) {
       bubble.classList.add('has-popup');
-      // Hovering is a strong hint the user is about to click, so jump this
-      // tweet to the front of the embed render queue.
-      bubble.addEventListener('mouseenter', () => {
-        prefetchTweet(tweet, { priority: true });
-      });
+      if (!isDiscord) {
+        // Hovering is a strong hint the user is about to click, so jump this
+        // tweet to the front of the embed render queue. Discord messages are
+        // rendered locally and need no warm-up.
+        bubble.addEventListener('mouseenter', () => {
+          prefetchTweet(tweet, { priority: true });
+        });
+      }
       bubble.addEventListener('click', (e) => {
         if (e.target.closest('.im-btn-link')) return;
         openTweetPopup(tweet);
@@ -257,19 +504,19 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
     slot.tweetsList.appendChild(bubble);
   });
 
-  // Auto-scroll to bottom to show the latest tweets (Telegram style)
+  // Auto-scroll to bottom to show the latest messages (Telegram style)
   requestAnimationFrame(() => {
     if (slot.contentContainer) {
       slot.contentContainer.scrollTop = slot.contentContainer.scrollHeight;
     }
   });
 
-  saveSlotCache(slot.index, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
+  persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
 
   // Background idle prefetch for tweets eligible for popups.
   // The list auto-scrolls to the bottom, so the newest tweets are the ones on
   // screen and the most likely to be clicked.
-  if (Array.isArray(tweets) && tweets.length > 0) {
+  if (!isDiscord && Array.isArray(tweets) && tweets.length > 0) {
     const popTweets = tweets.filter(shouldShowTweetPopup);
     if (popTweets.length > 0) {
       setTimeout(() => {
@@ -279,6 +526,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = []) {
   }
 }
 
+
 function clearSlot(slot, { slots } = {}) {
   slot.handleInput.value = '';
   if (slot.btnClear) slot.btnClear.style.display = 'none';
@@ -287,6 +535,9 @@ function clearSlot(slot, { slots } = {}) {
   saveSlotCache(slot.index, null);
   slot.loadedTweets = [];
   slot.monitoredHandle = '';
+  slot.source = '';
+  slot.sourceTitle = '';
+  slot.sourceSubtitle = '';
   slot.tweetsList.innerHTML = '';
   slot.tweetsList.style.display = 'none';
   slot.loading.style.display = 'none';
@@ -296,7 +547,8 @@ function clearSlot(slot, { slots } = {}) {
   slot.authorHandle.innerText = '';
   if (slot.authorHeader) slot.authorHeader.style.display = 'none';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
-  showToast('已清空此栏内容与推文缓存', 'success', 2000);
+  updateSlotSourceUI(slot);
+  showToast('已清空此栏内容与消息缓存', 'success', 2000);
 }
 
 function slotHasContent(slot) {
@@ -449,11 +701,13 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
   slot.handleInput.addEventListener('input', () => {
     saveHandles(slots);
     updateClearVisibility();
+    updateSlotSourceUI(slot);
   });
   slot.handleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && onFetch) onFetch(slot.index);
   });
   updateClearVisibility();
+  updateSlotSourceUI(slot);
 
   // Clear handle button
   slot.btnClear.addEventListener('click', (e) => {
@@ -492,6 +746,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       authorName: el.querySelector(`#author-name-${i}`),
       authorHandle: el.querySelector(`#author-handle-${i}`),
       inputWrapper: el.querySelector(`#slot-input-wrapper-${i}`),
+      inputPrefix: el.querySelector(`#slot-input-prefix-${i}`),
       handleInput: el.querySelector(`#handle-input-${i}`),
       btnClear: el.querySelector(`#btn-clear-${i}`),
       btnFetch: el.querySelector(`#btn-fetch-${i}`),
@@ -522,6 +777,9 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       slot.handleInput.value = savedHandles[i];
     }
     slot.monitoredHandle = savedHandles[i] || '';
+    slot.source = detectSourceType(savedHandles[i] || '');
+    slot.sourceTitle = '';
+    slot.sourceSubtitle = '';
 
     slots.push(slot);
     bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
@@ -536,11 +794,98 @@ function loadSlotCache(slots) {
     let hasCacheFix = false;
     slots.forEach(slot => {
       if (cache[slot.index]) {
-        let { tweets, handle, avatarUrl, lastFetchedAt } = cache[slot.index];
+        let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = cache[slot.index];
+        const isDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
         const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
 
+        if (isDiscord) {
+          let rawTitle = (cache[slot.index].displayName && (cache[slot.index].displayName.includes('\n') || cache[slot.index].displayName.includes(':')))
+            ? cache[slot.index].displayName
+            : (sourceTitle || cache[slot.index].displayName || '#频道');
+          let chan = '';
+          let guild = sourceSubtitle || cache[slot.index].userHandle || '';
+
+          const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+          if (rawLines.length >= 2) {
+            const l0 = rawLines[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+            const l1 = rawLines[1].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+            if (l1) {
+              chan = l1;
+              if (!guild || guild === l1) guild = l0;
+            }
+          }
+
+          if (!chan && (rawTitle.includes(':') || rawTitle.includes('：'))) {
+            const cparts = rawTitle.split(/[:：]/);
+            const p0 = cparts[0].replace(/^[#@]+/, '').trim();
+            const p1 = cparts.slice(1).join(':').replace(/^[#@]+/, '').trim();
+            if (p1) {
+              chan = p1;
+              if (!guild || guild === p1) guild = p0;
+            }
+          }
+
+          if (!chan) {
+            chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+          }
+
+          if (guild) {
+            guild = String(guild).split(/[\r\n]+/)[0].replace(/\s*[-|]\s*Discord$/i, '').trim();
+            if (guild.toLowerCase() === chan.toLowerCase()) guild = '';
+          }
+
+          sourceTitle = chan ? ('#' + chan) : '#频道';
+          sourceSubtitle = guild;
+
+          if (cache[slot.index].sourceTitle !== sourceTitle || cache[slot.index].sourceSubtitle !== sourceSubtitle || cache[slot.index].displayName !== sourceTitle) {
+            cache[slot.index].sourceTitle = sourceTitle;
+            cache[slot.index].sourceSubtitle = sourceSubtitle;
+            cache[slot.index].displayName = sourceTitle;
+            cache[slot.index].userHandle = sourceSubtitle;
+            hasCacheFix = true;
+          }
+        } else {
+          if (cache[slot.index].displayName) {
+            const cleanedDisp = sanitizeSingleLine(cache[slot.index].displayName);
+            if (cleanedDisp !== cache[slot.index].displayName) {
+              cache[slot.index].displayName = cleanedDisp;
+              hasCacheFix = true;
+            }
+          }
+          if (cache[slot.index].userHandle) {
+            const cleanedH = sanitizeSingleLine(cache[slot.index].userHandle);
+            if (cleanedH !== cache[slot.index].userHandle) {
+              cache[slot.index].userHandle = cleanedH;
+              hasCacheFix = true;
+            }
+          }
+          if (Array.isArray(tweets) && tweets.length > 0) {
+            tweets.forEach(t => {
+              if (t.displayName) {
+                const cleanedDisp = sanitizeSingleLine(t.displayName);
+                if (cleanedDisp !== t.displayName) {
+                  t.displayName = cleanedDisp;
+                  hasCacheFix = true;
+                }
+              }
+              if (t.userHandle) {
+                const cleanedH = sanitizeSingleLine(t.userHandle);
+                if (cleanedH !== t.userHandle) {
+                  t.userHandle = cleanedH;
+                  hasCacheFix = true;
+                }
+              }
+            });
+          }
+        }
+
+        slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
+        slot.sourceTitle = sourceTitle || '';
+        slot.sourceSubtitle = sourceSubtitle || '';
+        updateSlotSourceUI(slot);
+
         // Auto-correct mismatched OpenAI avatars from past bug
-        if (cleanHandle && cleanHandle !== 'openai') {
+        if (!isDiscord && cleanHandle && cleanHandle !== 'openai') {
           if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
             if (cleanHandle === 'sama') {
               avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
@@ -566,7 +911,14 @@ function loadSlotCache(slots) {
           });
           slot.monitoredHandle = handle;
           const sorted = processAndSortTweets(tweets);
-          renderSlotTweets(slot, sorted, handle, avatarUrl, slots);
+          const meta = isDiscord
+            ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
+            : {
+                source: 'twitter',
+                displayName: sanitizeSingleLine(cache[slot.index].displayName || ''),
+                userHandle: sanitizeSingleLine(cache[slot.index].userHandle || `@${handle}`)
+              };
+          renderSlotTweets(slot, sorted, handle, avatarUrl, slots, meta);
         }
       }
     });
@@ -589,7 +941,7 @@ function markAllTweetsAsRead(slots) {
         }
       });
       if (slotUpdated) {
-        saveSlotCache(slot.index, {
+        persistSlot(slot, {
           handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
           displayName: slot.authorName ? slot.authorName.innerText : '',
           userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
@@ -608,15 +960,16 @@ function markAllTweetsAsRead(slots) {
   });
 
   if (hasMarkedAny) {
-    showToast('已将所有推文标记为已读', 'success', 2000);
+    showToast('已将所有消息标记为已读', 'success', 2000);
   } else {
-    showToast('暂无未读推文', 'info', 1500);
+    showToast('暂无未读消息', 'info', 1500);
   }
 }
 
 module.exports = {
   createSlotWidget,
   updateSlotAvatar,
+  updateSlotSourceUI,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,

@@ -46,16 +46,23 @@ npm start
    - Size Options Menu: Choose between `1×1` (default), `2×1` (2 rows × 1 col, vertical double), `3×1` (3 rows × 1 col, vertical triple), and `2×2` (2 rows × 2 cols, spotlight square), or clear the card with one click.
    - Collision Protection: Checks if target area is occupied by slots with active content. Displays a warning toast and shakes conflicting cards in red if occupied.
    - Layout Selector: Switch seamlessly between `2×2`, `2×3`, `3×2`, `3×3`, and `4×4` grid presets with strict slot synchronization.
-5. **Handle, Avatar & Cache Persistence**:
-   - Real-time `localStorage` persistence for Twitter handles, avatars, cached tweets, and custom grid coordinates.
-   - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, avatars, and tweets.
-6. **Default Background Polling (10-Minute Cycle) & Accurate Timestamp Tracking**:
+6. **Discord Channel Monitoring (Public & Private Channels)**:
+   - Monitor any Discord channel alongside your Twitter feeds by pasting its full URL (e.g. `https://discord.com/channels/100000000000000001/200000000000000002`).
+   - Card input automatically detects Discord channel links, switching prefix from `@` to `#` and updating UI to display `#channel` and server name.
+   - **Private Channels & Dedicated Login**: Dedicated "🔑 登录 Discord" modal in the top navigation bar with persistent session partition (`persist:discord_session`). Once logged in, private server and guild channels are fully accessible.
+   - **Telegram-Style Group Chat Aesthetics**: Renders chat messages with per-author colored names, collapses consecutive messages from the same sender, displays quoted reply context (`↩ author: text`), and summarizes attachments/media with neat badge chips.
+   - **Click-to-Expand Modal**: Clicking any Discord chat bubble opens a centered message detail modal displaying the full text, author info, reply context, and attachment summary, with a button to jump directly to the message in Discord.
+   - **Shared Offscreen Client & SPA Channel Switching**: Runs an offscreen background Discord webview that switches channels via in-app router navigation rather than reloading, preserving gateway connection and saving memory.
+7. **Handle, Channel URL, Avatar & Cache Persistence**:
+   - Real-time `localStorage` persistence for Twitter handles, Discord channel links, avatars, cached messages, and custom grid coordinates.
+   - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, avatars, tweets, and Discord channel feeds.
+8. **Default Background Polling (10-Minute Cycle) & Accurate Timestamp Tracking**:
    - Accurately records timestamps for every fetch, displaying the last fetch time on card refresh button tooltips (e.g. `上次抓取: 15:09:23`).
    - Page refreshes (<kbd>Cmd + R</kbd>) never trigger immediate scrapes; the app calculates remaining time from the recorded last fetch before scheduling the next crawl.
    - Executes queries sequentially one by one with gentle pauses, eliminating high-concurrency bursts and reducing rate limiting risks.
    - Background webviews are loaded lazily on demand instead of spawning 16 processes at launch.
    - Silences macOS Chromium kernel policy and Mojo widget warnings on terminal output.
-7. **Human-like Anti-Bot Jitter & Challenge Detection**:
+9. **Human-like Anti-Bot Jitter & Challenge Detection**:
    - **Polite Inter-Slot Pacing**: Sequential background polling pauses between accounts to avoid machine-like traffic bursts.
    - **Randomized Smooth Scrolling**: Dynamic scroll distance (`650px ~ 1050px`) with smooth behavior.
    - **Reading Pauses**: Injects `300ms ~ 600ms` scan pauses after scrolling to emulate human eye reading time.
@@ -68,22 +75,24 @@ TheySay/
 ├── docs/
 │   └── README_zh.md    # Chinese Documentation (中文文档)
 ├── src/
-│   ├── auth.js         # Twitter login status check & IPC dialogs
-│   ├── constants.js    # Layout limits, storage keys, and presets
+│   ├── auth.js         # Twitter & Discord login status check & IPC dialogs
+│   ├── constants.js    # Layout limits, storage keys, partition names & polling intervals
+│   ├── discord.js      # Discord shared webview client, SPA navigation & message scraper
 │   ├── grid.js         # GridStack layout management & resize collision checks
-│   ├── popup.js        # Centered tweet embed modal popup & Twitter widget loader
-│   ├── scraper.js      # In-page scraping script & periodic background crawler
-│   ├── slot.js         # Card component UI, avatars, interactions & tweets list
-│   ├── storage.js      # LocalStorage persistence layer
+│   ├── popup.js        # Centered tweet embed modal & Discord message detail modal
+│   ├── scraper.js      # Fetch dispatcher & periodic background polling crawler
+│   ├── slot.js         # Card component UI, avatars, interactions & feed message bubbles
+│   ├── source.js       # Source detection & URL parsing (Twitter handle vs Discord channel)
+│   ├── storage.js      # LocalStorage persistence layer (handles, cache, auth flags)
 │   ├── theme.js        # Dark/light theme state management
-│   ├── tweet.js        # Snowflake timestamp parsing, deduplication & sorting
+│   ├── tweet.js        # Snowflake timestamp parsing (Twitter & Discord epochs), deduplication & sorting
 │   ├── utils.js        # Jitter, delay, string escaping & toast notifications
 │   └── webview.js      # Offscreen webview pool lifecycle & navigation
 ├── index.html          # Main application window layout
-├── main.js             # Electron main process
+├── main.js             # Electron main process (multi-partition sessions, login windows)
 ├── package.json        # Project metadata and run scripts
 ├── renderer.js         # Main renderer process orchestrator
-├── styles.css          # App styling (themes, layout, animations)
+├── styles.css          # App styling (themes, layout, animations, Discord chat bubbles)
 └── README.md           # English Documentation
 ```
 

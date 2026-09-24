@@ -1,5 +1,11 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell } = require('electron');
 const path = require('path');
+const { DISCORD_PARTITION } = require('./src/constants');
+
+// Discord's web client behaves best when it believes it is plain Chrome; the
+// default Electron UA makes it try to light up desktop-app-only code paths.
+const DISCORD_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 // Suppress noisy Chromium internal warnings and OS kernel mismatch logs on macOS
 app.commandLine.appendSwitch('log-level', '3');
@@ -10,6 +16,7 @@ app.commandLine.appendSwitch('media-cache-size', '268435456'); // 250MB
 
 let mainWindow = null;
 let loginWindow = null;
+let discordLoginWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -110,7 +117,67 @@ ipcMain.on('open-login-window', () => {
   });
 });
 
+// Open dedicated Discord login window.
+// Unlike X, Discord keeps its auth token in localStorage rather than a cookie,
+// so the only thing the main process can observe is where the app navigates:
+// landing on /channels/... means the session is live.
+ipcMain.on('open-discord-login-window', () => {
+  if (discordLoginWindow && !discordLoginWindow.isDestroyed()) {
+    discordLoginWindow.focus();
+    return;
+  }
+
+  discordLoginWindow = new BrowserWindow({
+    width: 900,
+    height: 760,
+    title: '登录 Discord',
+    parent: mainWindow,
+    modal: false,
+    webPreferences: {
+      partition: DISCORD_PARTITION,
+      backgroundThrottling: false
+    }
+  });
+
+  discordLoginWindow.loadURL('https://discord.com/login', {
+    userAgent: DISCORD_USER_AGENT
+  });
+
+  let reportedLoggedIn = false;
+  const notifyIfLoggedIn = (url) => {
+    if (reportedLoggedIn) return;
+    if (url.indexOf('discord.com/channels/') < 0 && url.indexOf('discord.com/app') < 0) return;
+
+    reportedLoggedIn = true;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
+    }
+    setTimeout(() => {
+      if (discordLoginWindow && !discordLoginWindow.isDestroyed()) {
+        discordLoginWindow.close();
+      }
+    }, 1500);
+  };
+
+  discordLoginWindow.webContents.on('did-navigate', (event, url) => notifyIfLoggedIn(url));
+  // Discord is a SPA: after the login POST it routes client-side, which only
+  // surfaces as an in-page navigation.
+  discordLoginWindow.webContents.on('did-navigate-in-page', (event, url) => notifyIfLoggedIn(url));
+
+  discordLoginWindow.on('closed', () => {
+    discordLoginWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed() && reportedLoggedIn) {
+      mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
+    }
+  });
+});
+
 app.whenReady().then(() => {
+  // The Discord client runs unattended in the background, so silence anything
+  // that would try to prompt the user (notifications, mic, camera, ...).
+  session.fromPartition(DISCORD_PARTITION)
+    .setPermissionRequestHandler((webContents, permission, callback) => callback(false));
+
   // Optimize & aggressively cache Twitter/X static assets and syndication data locally
   session.defaultSession.webRequest.onHeadersReceived({
     urls: [

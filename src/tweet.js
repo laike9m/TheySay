@@ -7,6 +7,10 @@ function getTweetId(tweet) {
   return '';
 }
 
+// Snowflake epochs: Twitter counts from 2010-11-04, Discord from 2015-01-01.
+const TWITTER_EPOCH = 1288834974657n;
+const DISCORD_EPOCH = 1420070400000n;
+
 function getTweetTimestamp(tweet) {
   if (typeof tweet.timestamp === 'number' && tweet.timestamp > 0) {
     return tweet.timestamp;
@@ -18,17 +22,19 @@ function getTweetTimestamp(tweet) {
   const id = getTweetId(tweet);
   if (id) {
     try {
-      return Number((BigInt(id) >> 22n) + 1288834974657n);
+      const epoch = tweet.source === 'discord' ? DISCORD_EPOCH : TWITTER_EPOCH;
+      return Number((BigInt(id) >> 22n) + epoch);
     } catch (e) {}
   }
   return 0;
 }
 
 function getTweetKey(tweet) {
+  const prefix = tweet.source ? `${tweet.source}_` : '';
   const id = getTweetId(tweet);
-  if (id) return `id_${id}`;
-  if (tweet.url) return `url_${tweet.url}`;
-  return `txt_${(tweet.text || '').slice(0, 40)}_${tweet.time || ''}`;
+  if (id) return `${prefix}id_${id}`;
+  if (tweet.url) return `${prefix}url_${tweet.url}`;
+  return `${prefix}txt_${(tweet.text || '').slice(0, 40)}_${tweet.time || ''}`;
 }
 
 function processAndSortTweets(tweets) {

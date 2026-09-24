@@ -513,6 +513,8 @@ body {
   gap: 5px;
   padding: 4px 8px;
   height: 34px;
+  max-height: 34px;
+  box-sizing: border-box;
   background-color: var(--bg-card-header);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -801,6 +803,7 @@ body {
   align-items: center;
   flex: 1;
   min-width: 60px;
+  height: 26px;
   overflow: hidden;
 }
 
@@ -810,11 +813,15 @@ body {
   gap: 5px;
   min-width: 0;
   max-width: 100%;
+  height: 24px;
   padding: 2px 6px;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.15s ease;
   user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .slot-author-header:hover {
@@ -825,19 +832,23 @@ body {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 180px;
+  line-height: 20px;
+  flex-shrink: 0;
 }
 
 .slot-author-handle {
   font-size: 11px;
   color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 85px;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 120px;
+  line-height: 20px;
+  flex-shrink: 1;
 }
 
 .slot-author-edit-hint {
@@ -846,6 +857,7 @@ body {
   opacity: 0;
   transition: opacity 0.15s;
   margin-left: 2px;
+  flex-shrink: 0;
 }
 
 .slot-author-header:hover .slot-author-edit-hint {
@@ -1451,4 +1463,189 @@ body {
 
 .tweet-popup-fallback-btn:hover {
   background-color: rgba(29, 155, 240, 0.12);
+}
+
+/* ====================================================
+   Discord Channel Source
+   ==================================================== */
+
+/* '#' prefix replaces '@' as soon as the input holds a channel link */
+.slot-input-prefix.is-discord {
+  color: #5865f2;
+  font-weight: 700;
+}
+
+[data-theme="light"] .slot-input-prefix.is-discord {
+  color: #4752c4;
+}
+
+.slot-card.is-discord .slot-avatar {
+  border-radius: 30%;
+}
+
+.slot-card.is-discord .slot-avatar-img {
+  border-radius: 30%;
+}
+
+/* Group-chat bubbles: one channel carries many different authors, so each
+   message is labelled unless it continues the previous author's run. */
+.im-bubble.discord .im-author {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  letter-spacing: 0.1px;
+}
+
+.im-bubble.discord.grouped {
+  border-radius: 6px 14px 14px 6px;
+  margin-top: -2px;
+}
+
+.tweet-tag.bot {
+  color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.14);
+  border-color: rgba(88, 101, 242, 0.35);
+}
+
+/* Quoted preview of the message being replied to */
+.im-reply-ref {
+  display: block;
+  border-left: 2px solid var(--border-bubble-hover, rgba(128, 128, 128, 0.45));
+  padding-left: 6px;
+  margin-bottom: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.im-reply-author {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.im-reply-text {
+  word-break: break-word;
+}
+
+/* Attachments / embeds can't be rendered inline, so they are summarized */
+.im-attachments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.im-attachment-chip {
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background-color: rgba(128, 128, 128, 0.14);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Discord message modal (rendered locally, no third-party embed) */
+.discord-popup-card {
+  width: 100%;
+  max-width: 540px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: tweetPopupScaleIn 0.18s ease;
+}
+
+[data-theme="light"] .discord-popup-card {
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.discord-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.discord-popup-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.discord-popup-avatar-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background-color: #5865f2;
+}
+
+.discord-popup-names {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.discord-popup-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.discord-popup-reply {
+  border-left: 3px solid #5865f2;
+  padding-left: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.discord-popup-reply-author {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.discord-popup-text {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.discord-popup-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.discord-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.discord-popup-time {
+  font-size: 11.5px;
+  color: var(--text-muted);
 }

@@ -25,6 +25,8 @@ const { initTweetPopup } = require('./src/popup');
 // UI Elements - Global
 const btnLoginStatus = document.getElementById('btn-login-status');
 const loginStatusText = document.getElementById('login-status-text');
+const btnDiscordLogin = document.getElementById('btn-discord-login');
+const discordStatusText = document.getElementById('discord-status-text');
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
 const layoutSelect = document.getElementById('layout-select');
 const btnMarkAllRead = document.getElementById('btn-mark-all-read');
@@ -76,7 +78,7 @@ window.addEventListener('DOMContentLoaded', () => {
     getGridDimensions
   });
 
-  initAuth(btnLoginStatus, loginStatusText);
+  initAuth(btnLoginStatus, loginStatusText, btnDiscordLogin, discordStatusText);
 
   // Close size menus when clicking outside
   document.addEventListener('click', () => closeAllSizeMenus(slots));

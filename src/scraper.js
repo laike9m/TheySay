@@ -10,6 +10,8 @@ const {
   showSlotError,
   renderSlotTweets
 } = require('./slot');
+const { SOURCE_DISCORD, detectSourceType, normalizeTwitterHandle } = require('./source');
+const { fetchDiscordSlot } = require('./discord');
 
 function buildExtractionScript(handle) {
   const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
@@ -124,10 +126,15 @@ function buildExtractionScript(handle) {
         let displayName = '';
         let userHandle = '';
         if (userNameEl) {
-          const lines = userNameEl.innerText.split('\\\\n').filter(s => s.trim());
-          if (lines.length > 0) displayName = lines[0];
-          const foundHandle = lines.find(s => s.startsWith('@'));
-          if (foundHandle) userHandle = foundHandle;
+          const rawUserName = userNameEl.innerText || '';
+          const lines = rawUserName.split(/\\r?\\n+/).map(function(s) { return s.trim(); }).filter(Boolean);
+          if (lines.length > 0) {
+            displayName = lines[0].replace(/[\\r\\n]+/g, ' ').trim();
+          }
+          const foundHandle = lines.find(function(s) { return s.startsWith('@'); });
+          if (foundHandle) {
+            userHandle = foundHandle.replace(/[\\r\\n]+/g, '').trim();
+          }
         }
 
         const text = textEl ? textEl.innerText.trim() : '(该推文为纯媒体/卡片内容，无文本)';
@@ -208,16 +215,16 @@ function buildExtractionScript(handle) {
   `;
 }
 
-async function fetchSlot(slotIndex, { isBackground = false } = {}, { slots, bgWebviewsContainer }) {
+async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slots, bgWebviewsContainer }) {
   const slot = slots[slotIndex];
   if (!slot || slot.isFetching) return;
 
   const rawHandle = slot.handleInput.value.trim();
-  const handle = rawHandle.replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?(twitter|x)\.com\//, '').replace(/\/$/, '');
+  const handle = normalizeTwitterHandle(rawHandle);
 
   if (!handle) {
     if (!isBackground) {
-      showSlotError(slot, '请输入 Twitter handle');
+      showSlotError(slot, '请输入 Twitter handle 或 Discord 频道链接');
       if (slot.authorHeader) slot.authorHeader.style.display = 'none';
       if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
       slot.handleInput.focus();
@@ -406,6 +413,21 @@ async function fetchSlot(slotIndex, { isBackground = false } = {}, { slots, bgWe
   }
 }
 
+/**
+ * Entry point for every slot refresh: picks the backend that matches whatever
+ * the card is pointed at.
+ */
+async function fetchSlot(slotIndex, options = {}, context) {
+  const slot = context.slots[slotIndex];
+  if (!slot) return;
+
+  const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
+  if (detectSourceType(raw) === SOURCE_DISCORD) {
+    return fetchDiscordSlot(slotIndex, options, context);
+  }
+  return fetchTwitterSlot(slotIndex, options, context);
+}
+
 let isBackgroundFetching = false;
 let backgroundFetchTimer = null;
 let backgroundFetchTimeout = null;
@@ -420,8 +442,7 @@ async function runBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCou
       const slot = slots[i];
       if (!slot) continue;
       const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
-      const handle = raw.replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?(twitter|x)\.com\//, '').replace(/\/$/, '');
-      if (handle && !slot.isFetching) {
+      if (raw && !slot.isFetching) {
         await fetchSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
@@ -468,6 +489,7 @@ function startPeriodicBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlo
 module.exports = {
   buildExtractionScript,
   fetchSlot,
+  fetchTwitterSlot,
   runBackgroundFetch,
   startPeriodicBackgroundFetch
 };

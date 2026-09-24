@@ -5,7 +5,8 @@ const {
   STORAGE_PRESET_KEY,
   STORAGE_GRID_LAYOUT_KEY,
   STORAGE_THEME_KEY,
-  STORAGE_LAST_FETCH_KEY
+  STORAGE_LAST_FETCH_KEY,
+  STORAGE_DISCORD_LOGIN_KEY
 } = require('./constants');
 
 function getSavedHandles() {
@@ -87,6 +88,18 @@ function saveLastFetchTime(timestamp) {
   localStorage.setItem(STORAGE_LAST_FETCH_KEY, String(timestamp));
 }
 
+// Discord stores its auth token in localStorage instead of cookies, so the main
+// process cannot inspect the session the way it does for X. The flag below is
+// maintained optimistically: the login window sets it, and any scrape that gets
+// bounced to /login clears it again.
+function getDiscordLoggedIn() {
+  return localStorage.getItem(STORAGE_DISCORD_LOGIN_KEY) === '1';
+}
+
+function saveDiscordLoggedIn(loggedIn) {
+  localStorage.setItem(STORAGE_DISCORD_LOGIN_KEY, loggedIn ? '1' : '0');
+}
+
 module.exports = {
   getSavedHandles,
   saveHandles,
@@ -99,5 +112,7 @@ module.exports = {
   getStoredTheme,
   saveStoredTheme,
   getLastFetchTime,
-  saveLastFetchTime
+  saveLastFetchTime,
+  getDiscordLoggedIn,
+  saveDiscordLoggedIn
 };

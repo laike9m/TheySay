@@ -4,6 +4,7 @@
 
 A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with Electron and [GridStack.js](https://gridstackjs.com/):
 - **Unified "登录账号" (Login Accounts) Dropdown Menu**: Consolidates Twitter / X and Discord accounts into a single, clean dropdown in the top navigation bar. Displays real-time status badges (Logged In / Logged Out / Checking) for each platform with an overall status indicator dot, and launches dedicated login windows on click, keeping the header uncluttered as more platforms are added.
+- **Settings Modal & Independent Platform Refresh Rates**: A gear button next to the login account dropdown opens a centralized preferences modal dialog. Configure background auto-refresh frequencies separately for Twitter / X and Discord with preset options (30s, 1m, 2m, 3m, 5m, 10m, 15m, 30m, 1h) or custom minute intervals, complete with anti-rate-limit safety hints, restore defaults, and live scheduler reload.
 - **Dark Mode / Light Mode Toggle Switch**: Header features a sleek, animated pill toggle switch with sun and moon icons to smoothly transition between dark and light themes, automatically persisting user preference.
 - **Telegram-Style Chat Bubble Feed with Date Dividers**: Replicates Telegram's clean aesthetics with centered capsule date dividers (e.g. `June 29, 2025`) displayed above each day's messages (with only one date pill per day). Chat bubbles hug content naturally with inline specific timestamps (`11:45 AM`) at the bottom right, status tags (`Pinned`, `Retweet`), removed message numbers, and a hover-revealed link button (`↗`) in the top-right corner.
 - **100-Character Truncation & Pre-Rendered Frameless Embed Modal on Click**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy, while quote tweets are recognized with a purple "Quote" badge. Clicking on any tweet bubble opens a frameless modal displaying the official embedded Twitter/X post. Embeds are pre-rendered in the background — on idle after a feed loads, and at high priority the moment you hover a bubble — so the real card is already built before you click. Each tweet keeps its own persistent host element inside the modal that is revealed with a pure CSS toggle, so the iframe is never re-parented (which would force a reload) and there is no placeholder-to-card swap. Combined with Electron HTTP disk cache overrides (1-year immutable caching for static assets), reopening a tweet is instant. The popup closes seamlessly by clicking the surrounding backdrop area or pressing <kbd>Esc</kbd>.
@@ -57,7 +58,10 @@ npm start
 7. **Handle, Channel URL, Avatar & Cache Persistence**:
    - Real-time `localStorage` persistence for Twitter handles, Discord channel links, avatars, cached messages, and custom grid coordinates.
    - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, avatars, tweets, and Discord channel feeds.
-8. **Default Background Polling (10-Minute Cycle) & Accurate Timestamp Tracking**:
+8. **Independent Background Polling & Refresh Rate Settings (Twitter & Discord)**:
+   - Dedicated Settings modal accessed via the top-bar gear button (`⚙️`) allows configuring Twitter / X and Discord refresh frequencies separately.
+   - Preset options (`30s`, `1m`, `2m`, `3m`, `5m`, `10m`, `15m`, `30m`, `1h`) plus custom minute intervals with built-in validation and anti-bot rate-limit guidance.
+   - Saves preferences instantly to `localStorage` and hot-reloads the polling schedulers without requiring an application restart.
    - Accurately records timestamps for every fetch, displaying the last fetch time on card refresh button tooltips (e.g. `上次抓取: 15:09:23`).
    - Page refreshes (<kbd>Cmd + R</kbd>) never trigger immediate scrapes; the app calculates remaining time from the recorded last fetch before scheduling the next crawl.
    - Executes queries sequentially one by one with gentle pauses, eliminating high-concurrency bursts and reducing rate limiting risks.
@@ -82,6 +86,7 @@ TheySay/
 │   ├── grid.js         # GridStack layout management & resize collision checks
 │   ├── popup.js        # Centered tweet embed modal & Discord message detail modal
 │   ├── scraper.js      # Fetch dispatcher & periodic background polling crawler
+│   ├── settings.js     # Preferences modal & independent Twitter/Discord interval settings
 │   ├── slot.js         # Card component UI, avatars, interactions & feed message bubbles
 │   ├── source.js       # Source detection & URL parsing (Twitter handle vs Discord channel)
 │   ├── storage.js      # LocalStorage persistence layer (handles, cache, auth flags)

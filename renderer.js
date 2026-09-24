@@ -21,6 +21,7 @@ const {
   startPeriodicBackgroundFetch
 } = require('./src/scraper');
 const { initTweetPopup } = require('./src/popup');
+const { initSettings } = require('./src/settings');
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
@@ -75,6 +76,15 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   initAuth();
+  initSettings({
+    onSave: () => {
+      startPeriodicBackgroundFetch({
+        slots,
+        bgWebviewsContainer,
+        getActiveSlotCount
+      });
+    }
+  });
 
   // Close size menus when clicking outside
   document.addEventListener('click', () => closeAllSizeMenus(slots));

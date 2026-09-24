@@ -259,6 +259,35 @@ body {
   stroke-linejoin: round;
 }
 
+/* Settings Gear Button */
+.btn-settings {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-settings .settings-gear-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-secondary);
+}
+
+.btn-settings:hover .settings-gear-icon,
+.btn-settings.active .settings-gear-icon {
+  color: var(--text-main);
+  transform: rotate(45deg);
+}
+
+.btn-settings.active {
+  color: var(--text-main);
+  border-color: var(--accent-blue);
+  background-color: var(--bg-control-hover);
+}
+
 /* Theme Toggle Switch */
 .theme-toggle {
   position: relative;
@@ -1809,3 +1838,349 @@ body {
   font-size: 11.5px;
   color: var(--text-muted);
 }
+
+/* Primary Action Button */
+.btn-primary {
+  background-color: var(--accent-blue);
+  color: #ffffff;
+  border-color: var(--accent-blue);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-blue-hover);
+  border-color: var(--accent-blue-hover);
+  color: #ffffff;
+}
+
+/* ====================================================
+   Settings Modal Popup
+   ==================================================== */
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 99995;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  opacity: 1;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-modal-overlay.is-closed {
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.settings-modal-overlay:not(.is-closed) {
+  animation: settingsModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-modal-overlay:not(.is-closed) .settings-modal-dialog {
+  animation: settingsModalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes settingsModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes settingsModalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.settings-modal-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow-popover);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  color: var(--text-main);
+}
+
+/* Header */
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-card-header);
+}
+
+.settings-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-modal-header-icon {
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.settings-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.2px;
+}
+
+.settings-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.settings-modal-close:hover {
+  background-color: var(--bg-control-hover);
+  color: var(--text-main);
+}
+
+/* Body */
+.settings-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.settings-section-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.settings-card {
+  background-color: var(--bg-tweet-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.15s;
+}
+
+.settings-card:last-child {
+  margin-bottom: 0;
+}
+
+.settings-card:hover {
+  border-color: var(--border-card-hover);
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.settings-card-platform {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-card-platform .platform-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.settings-card-platform .platform-icon.twitter {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+[data-theme="light"] .settings-card-platform .platform-icon.twitter {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.settings-card-platform .platform-icon.discord {
+  background-color: rgba(88, 101, 242, 0.15);
+  color: #5865f2;
+}
+
+.settings-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.settings-card-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.settings-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.settings-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-select {
+  height: 28px;
+  background-color: var(--bg-control);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-select:focus {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-input-focus);
+}
+
+.settings-custom-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.settings-input-number {
+  width: 68px;
+  height: 28px;
+  box-sizing: border-box;
+  background-color: var(--bg-control);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.settings-input-number:focus {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-input-focus);
+}
+
+.settings-unit {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background-color: rgba(255, 255, 255, 0.02);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+[data-theme="light"] .settings-tip {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.settings-tip svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+/* Footer */
+.settings-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-card-header);
+}
+
+.settings-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-settings-reset {
+  color: var(--text-muted);
+}
+
+.btn-settings-reset:hover {
+  color: var(--text-secondary);
+}
+

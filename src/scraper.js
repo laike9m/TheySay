@@ -1,7 +1,17 @@
 const { BACKGROUND_FETCH_INTERVAL_MS } = require('./constants');
 const { randomBetween, sleep, showToast } = require('./utils');
 const { getTweetKey, processAndSortTweets } = require('./tweet');
-const { saveHandles, getLastFetchTime, saveLastFetchTime } = require('./storage');
+const {
+  saveHandles,
+  getLastFetchTime,
+  saveLastFetchTime,
+  getLastFetchTimeTwitter,
+  saveLastFetchTimeTwitter,
+  getLastFetchTimeDiscord,
+  saveLastFetchTimeDiscord,
+  getTwitterIntervalMinutes,
+  getDiscordIntervalMinutes
+} = require('./storage');
 const { getOrCreateSlotWebview, waitForWebviewReady, loadWebviewTarget } = require('./webview');
 const {
   updateSlotAvatar,
@@ -10,7 +20,7 @@ const {
   showSlotError,
   renderSlotTweets
 } = require('./slot');
-const { SOURCE_DISCORD, detectSourceType, normalizeTwitterHandle } = require('./source');
+const { SOURCE_DISCORD, SOURCE_TWITTER, detectSourceType, normalizeTwitterHandle } = require('./source');
 const { fetchDiscordSlot } = require('./discord');
 
 function buildExtractionScript(handle) {
@@ -372,6 +382,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     slot.monitoredHandle = handle;
     slot.lastFetchedAt = Date.now();
     saveLastFetchTime(slot.lastFetchedAt);
+    saveLastFetchTimeTwitter(slot.lastFetchedAt);
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 
     if (hasExisting) {
@@ -428,13 +439,17 @@ async function fetchSlot(slotIndex, options = {}, context) {
   return fetchTwitterSlot(slotIndex, options, context);
 }
 
-let isBackgroundFetching = false;
-let backgroundFetchTimer = null;
-let backgroundFetchTimeout = null;
+let isTwitterBackgroundFetching = false;
+let isDiscordBackgroundFetching = false;
+let twitterFetchTimer = null;
+let twitterFetchTimeout = null;
+let discordFetchTimer = null;
+let discordFetchTimeout = null;
+let activeBackgroundFetchContext = null;
 
-async function runBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
-  if (isBackgroundFetching) return;
-  isBackgroundFetching = true;
+async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
+  if (isTwitterBackgroundFetching) return;
+  isTwitterBackgroundFetching = true;
 
   try {
     const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
@@ -442,48 +457,123 @@ async function runBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCou
       const slot = slots[i];
       if (!slot) continue;
       const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
-      if (raw && !slot.isFetching) {
-        await fetchSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+      if (raw && detectSourceType(raw) === SOURCE_TWITTER && !slot.isFetching) {
+        await fetchTwitterSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
       }
     }
   } catch (err) {
-    console.error('[Background Fetch] Error during sequential crawl:', err);
+    console.error('[Twitter Background Fetch] Error during sequential crawl:', err);
   } finally {
-    isBackgroundFetching = false;
+    isTwitterBackgroundFetching = false;
   }
 }
 
-function startPeriodicBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
-  if (backgroundFetchTimer) {
-    clearInterval(backgroundFetchTimer);
-    backgroundFetchTimer = null;
-  }
-  if (backgroundFetchTimeout) {
-    clearTimeout(backgroundFetchTimeout);
-    backgroundFetchTimeout = null;
-  }
+async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
+  if (isDiscordBackgroundFetching) return;
+  isDiscordBackgroundFetching = true;
 
-  const lastFetchRaw = getLastFetchTime();
-  const lastFetchTime = lastFetchRaw ? parseInt(lastFetchRaw, 10) : 0;
+  try {
+    const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
+    for (let i = 0; i < totalSlots; i++) {
+      const slot = slots[i];
+      if (!slot) continue;
+      const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
+      if (raw && detectSourceType(raw) === SOURCE_DISCORD && !slot.isFetching) {
+        await fetchDiscordSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+        // Polite pause between sequential card crawls to avoid rapid bursts
+        await sleep(1500);
+      }
+    }
+  } catch (err) {
+    console.error('[Discord Background Fetch] Error during sequential crawl:', err);
+  } finally {
+    isDiscordBackgroundFetching = false;
+  }
+}
+
+async function runBackgroundFetch(context) {
+  const ctx = context || activeBackgroundFetchContext;
+  if (!ctx) return;
+  await Promise.all([
+    runTwitterBackgroundFetch(ctx),
+    runDiscordBackgroundFetch(ctx)
+  ]);
+}
+
+function clearPeriodicBackgroundFetch() {
+  if (twitterFetchTimer) {
+    clearInterval(twitterFetchTimer);
+    twitterFetchTimer = null;
+  }
+  if (twitterFetchTimeout) {
+    clearTimeout(twitterFetchTimeout);
+    twitterFetchTimeout = null;
+  }
+  if (discordFetchTimer) {
+    clearInterval(discordFetchTimer);
+    discordFetchTimer = null;
+  }
+  if (discordFetchTimeout) {
+    clearTimeout(discordFetchTimeout);
+    discordFetchTimeout = null;
+  }
+}
+
+function startPeriodicBackgroundFetch(context) {
+  if (context) {
+    activeBackgroundFetchContext = context;
+  } else {
+    context = activeBackgroundFetchContext;
+  }
+  if (!context) return;
+
+  clearPeriodicBackgroundFetch();
+
   const now = Date.now();
-  const elapsed = lastFetchTime > 0 ? (now - lastFetchTime) : Infinity;
 
-  // Never fetch immediately on page refresh!
-  // If the last fetch was within the 10-minute interval, wait for the remaining time;
-  // otherwise wait the full 10-minute cycle before starting the periodic background fetch.
-  let delayUntilNext = BACKGROUND_FETCH_INTERVAL_MS;
-  if (elapsed < BACKGROUND_FETCH_INTERVAL_MS) {
-    delayUntilNext = Math.max(BACKGROUND_FETCH_INTERVAL_MS - elapsed, 30000);
+  // 1. Twitter Periodic Background Fetch
+  const twitterMinutes = getTwitterIntervalMinutes();
+  if (twitterMinutes > 0) {
+    const twitterIntervalMs = Math.round(twitterMinutes * 60 * 1000);
+    const lastTwitterRaw = getLastFetchTimeTwitter();
+    const lastTwitterTime = lastTwitterRaw ? parseInt(lastTwitterRaw, 10) : 0;
+    const elapsedTwitter = lastTwitterTime > 0 ? (now - lastTwitterTime) : Infinity;
+
+    let delayUntilTwitter = twitterIntervalMs;
+    if (elapsedTwitter < twitterIntervalMs) {
+      delayUntilTwitter = Math.max(twitterIntervalMs - elapsedTwitter, 5000);
+    }
+
+    twitterFetchTimeout = setTimeout(() => {
+      runTwitterBackgroundFetch(context);
+      twitterFetchTimer = setInterval(() => {
+        runTwitterBackgroundFetch(context);
+      }, twitterIntervalMs);
+    }, delayUntilTwitter);
   }
 
-  backgroundFetchTimeout = setTimeout(() => {
-    runBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount });
-    backgroundFetchTimer = setInterval(() => {
-      runBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount });
-    }, BACKGROUND_FETCH_INTERVAL_MS);
-  }, delayUntilNext);
+  // 2. Discord Periodic Background Fetch
+  const discordMinutes = getDiscordIntervalMinutes();
+  if (discordMinutes > 0) {
+    const discordIntervalMs = Math.round(discordMinutes * 60 * 1000);
+    const lastDiscordRaw = getLastFetchTimeDiscord();
+    const lastDiscordTime = lastDiscordRaw ? parseInt(lastDiscordRaw, 10) : 0;
+    const elapsedDiscord = lastDiscordTime > 0 ? (now - lastDiscordTime) : Infinity;
+
+    let delayUntilDiscord = discordIntervalMs;
+    if (elapsedDiscord < discordIntervalMs) {
+      delayUntilDiscord = Math.max(discordIntervalMs - elapsedDiscord, 5000);
+    }
+
+    discordFetchTimeout = setTimeout(() => {
+      runDiscordBackgroundFetch(context);
+      discordFetchTimer = setInterval(() => {
+        runDiscordBackgroundFetch(context);
+      }, discordIntervalMs);
+    }, delayUntilDiscord);
+  }
 }
 
 module.exports = {
@@ -491,5 +581,8 @@ module.exports = {
   fetchSlot,
   fetchTwitterSlot,
   runBackgroundFetch,
-  startPeriodicBackgroundFetch
+  runTwitterBackgroundFetch,
+  runDiscordBackgroundFetch,
+  startPeriodicBackgroundFetch,
+  clearPeriodicBackgroundFetch
 };

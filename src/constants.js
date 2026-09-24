@@ -13,9 +13,15 @@ const STORAGE_PRESET_KEY = 'theysay_grid_preset';
 const STORAGE_GRID_LAYOUT_KEY = 'theysay_grid_layout';
 const STORAGE_THEME_KEY = 'theysay_theme';
 const STORAGE_LAST_FETCH_KEY = 'theysay_last_fetch_time';
+const STORAGE_LAST_FETCH_TWITTER_KEY = 'theysay_last_fetch_time_twitter';
+const STORAGE_LAST_FETCH_DISCORD_KEY = 'theysay_last_fetch_time_discord';
 const STORAGE_DISCORD_LOGIN_KEY = 'theysay_discord_logged_in';
+const STORAGE_TWITTER_INTERVAL_KEY = 'theysay_twitter_interval_minutes';
+const STORAGE_DISCORD_INTERVAL_KEY = 'theysay_discord_interval_minutes';
 
-const BACKGROUND_FETCH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const DEFAULT_TWITTER_INTERVAL_MINUTES = 10;
+const DEFAULT_DISCORD_INTERVAL_MINUTES = 10;
+const BACKGROUND_FETCH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes (fallback)
 
 // Discord runs in its own persistent session so that the X login stays untouched.
 const DISCORD_PARTITION = 'persist:discord_session';
@@ -38,7 +44,13 @@ module.exports = {
   STORAGE_GRID_LAYOUT_KEY,
   STORAGE_THEME_KEY,
   STORAGE_LAST_FETCH_KEY,
+  STORAGE_LAST_FETCH_TWITTER_KEY,
+  STORAGE_LAST_FETCH_DISCORD_KEY,
   STORAGE_DISCORD_LOGIN_KEY,
+  STORAGE_TWITTER_INTERVAL_KEY,
+  STORAGE_DISCORD_INTERVAL_KEY,
+  DEFAULT_TWITTER_INTERVAL_MINUTES,
+  DEFAULT_DISCORD_INTERVAL_MINUTES,
   BACKGROUND_FETCH_INTERVAL_MS,
   DISCORD_PARTITION,
   DISCORD_WEBVIEW_ID,

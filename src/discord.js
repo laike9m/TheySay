@@ -5,7 +5,7 @@ const {
 } = require('./constants');
 const { sleep, showToast } = require('./utils');
 const { processAndSortTweets, getTweetKey } = require('./tweet');
-const { saveHandles, saveLastFetchTime, saveDiscordLoggedIn } = require('./storage');
+const { saveHandles, saveLastFetchTime, saveLastFetchTimeDiscord, saveDiscordLoggedIn } = require('./storage');
 const { waitForWebviewReady, loadWebviewTarget } = require('./webview');
 const {
   parseDiscordChannelUrl,
@@ -705,6 +705,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       slot.source = SOURCE_DISCORD;
       slot.lastFetchedAt = Date.now();
       saveLastFetchTime(slot.lastFetchedAt);
+      saveLastFetchTimeDiscord(slot.lastFetchedAt);
       updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 
       const cleanChan = String(meta.channelName || '')

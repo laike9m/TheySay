@@ -117,7 +117,50 @@ function buildReadinessScript(channelId) {
       if (!list) return { state: 'rendering' };
 
       const rows = list.querySelectorAll('li[id^="chat-messages-"]');
-      if (rows.length === 0) return { state: 'empty-list' };
+      if (rows.length === 0) {
+        const emptyContainer = document.querySelector('[class*="emptyChannelIcon"], [class*="emptyChannel"], [data-list-id="chat-messages"] [class*="container"]');
+        const activeLink = document.querySelector(
+          '[data-list-item-id="channels___' + CHANNEL_ID + '"][class*="selected"], ' +
+          '[data-list-item-id="channels___' + CHANNEL_ID + '"][aria-selected="true"], ' +
+          'a[href$="/' + CHANNEL_ID + '"][class*="selected"]'
+        );
+        if (emptyContainer || activeLink) {
+          return { state: 'ready', count: 0, isEmpty: true };
+        }
+        return { state: 'rendering' };
+      }
+
+      // Verify that the messages currently in the DOM actually belong to CHANNEL_ID.
+      // Discord message element IDs are: chat-messages-<channelId>-<messageId>
+      let matchesThisChannel = false;
+      let matchesOtherChannel = false;
+
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const idParts = (rows[i].id || '').split('-');
+        if (idParts.length >= 4) {
+          if (idParts[2] === CHANNEL_ID) {
+            matchesThisChannel = true;
+            break;
+          } else {
+            matchesOtherChannel = true;
+          }
+        }
+      }
+
+      if (matchesOtherChannel && !matchesThisChannel) {
+        return { state: 'switching', reason: 'stale-messages' };
+      }
+
+      if (!matchesThisChannel) {
+        const activeLink = document.querySelector(
+          '[data-list-item-id="channels___' + CHANNEL_ID + '"][class*="selected"], ' +
+          '[data-list-item-id="channels___' + CHANNEL_ID + '"][aria-selected="true"], ' +
+          'a[href$="/' + CHANNEL_ID + '"][class*="selected"]'
+        );
+        if (!activeLink && document.querySelector('[data-list-item-id^="channels___"][class*="selected"]')) {
+          return { state: 'switching', reason: 'other-channel-selected' };
+        }
+      }
 
       return { state: 'ready', count: rows.length };
     } catch (e) {
@@ -128,18 +171,25 @@ function buildReadinessScript(channelId) {
 }
 
 /**
- * Attempts an in-app channel switch. Discord's router is driven by the history
- * library, which listens for `popstate` on window, so pushState + a synthetic
- * popstate navigates without tearing down and re-booting the whole client.
+ * Attempts an in-app channel click if the channel is visible in the sidebar
+ * (i.e. within the same guild).
  */
-function buildSpaNavigateScript(guildId, channelId) {
+function buildInAppChannelClickScript(guildId, channelId) {
   return `
   (() => {
     try {
-      const target = '/channels/' + ${JSON.stringify(String(guildId))} + '/' + ${JSON.stringify(String(channelId))};
-      history.pushState({}, '', target);
-      window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
-      return { ok: true, path: location.pathname };
+      const CHANNEL_ID = ${JSON.stringify(String(channelId))};
+      const GUILD_ID = ${JSON.stringify(String(guildId))};
+      const el = document.querySelector(
+        '[data-list-item-id="channels___' + CHANNEL_ID + '"], ' +
+        'a[href*="/channels/' + GUILD_ID + '/' + CHANNEL_ID + '"], ' +
+        'a[href$="/' + CHANNEL_ID + '"]'
+      );
+      if (el) {
+        el.click();
+        return { ok: true, clicked: true };
+      }
+      return { ok: false, clicked: false, error: 'CHANNEL_LINK_NOT_FOUND' };
     } catch (e) {
       return { ok: false, error: String(e && e.message || e) };
     }
@@ -261,6 +311,7 @@ function buildDiscordExtractionScript(guildId, channelId) {
         if (cls.indexOf('systemMessage') >= 0) continue;
 
         const idParts = id.split('-');
+        if (idParts.length >= 4 && idParts[2] !== CHANNEL_ID) continue;
         const messageId = idParts[idParts.length - 1];
         if (!messageId) continue;
 
@@ -521,7 +572,7 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     currentUrl = wv.getURL() || '';
   } catch (e) {}
 
-  const targetPath = `/channels/${guildId}/${channelId}`;
+  const targetUrl = buildDiscordChannelUrl(guildId, channelId);
   const isOnDiscord = currentUrl.indexOf('discord.com/') > 0 && currentUrl.indexOf('/login') < 0;
 
   let timeout = SWITCH_TIMEOUT_MS;
@@ -529,46 +580,40 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
   if (!isOnDiscord) {
     if (onProgress) onProgress('正在启动 Discord 客户端...');
     timeout = BOOT_TIMEOUT_MS;
-    await loadWebviewTarget(wv, buildDiscordChannelUrl(guildId, channelId));
+    await loadWebviewTarget(wv, targetUrl);
   } else {
-    // If the webview is already showing this channel, route away to @me first
-    // so Discord's SPA unmounts the channel and mounts it again fresh, triggering
-    // a REST API fetch for the latest messages.
-    if (currentUrl.indexOf(targetPath) >= 0) {
-      if (onProgress) onProgress('正在刷新频道消息...');
-      await runScript(wv, `
-        (() => {
-          try {
-            history.pushState({}, '', '/channels/@me');
-            window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
-            return { ok: true };
-          } catch (e) {
-            return { ok: false };
-          }
-        })()
-      `);
-      // Wait briefly for Discord's router to process leaving the channel
-      const unmountDeadline = Date.now() + 1500;
-      while (Date.now() < unmountDeadline) {
-        const p = await runScript(wv, `(() => location.pathname)()`);
-        if (p && p.indexOf(targetPath) < 0) break;
-        await sleep(100);
-      }
-      await sleep(150);
-    } else {
-      if (onProgress) onProgress('正在切换频道...');
+    // Check if the webview is already showing this EXACT channel and is ready
+    const probe = await runScript(wv, buildReadinessScript(channelId));
+    if (probe && probe.state === 'ready') {
+      return { ok: true };
     }
 
-    const res = await runScript(wv, buildSpaNavigateScript(guildId, channelId));
-    if (!res || !res.ok) {
-      // The in-app router refused; fall back to a hard reload.
+    let inAppSwitched = false;
+    const sameGuild = currentUrl.indexOf(`/channels/${guildId}/`) >= 0;
+    if (sameGuild) {
+      if (onProgress) onProgress('正在切换频道...');
+      const clickRes = await runScript(wv, buildInAppChannelClickScript(guildId, channelId));
+      if (clickRes && clickRes.clicked) {
+        const quickDeadline = Date.now() + 3000;
+        while (Date.now() < quickDeadline) {
+          const quickProbe = await runScript(wv, buildReadinessScript(channelId));
+          if (quickProbe && quickProbe.state === 'ready') {
+            inAppSwitched = true;
+            return { ok: true };
+          }
+          await sleep(300);
+        }
+      }
+    }
+
+    if (!inAppSwitched) {
+      if (onProgress) onProgress('正在加载频道...');
       timeout = BOOT_TIMEOUT_MS;
-      await loadWebviewTarget(wv, buildDiscordChannelUrl(guildId, channelId));
+      await loadWebviewTarget(wv, targetUrl);
     }
   }
 
   const deadline = Date.now() + timeout;
-  let spaRetried = false;
   let lastState = '';
 
   while (Date.now() < deadline) {
@@ -579,11 +624,6 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
       if (probe.state === 'login') {
         saveDiscordLoggedIn(false);
         return { ok: false, error: '尚未登录 Discord，请点击右上角【登录 Discord】完成登录' };
-      }
-      // Booted, but the router never moved: nudge it once more before reloading.
-      if (probe.state === 'switching' && !spaRetried && Date.now() > deadline - timeout + 5000) {
-        spaRetried = true;
-        await runScript(wv, buildSpaNavigateScript(guildId, channelId));
       }
     }
     await sleep(500);
@@ -639,7 +679,11 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   const hasExisting = (
     slot.monitoredHandle === rawInput &&
     Array.isArray(slot.loadedTweets) &&
-    slot.loadedTweets.length > 0
+    slot.loadedTweets.length > 0 &&
+    slot.loadedTweets.every(m => {
+      const p = parseDiscordChannelUrl(m.url);
+      return !p || !p.channelId || p.channelId === channelId;
+    })
   );
   const existingMessages = hasExisting ? slot.loadedTweets : [];
   const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)));

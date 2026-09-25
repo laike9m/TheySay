@@ -18,7 +18,12 @@ const {
   saveAllSlotCache
 } = require('./storage');
 const { getOrCreateSlotWebview } = require('./webview');
-const { SOURCE_DISCORD, detectSourceType } = require('./source');
+const {
+  SOURCE_DISCORD,
+  detectSourceType,
+  normalizeTwitterHandle,
+  parseDiscordChannelUrl
+} = require('./source');
 
 function createSlotWidget(index) {
   const widget = document.createElement('div');
@@ -795,8 +800,34 @@ function loadSlotCache(slots) {
     slots.forEach(slot => {
       if (cache[slot.index]) {
         let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = cache[slot.index];
+        const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
+        if (currentInput && handle) {
+          const isCurrDiscord = detectSourceType(currentInput) === SOURCE_DISCORD;
+          const isCachedDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
+          if (isCurrDiscord !== isCachedDiscord) return;
+          if (isCurrDiscord) {
+            if (currentInput.toLowerCase() !== handle.toLowerCase()) return;
+          } else {
+            if (normalizeTwitterHandle(currentInput).toLowerCase() !== normalizeTwitterHandle(handle).toLowerCase()) return;
+          }
+        }
+
         const isDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
         const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
+
+        // Self-heal corrupted Discord cache where messages belong to a different channel
+        if (isDiscord && handle) {
+          const slotParsed = parseDiscordChannelUrl(handle);
+          if (slotParsed && slotParsed.channelId && Array.isArray(tweets) && tweets.length > 0) {
+            const firstMsgUrl = tweets[0].url || '';
+            const msgParsed = parseDiscordChannelUrl(firstMsgUrl);
+            if (msgParsed && msgParsed.channelId && msgParsed.channelId !== slotParsed.channelId) {
+              delete cache[slot.index];
+              hasCacheFix = true;
+              return;
+            }
+          }
+        }
 
         if (isDiscord) {
           let rawTitle = (cache[slot.index].displayName && (cache[slot.index].displayName.includes('\n') || cache[slot.index].displayName.includes(':')))

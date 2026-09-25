@@ -91,7 +91,7 @@ TheySay/
 ├── docs/
 │   └── README_zh.md    # 中文文档
 ├── scripts/
-│   └── brand-app.js    # macOS 应用程序包品牌定制脚本（名称、图标与路径同步）
+│   └── brand-app.js    # macOS 应用程序包品牌定制脚本（名称、Bundle ID、图标与路径同步）
 ├── src/
 │   ├── auth.js         # Twitter 与 Discord 登录状态检测与 IPC 授权弹窗管理
 │   ├── constants.js    # 槽位上限、存储键名、分区名与轮询间隔等常量

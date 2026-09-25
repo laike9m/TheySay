@@ -91,7 +91,7 @@ TheySay/
 ├── docs/
 │   └── README_zh.md    # Chinese Documentation (中文文档)
 ├── scripts/
-│   └── brand-app.js    # macOS app bundle branding (name, icon & path synchronization)
+│   └── brand-app.js    # macOS app bundle branding (name, bundle ID, icon & path synchronization)
 ├── src/
 │   ├── auth.js         # Twitter & Discord login status check & IPC dialogs
 │   ├── constants.js    # Layout limits, storage keys, partition names & polling intervals

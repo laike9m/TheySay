@@ -1,6 +1,7 @@
 {
   "name": "theysay",
   "productName": "TheySay",
+  "appId": "com.laike9m.theysay",
   "version": "1.0.0",
   "description": "Twitter / X & Discord dynamic parallel dashboard",
   "main": "main.js",

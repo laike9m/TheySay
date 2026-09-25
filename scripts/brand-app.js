@@ -32,13 +32,27 @@ function brandApp() {
   const infoPlist = path.join(targetApp, 'Contents', 'Info.plist');
   const resourcesDir = path.join(targetApp, 'Contents', 'Resources');
 
-  // 1. Update Info.plist names
+  const pkgPath = path.join(__dirname, '..', 'package.json');
+  let bundleId = 'com.laike9m.theysay';
+  let appDisplayName = 'TheySay';
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (pkg.appId) bundleId = pkg.appId;
+      if (pkg.productName) appDisplayName = pkg.productName;
+    } catch (_) {}
+  }
+
+  // 1. Update Info.plist names & bundle identifier
   if (fs.existsSync(infoPlist)) {
     try {
-      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleName TheySay" "${infoPlist}"`, { stdio: 'ignore' });
+      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleName ${appDisplayName}" "${infoPlist}"`, { stdio: 'ignore' });
     } catch (_) {}
     try {
-      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName TheySay" "${infoPlist}"`, { stdio: 'ignore' });
+      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName ${appDisplayName}" "${infoPlist}"`, { stdio: 'ignore' });
+    } catch (_) {}
+    try {
+      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${bundleId}" "${infoPlist}"`, { stdio: 'ignore' });
     } catch (_) {}
   }
 
@@ -61,6 +75,11 @@ function brandApp() {
     // 5. Touch bundle to invalidate macOS cache
     try {
       execSync(`touch "${theySayApp}"`, { stdio: 'ignore' });
+    } catch (_) {}
+
+    // 6. Refresh LaunchServices database so macOS and Manico recognize the new bundle ID immediately
+    try {
+      execSync(`/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${theySayApp}"`, { stdio: 'ignore' });
     } catch (_) {}
   }
 }

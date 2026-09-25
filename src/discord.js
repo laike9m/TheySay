@@ -433,13 +433,14 @@ function buildDiscordExtractionScript(guildId, channelId) {
           'a[href$="/' + CHANNEL_ID + '"]'
         );
         if (activeLink) {
-          const aria = activeLink.getAttribute('aria-label') || '';
-          const cleanAria = aria.replace(/\\s*\\([^)]*(?:channel|频道)[^)]*\\)/i, '').trim();
-          if (cleanAria) {
-            channelName = cleanAria;
+          const nameEl = activeLink.querySelector('[class*="channelName"], [class*="name"]');
+          if (nameEl && nameEl.innerText && nameEl.innerText.trim()) {
+            channelName = nameEl.innerText.trim();
           } else {
-            const nameEl = activeLink.querySelector('[class*="name"]');
-            if (nameEl && nameEl.innerText) channelName = nameEl.innerText.trim();
+            const aria = activeLink.getAttribute('aria-label') || '';
+            if (aria) {
+              channelName = aria.split(/[,，(（]/)[0].trim();
+            }
           }
         }
       } catch (_) {}
@@ -509,9 +510,13 @@ function buildDiscordExtractionScript(guildId, channelId) {
         }
       }
 
-      // Clean channel name: take first line, strip leading #/@, trailing colons/punctuation
+      // Clean channel name: take first line, strip leading #/@, trailing colons/punctuation, accessibility suffixes
       channelName = cleanSingleLineText(channelName);
-      channelName = channelName.replace(/^[#@]+/, '').replace(/[:：\\s]+$/, '').trim();
+      channelName = channelName
+        .replace(/^[#@\s]+/, '')
+        .split(/[,，(（]/)[0]
+        .replace(/[:：\\s]+$/, '')
+        .trim();
 
       // Clean guild name
       guildName = cleanSingleLineText(guildName);
@@ -782,7 +787,8 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
       const cleanChan = String(meta.channelName || '')
         .split(/[\r\n]+/)[0]
-        .replace(/^[#@]+/, '')
+        .replace(/^[#@\s]+/, '')
+        .split(/[,，(（]/)[0]
         .replace(/[:：\s]+$/, '')
         .trim();
       const channelLabel = cleanChan ? `#${cleanChan}` : '#频道';

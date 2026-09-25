@@ -328,10 +328,11 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 
     if (!cleanChan) {
       cleanChan = sanitizeSingleLine(rawTitle)
-        .replace(/^[#@]+/, '')
+        .replace(/^[#@\s]+/, '')
         .replace(/[:：\s]+$/, '')
         .trim();
     }
+    cleanChan = cleanChan.split(/[,，(（]/)[0].trim();
 
     if (cleanGuild) {
       cleanGuild = sanitizeSingleLine(cleanGuild)
@@ -857,8 +858,9 @@ function loadSlotCache(slots) {
           }
 
           if (!chan) {
-            chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+            chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@\s]+/, '').replace(/[:：\s]+$/, '').trim();
           }
+          chan = chan.split(/[,，(（]/)[0].trim();
 
           if (guild) {
             guild = String(guild).split(/[\r\n]+/)[0].replace(/\s*[-|]\s*Discord$/i, '').trim();

@@ -7,7 +7,8 @@ const {
   getTweetDateLabel,
   formatTelegramTime,
   shouldShowTweetPopup,
-  isTweetWithQuote
+  isTweetWithQuote,
+  isMemberOnlyTweet
 } = require('./tweet');
 const { openTweetPopup, prefetchTweet } = require('./popup');
 const {
@@ -15,7 +16,8 @@ const {
   saveHandles,
   getSlotCache,
   saveSlotCache,
-  saveAllSlotCache
+  saveAllSlotCache,
+  getShowMemberOnlyTweets
 } = require('./storage');
 const { getOrCreateSlotWebview } = require('./webview');
 const {
@@ -269,6 +271,7 @@ function buildTweetBubbleHtml(tweet) {
   if (tweet.isPinned) tagHtml += '<span class="tweet-tag">置顶</span>';
   if (tweet.isRetweet) tagHtml += '<span class="tweet-tag repost">转推</span>';
   if (isTweetWithQuote(tweet)) tagHtml += '<span class="tweet-tag quote">引用</span>';
+  if (isMemberOnlyTweet(tweet)) tagHtml += '<span class="tweet-tag member" title="仅会员 / 订阅者可见">仅会员</span>';
 
   const textHtml = isLong
     ? `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`
@@ -422,10 +425,15 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 
   const finalAvatar = avatarUrl || (slot.avatarImg && slot.avatarImg.src) || '';
 
+  const showMemberOnly = getShowMemberOnlyTweets();
+  const displayTweets = (showMemberOnly || isDiscord)
+    ? tweets
+    : tweets.filter(t => !isMemberOnlyTweet(t));
+
   let lastDateKey = null;
   let lastAuthorName = null;
 
-  tweets.forEach((tweet) => {
+  displayTweets.forEach((tweet) => {
     const dateKey = getTweetDateKey(tweet);
     const dateLabel = getTweetDateLabel(tweet);
     let startedNewDay = false;
@@ -443,6 +451,9 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     bubble.className = 'im-bubble';
     if (tweet.isUnread) {
       bubble.classList.add('unread');
+    }
+    if (isMemberOnlyTweet(tweet)) {
+      bubble.classList.add('is-member-only');
     }
 
     // Restore to normal bubble color once hovered
@@ -509,6 +520,13 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 
     slot.tweetsList.appendChild(bubble);
   });
+
+  if (displayTweets.length === 0 && tweets.length > 0 && !isDiscord) {
+    const emptyNotice = document.createElement('div');
+    emptyNotice.className = 'im-filtered-empty-notice';
+    emptyNotice.innerText = `已隐藏 ${tweets.length} 条仅会员可见的帖子 (可在设置中开启)`;
+    slot.tweetsList.appendChild(emptyNotice);
+  }
 
   // Auto-scroll to bottom to show the latest messages (Telegram style)
   requestAnimationFrame(() => {
@@ -999,6 +1017,25 @@ function markAllTweetsAsRead(slots) {
   }
 }
 
+function refreshSlotsContent(slots) {
+  if (!Array.isArray(slots)) return;
+  slots.forEach(slot => {
+    if (slot && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+      const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
+      const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || null;
+      const isDiscord = slot.source === SOURCE_DISCORD;
+      const meta = isDiscord
+        ? { source: SOURCE_DISCORD, title: slot.sourceTitle || '#频道', subtitle: slot.sourceSubtitle || '' }
+        : {
+            source: 'twitter',
+            displayName: slot.authorName ? slot.authorName.innerText : '',
+            userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`
+          };
+      renderSlotTweets(slot, slot.loadedTweets, handle, avatarUrl, slots, meta);
+    }
+  });
+}
+
 module.exports = {
   createSlotWidget,
   updateSlotAvatar,
@@ -1015,5 +1052,6 @@ module.exports = {
   bindSlotEvents,
   initSlotsRegistry,
   loadSlotCache,
-  markAllTweetsAsRead
+  markAllTweetsAsRead,
+  refreshSlotsContent
 };

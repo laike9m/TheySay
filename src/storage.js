@@ -11,8 +11,10 @@ const {
   STORAGE_DISCORD_LOGIN_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_DISCORD_INTERVAL_KEY,
+  STORAGE_SHOW_MEMBER_ONLY_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
-  DEFAULT_DISCORD_INTERVAL_MINUTES
+  DEFAULT_DISCORD_INTERVAL_MINUTES,
+  DEFAULT_SHOW_MEMBER_ONLY
 } = require('./constants');
 
 function getSavedHandles() {
@@ -169,6 +171,22 @@ function saveDiscordLoggedIn(loggedIn) {
   localStorage.setItem(STORAGE_DISCORD_LOGIN_KEY, loggedIn ? '1' : '0');
 }
 
+function getShowMemberOnlyTweets() {
+  try {
+    const raw = localStorage.getItem(STORAGE_SHOW_MEMBER_ONLY_KEY);
+    if (raw !== null && raw !== '') {
+      return raw === '1' || raw === 'true';
+    }
+  } catch (e) {}
+  return DEFAULT_SHOW_MEMBER_ONLY;
+}
+
+function saveShowMemberOnlyTweets(show) {
+  try {
+    localStorage.setItem(STORAGE_SHOW_MEMBER_ONLY_KEY, show ? '1' : '0');
+  } catch (e) {}
+}
+
 module.exports = {
   getSavedHandles,
   saveHandles,
@@ -191,5 +209,7 @@ module.exports = {
   getDiscordIntervalMinutes,
   saveDiscordIntervalMinutes,
   getDiscordLoggedIn,
-  saveDiscordLoggedIn
+  saveDiscordLoggedIn,
+  getShowMemberOnlyTweets,
+  saveShowMemberOnlyTweets
 };

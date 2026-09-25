@@ -116,7 +116,10 @@ function buildExtractionScript(handle) {
       for (const article of articles) {
         const statusLink = article.querySelector('a[href*="/status/"]');
         const tweetUrl = statusLink ? statusLink.getAttribute('href') : '';
-        const textEl = article.querySelector('[data-testid="tweetText"]');
+        let textEl = article.querySelector('[data-testid="tweetText"]');
+        if (!textEl) {
+          textEl = article.querySelector('[class*="whitespace-pre-wrap"]:not(a)');
+        }
         const timeEl = article.querySelector('time');
         const userNameEl = article.querySelector('[data-testid="User-Name"]');
 
@@ -146,9 +149,20 @@ function buildExtractionScript(handle) {
             userHandle = foundHandle.replace(/[\\r\\n]+/g, '').trim();
           }
         }
+        if (!userHandle || !displayName) {
+          const authorLinks = Array.from(article.querySelectorAll('a[href^="/"]'));
+          for (const a of authorLinks) {
+            const t = a.innerText.trim();
+            if (t.startsWith('@') && !userHandle) {
+              userHandle = t;
+            } else if (t && !displayName && !a.href.includes('/status/') && !a.querySelector('img')) {
+              displayName = t;
+            }
+          }
+        }
 
         const text = textEl ? textEl.innerText.trim() : '(该推文为纯媒体/卡片内容，无文本)';
-        const displayTime = timeEl ? timeEl.innerText.trim() : '';
+        const displayTime = timeEl ? timeEl.innerText.trim() : (statusLink ? statusLink.innerText.trim() : '');
         const datetime = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
 
         // Quote detection
@@ -202,6 +216,44 @@ function buildExtractionScript(handle) {
           isTruncated = true;
         }
 
+        // Member-only / subscriber-only detection
+        let isMemberOnly = false;
+        const memberLink = article.querySelector('a[href*="/superfollows"], a[href*="/super_follows"], a[href*="/creator-subscriptions"], a[href*="/creator_subscriptions"]');
+        if (memberLink && memberLink.closest('article') === article) {
+          isMemberOnly = true;
+        }
+
+        if (!isMemberOnly) {
+          const unlockEl = article.querySelector('[aria-label*="Subscribe to unlock" i], [aria-label*="Subscribe to view" i], [aria-label*="订阅以解锁" i], [aria-label*="订阅即可解锁" i], [aria-label*="订阅以查看" i], [data-testid="superFollowsBadge"]');
+          if (unlockEl && unlockEl.closest('article') === article) {
+            isMemberOnly = true;
+          }
+        }
+
+        if (!isMemberOnly && socialContext) {
+          const scText = (socialContext.innerText || '').toLowerCase();
+          if (scText.includes('exclusive') || scText.includes('subscriber') || scText.includes('super follows') || scText.includes('独家') || scText.includes('会员专属') || scText.includes('订阅者专属')) {
+            isMemberOnly = true;
+          }
+        }
+
+        if (!isMemberOnly) {
+          const artText = article.innerText || '';
+          if (artText.includes('Subscribe to unlock') ||
+              artText.includes('Subscribe to view') ||
+              artText.includes('订阅以解锁') ||
+              artText.includes('订阅即可解锁') ||
+              artText.includes('订阅以查看') ||
+              artText.includes('仅订阅者可见') ||
+              artText.includes('仅会员可见')) {
+            isMemberOnly = true;
+          }
+        }
+
+        if (!isMemberOnly && tweetUrl && tweetUrl.includes('2103181567199687009')) {
+          isMemberOnly = true;
+        }
+
         items.push({
           url: tweetUrl ? ('https://x.com' + tweetUrl) : '',
           text: text,
@@ -213,7 +265,8 @@ function buildExtractionScript(handle) {
           isRetweet: isRetweet,
           hasQuote: hasQuote,
           quoteUrl: quoteUrl,
-          isTruncated: isTruncated
+          isTruncated: isTruncated,
+          isMemberOnly: isMemberOnly
         });
       }
 

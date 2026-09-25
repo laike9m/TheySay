@@ -8,7 +8,8 @@ const {
   loadSlotCache,
   closeAllSizeMenus,
   updateSlotSizeUI,
-  markAllTweetsAsRead
+  markAllTweetsAsRead,
+  refreshSlotsContent
 } = require('./src/slot');
 const {
   calculateCellHeight,
@@ -83,6 +84,7 @@ window.addEventListener('DOMContentLoaded', () => {
         bgWebviewsContainer,
         getActiveSlotCount
       });
+      refreshSlotsContent(slots);
     }
   });
 

@@ -1,5 +1,5 @@
 const { shell, ipcRenderer } = require('electron');
-const { getTweetId } = require('./tweet');
+const { getTweetId, isMemberOnlyTweet } = require('./tweet');
 const { escapeHtml } = require('./utils');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
@@ -174,6 +174,16 @@ function renderFallbackInto(entry) {
   const fallbackDiv = document.createElement('div');
   fallbackDiv.className = 'tweet-popup-fallback';
 
+  let memberInfoHtml = '';
+  if (isMemberOnlyTweet(tweet)) {
+    memberInfoHtml = `
+      <div class="tweet-popup-fallback-member">
+        <span class="tweet-tag member">仅会员可见</span>
+        <span class="tweet-member-notice">此推文为创作者会员 / 订阅专享内容</span>
+      </div>
+    `;
+  }
+
   let quoteInfoHtml = '';
   if (tweet.hasQuote || tweet.quoteUrl) {
     quoteInfoHtml = `
@@ -192,6 +202,7 @@ function renderFallbackInto(entry) {
         <span class="tweet-popup-fallback-handle">${escapeHtml(userHandle)}</span>
       </div>
     </div>
+    ${memberInfoHtml}
     <div class="tweet-popup-fallback-text">${escapeHtml(rawText)}</div>
     ${quoteInfoHtml}
     <div class="tweet-popup-fallback-footer">
@@ -218,9 +229,9 @@ function renderFallbackInto(entry) {
 
 // Warm a tweet's embed in the background so a later click is instant.
 function prefetchTweet(tweet, { priority = false } = {}) {
-  // Discord messages are rendered from data we already hold; there is no
-  // third-party widget to warm up.
-  if (!tweet || tweet.source === 'discord') return;
+  // Discord messages and member-only tweets are rendered locally from data we already hold;
+  // there is no third-party widget to warm up.
+  if (!tweet || tweet.source === 'discord' || isMemberOnlyTweet(tweet)) return;
 
   const tweetId = getTweetId(tweet);
   if (!tweetId) return;
@@ -363,6 +374,14 @@ function openTweetPopup(tweet) {
   activeTweetId = tweetId;
   entry.el.classList.add('is-active');
   openOverlay();
+
+  // If this is a member-only tweet, Twitter's public embed iframe cannot render it.
+  // Immediately render the rich fallback card with "仅会员可见" notice without waiting for widget timeout.
+  if (isMemberOnlyTweet(tweet)) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    renderFallbackInto(entry);
+    return;
+  }
 
   if (entry.status === 'ready' || entry.status === 'failed') {
     // Already pre-rendered: the card is on screen immediately, no swap, no spinner.

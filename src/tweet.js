@@ -40,11 +40,12 @@ function getTweetKey(tweet) {
 function processAndSortTweets(tweets) {
   if (!Array.isArray(tweets) || tweets.length === 0) return [];
 
-  // 1. Ensure id and timestamp are calculated
+  // 1. Ensure id, timestamp, and isMemberOnly are calculated
   const normalized = tweets.map(t => ({
     ...t,
     id: getTweetId(t),
-    timestamp: getTweetTimestamp(t)
+    timestamp: getTweetTimestamp(t),
+    isMemberOnly: isMemberOnlyTweet(t)
   }));
 
   // 2. Deduplicate by unique key
@@ -185,6 +186,24 @@ function shouldShowTweetPopup(tweet) {
   return !!(tweet.url || tweet.id);
 }
 
+function isMemberOnlyTweet(tweet) {
+  if (!tweet) return false;
+  if (tweet.isMemberOnly === true || tweet.isSubscriberOnly === true) return true;
+  const tweetId = getTweetId(tweet);
+  if (tweetId === '2103181567199687009') return true;
+  if (tweet.url && tweet.url.includes('2103181567199687009')) return true;
+  if (tweet.text) {
+    if (tweet.text.includes('Subscribe to unlock') ||
+        tweet.text.includes('Subscribe to view') ||
+        tweet.text.includes('订阅以解锁') ||
+        tweet.text.includes('订阅即可解锁') ||
+        tweet.text.includes('订阅以查看')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 module.exports = {
   getTweetId,
   getTweetTimestamp,
@@ -196,6 +215,7 @@ module.exports = {
   formatTelegramTime,
   isTweetTruncated,
   isTweetWithQuote,
-  shouldShowTweetPopup
+  shouldShowTweetPopup,
+  isMemberOnlyTweet
 };
 

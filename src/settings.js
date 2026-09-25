@@ -1,13 +1,16 @@
 const { ipcRenderer } = require('electron');
 const {
   DEFAULT_TWITTER_INTERVAL_MINUTES,
-  DEFAULT_DISCORD_INTERVAL_MINUTES
+  DEFAULT_DISCORD_INTERVAL_MINUTES,
+  DEFAULT_SHOW_MEMBER_ONLY
 } = require('./constants');
 const {
   getTwitterIntervalMinutes,
   saveTwitterIntervalMinutes,
   getDiscordIntervalMinutes,
-  saveDiscordIntervalMinutes
+  saveDiscordIntervalMinutes,
+  getShowMemberOnlyTweets,
+  saveShowMemberOnlyTweets
 } = require('./storage');
 const { showToast } = require('./utils');
 
@@ -62,6 +65,12 @@ function loadCurrentSettings() {
   if (discordSelect && discordCustomWrap && discordCustomInput) {
     const discordVal = getDiscordIntervalMinutes();
     populateSelectAndInput(discordSelect, discordCustomWrap, discordCustomInput, discordVal);
+  }
+
+  const memberOnlySelect = document.getElementById('setting-show-member-only');
+  if (memberOnlySelect) {
+    const showMemberOnly = getShowMemberOnlyTweets();
+    memberOnlySelect.value = showMemberOnly ? 'true' : 'false';
   }
 }
 
@@ -168,6 +177,10 @@ function initSettings({ onSave } = {}) {
           DEFAULT_DISCORD_INTERVAL_MINUTES
         );
       }
+      const memberOnlySelect = document.getElementById('setting-show-member-only');
+      if (memberOnlySelect) {
+        memberOnlySelect.value = DEFAULT_SHOW_MEMBER_ONLY ? 'true' : 'false';
+      }
       showToast('已恢复默认参数，点击“保存设置”生效', 'info', 2000);
     });
   }
@@ -200,15 +213,23 @@ function initSettings({ onSave } = {}) {
         discordMinutes = parseFloat(discordSelect.value);
       }
 
+      const memberOnlySelect = document.getElementById('setting-show-member-only');
+      let showMemberOnly = DEFAULT_SHOW_MEMBER_ONLY;
+      if (memberOnlySelect) {
+        showMemberOnly = memberOnlySelect.value === 'true';
+      }
+
       saveTwitterIntervalMinutes(twitterMinutes);
       saveDiscordIntervalMinutes(discordMinutes);
+      saveShowMemberOnlyTweets(showMemberOnly);
 
       if (typeof onSave === 'function') {
-        onSave({ twitterMinutes, discordMinutes });
+        onSave({ twitterMinutes, discordMinutes, showMemberOnly });
       }
 
       const formatInterval = (m) => (m === 0.5 ? '30秒' : `${m}分钟`);
-      showToast(`设置已保存 (Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)})`, 'success', 2500);
+      const memberText = showMemberOnly ? '显示会员推文' : '隐藏会员推文';
+      showToast(`设置已保存 (Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText})`, 'success', 2500);
       closeSettingsModal();
     });
   }

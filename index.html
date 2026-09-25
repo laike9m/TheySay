@@ -291,11 +291,49 @@
             </div>
           </div>
         </div>
+
+        <!-- 内容显示偏好分组 -->
+        <div class="settings-section">
+          <div class="settings-section-title">推文内容显示</div>
+          <div class="settings-section-desc">自定义时间线中特定类型推文的显示规则与过滤偏好。</div>
+
+          <!-- 会员帖子设置卡片 -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-platform">
+                <span class="platform-icon member">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </span>
+                <div>
+                  <div class="settings-card-title">仅会员可见帖子</div>
+                  <div class="settings-card-subtitle">Twitter / X 创作者会员与订阅专享推文 (Super Follows)</div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-card-content">
+              <div class="settings-field-row">
+                <label for="setting-show-member-only" class="settings-label">显示仅会员可见的帖子:</label>
+                <div class="settings-input-group">
+                  <select id="setting-show-member-only" class="settings-select">
+                    <option value="true" selected>显示 (标出【仅会员】)</option>
+                    <option value="false">不显示 (自动过滤)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="settings-tip">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <span>设置为“显示”时，时间线中将展示会员专享推文并附带【仅会员】专属徽章；设置为“不显示”时将自动从时间线中过滤隐藏。</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 弹窗 Footer -->
       <div class="settings-modal-footer">
-        <button id="btn-settings-reset" class="btn-tool btn-settings-reset" title="恢复默认刷新频率">恢复默认</button>
+        <button id="btn-settings-reset" class="btn-tool btn-settings-reset" title="恢复默认设置">恢复默认</button>
         <div class="settings-modal-actions">
           <button id="btn-settings-cancel" class="btn-tool">取消</button>
           <button id="btn-settings-save" class="btn-tool btn-primary">保存设置</button>

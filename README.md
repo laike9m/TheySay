@@ -77,8 +77,14 @@ npm start
 
 ```
 TheySay/
+├── assets/
+│   ├── icon.icns       # macOS application icon bundle
+│   ├── icon.png        # High-resolution (1024x1024) application icon
+│   └── icon.svg        # Master vector icon (macOS squircle dark theme & brand waves)
 ├── docs/
 │   └── README_zh.md    # Chinese Documentation (中文文档)
+├── scripts/
+│   └── brand-app.js    # macOS app bundle branding (name, icon & path synchronization)
 ├── src/
 │   ├── auth.js         # Twitter & Discord login status check & IPC dialogs
 │   ├── constants.js    # Layout limits, storage keys, partition names & polling intervals

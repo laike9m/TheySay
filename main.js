@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, session, Menu, shell } = require('electron'
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
 
+app.name = 'TheySay';
+
+const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
+
 // Discord's web client behaves best when it believes it is plain Chrome; the
 // default Electron UA makes it try to light up desktop-app-only code paths.
 const DISCORD_USER_AGENT =
@@ -25,6 +29,7 @@ function createWindow() {
     minWidth: 850,
     minHeight: 650,
     title: 'TheySay - Twitter / X 动态网格看板 (GridStack)',
+    icon: ICON_PATH,
     webPreferences: {
       webviewTag: true,
       nodeIntegration: true,
@@ -80,6 +85,7 @@ ipcMain.on('open-login-window', () => {
     width: 620,
     height: 750,
     title: '登录 Twitter / X',
+    icon: ICON_PATH,
     parent: mainWindow,
     modal: false,
     webPreferences: {
@@ -131,6 +137,7 @@ ipcMain.on('open-discord-login-window', () => {
     width: 900,
     height: 760,
     title: '登录 Discord',
+    icon: ICON_PATH,
     parent: mainWindow,
     modal: false,
     webPreferences: {
@@ -203,6 +210,11 @@ app.whenReady().then(() => {
     }
     callback({ responseHeaders });
   });
+
+  // Set macOS dock icon
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(ICON_PATH);
+  }
 
   createWindow();
 

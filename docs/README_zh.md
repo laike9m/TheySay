@@ -77,8 +77,14 @@ npm start
 
 ```
 TheySay/
+├── assets/
+│   ├── icon.icns       # macOS 应用程序图标包
+│   ├── icon.png        # 1024x1024 高分辨率应用图标
+│   └── icon.svg        # 矢量源图标（macOS 拟物深色渐变底板与品牌声波）
 ├── docs/
 │   └── README_zh.md    # 中文文档
+├── scripts/
+│   └── brand-app.js    # macOS 应用程序包品牌定制脚本（名称、图标与路径同步）
 ├── src/
 │   ├── auth.js         # Twitter 与 Discord 登录状态检测与 IPC 授权弹窗管理
 │   ├── constants.js    # 槽位上限、存储键名、分区名与轮询间隔等常量

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Squircle Shadow -->
+    <filter id="squircle-shadow">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+
+    <!-- Base Squircle Dark Slate/Navy Gradient -->
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e2535" />
+      <stop offset="45%" stop-color="#141a27" />
+      <stop offset="100%" stop-color="#0a0e17" />
+    </linearGradient>
+
+    <!-- Top Subtle Radial Highlight -->
+    <radialGradient id="top-highlight" cx="50%" cy="15%" r="65%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Inner Border / Rim Highlight -->
+    <linearGradient id="rim-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.06" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02" />
+    </linearGradient>
+
+    <!-- Blue Sound Wave Gradient -->
+    <linearGradient id="wave-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#1d9bf0" />
+    </linearGradient>
+
+    <!-- White User Contour Gradient -->
+    <linearGradient id="white-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+
+    <!-- Ambient Blur -->
+    <filter id="ambient-blur">
+      <feGaussianBlur stdDeviation="35" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base with Shadow -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg-grad)" filter="url(#squircle-shadow)" />
+
+  <!-- Radial Top Highlight -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#top-highlight)" />
+
+  <!-- Rim Border -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="none" stroke="url(#rim-grad)" stroke-width="2.5" />
+
+  <!-- Ambient Blue Glow behind waves -->
+  <circle cx="610" cy="512" r="140" fill="#1d9bf0" opacity="0.15" filter="url(#ambient-blur)" />
+
+  <!-- Emblem Group: Scaled and centered -->
+  <g transform="translate(239.5, 224.5) scale(23)">
+    <!-- User Torso & Head: Crisp White Contour -->
+    <path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1" fill="none" stroke="url(#white-grad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="9" cy="8" r="4" fill="none" stroke="url(#white-grad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Sound Waves: Brand Blue with Subtle Glow -->
+    <path d="M16 7a4 4 0 0 1 0 6" fill="none" stroke="#1d9bf0" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.35" />
+    <path d="M16 7a4 4 0 0 1 0 6" fill="none" stroke="url(#wave-grad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
+
+    <path d="M19.5 4.5a8 8 0 0 1 0 11" fill="none" stroke="#1d9bf0" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.35" />
+    <path d="M19.5 4.5a8 8 0 0 1 0 11" fill="none" stroke="url(#wave-grad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

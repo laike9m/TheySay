@@ -1,10 +1,12 @@
 {
   "name": "theysay",
+  "productName": "TheySay",
   "version": "1.0.0",
-  "description": "",
+  "description": "Twitter / X & Discord dynamic parallel dashboard",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/brand-app.js && electron .",
+    "postinstall": "node scripts/brand-app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

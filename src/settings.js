@@ -2,7 +2,8 @@ const { ipcRenderer } = require('electron');
 const {
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
-  DEFAULT_SHOW_MEMBER_ONLY
+  DEFAULT_SHOW_MEMBER_ONLY,
+  DEFAULT_DISCORD_SOUND_ENABLED
 } = require('./constants');
 const {
   getTwitterIntervalMinutes,
@@ -10,7 +11,9 @@ const {
   getDiscordIntervalMinutes,
   saveDiscordIntervalMinutes,
   getShowMemberOnlyTweets,
-  saveShowMemberOnlyTweets
+  saveShowMemberOnlyTweets,
+  getDiscordSoundEnabled,
+  saveDiscordSoundEnabled
 } = require('./storage');
 const { showToast } = require('./utils');
 
@@ -71,6 +74,11 @@ function loadCurrentSettings() {
   if (memberOnlySelect) {
     const showMemberOnly = getShowMemberOnlyTweets();
     memberOnlySelect.value = showMemberOnly ? 'true' : 'false';
+  }
+
+  const discordSoundSelect = document.getElementById('setting-discord-sound');
+  if (discordSoundSelect) {
+    discordSoundSelect.value = getDiscordSoundEnabled() ? 'true' : 'false';
   }
 }
 
@@ -181,6 +189,10 @@ function initSettings({ onSave } = {}) {
       if (memberOnlySelect) {
         memberOnlySelect.value = DEFAULT_SHOW_MEMBER_ONLY ? 'true' : 'false';
       }
+      const discordSoundSelect = document.getElementById('setting-discord-sound');
+      if (discordSoundSelect) {
+        discordSoundSelect.value = DEFAULT_DISCORD_SOUND_ENABLED ? 'true' : 'false';
+      }
       showToast('已恢复默认参数，点击“保存设置”生效', 'info', 2000);
     });
   }
@@ -219,17 +231,25 @@ function initSettings({ onSave } = {}) {
         showMemberOnly = memberOnlySelect.value === 'true';
       }
 
+      const discordSoundSelect = document.getElementById('setting-discord-sound');
+      let discordSoundEnabled = DEFAULT_DISCORD_SOUND_ENABLED;
+      if (discordSoundSelect) {
+        discordSoundEnabled = discordSoundSelect.value === 'true';
+      }
+
       saveTwitterIntervalMinutes(twitterMinutes);
       saveDiscordIntervalMinutes(discordMinutes);
       saveShowMemberOnlyTweets(showMemberOnly);
+      saveDiscordSoundEnabled(discordSoundEnabled);
 
       if (typeof onSave === 'function') {
-        onSave({ twitterMinutes, discordMinutes, showMemberOnly });
+        onSave({ twitterMinutes, discordMinutes, showMemberOnly, discordSoundEnabled });
       }
 
       const formatInterval = (m) => (m === 0.5 ? '30秒' : `${m}分钟`);
       const memberText = showMemberOnly ? '显示会员推文' : '隐藏会员推文';
-      showToast(`设置已保存 (Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText})`, 'success', 2500);
+      const soundText = discordSoundEnabled ? 'Discord 提示音开启' : 'Discord 已静音';
+      showToast(`设置已保存 (Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText}, ${soundText})`, 'success', 2500);
       closeSettingsModal();
     });
   }

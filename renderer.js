@@ -23,6 +23,7 @@ const {
 } = require('./src/scraper');
 const { initTweetPopup } = require('./src/popup');
 const { initSettings } = require('./src/settings');
+const { applyDiscordSoundSetting } = require('./src/discord');
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
@@ -85,6 +86,7 @@ window.addEventListener('DOMContentLoaded', () => {
         getActiveSlotCount
       });
       refreshSlotsContent(slots);
+      applyDiscordSoundSetting();
     }
   });
 

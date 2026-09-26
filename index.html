@@ -329,6 +329,46 @@
             </div>
           </div>
         </div>
+
+        <!-- 通知声音分组 -->
+        <div class="settings-section">
+          <div class="settings-section-title">通知声音</div>
+          <div class="settings-section-desc">控制后台运行的 Discord 客户端收到新消息时是否播放提示音。</div>
+
+          <!-- Discord 通知声音设置卡片 -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-platform">
+                <span class="platform-icon discord">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                  </svg>
+                </span>
+                <div>
+                  <div class="settings-card-title">Discord 通知声音</div>
+                  <div class="settings-card-subtitle">收到私信、@提及等消息时 Discord 播放的提示音</div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-card-content">
+              <div class="settings-field-row">
+                <label for="setting-discord-sound" class="settings-label">播放通知声音:</label>
+                <div class="settings-input-group">
+                  <select id="setting-discord-sound" class="settings-select">
+                    <option value="true" selected>开启 (默认)</option>
+                    <option value="false">关闭 (静音)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="settings-tip">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <span>设置为“关闭”后，后台 Discord 客户端发出的所有声音都会被静音，不影响频道消息的抓取与显示，保存后立即生效。</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 弹窗 Footer -->

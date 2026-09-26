@@ -12,9 +12,11 @@ const {
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_DISCORD_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
+  STORAGE_DISCORD_SOUND_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
-  DEFAULT_SHOW_MEMBER_ONLY
+  DEFAULT_SHOW_MEMBER_ONLY,
+  DEFAULT_DISCORD_SOUND_ENABLED
 } = require('./constants');
 
 function getSavedHandles() {
@@ -187,6 +189,22 @@ function saveShowMemberOnlyTweets(show) {
   } catch (e) {}
 }
 
+function getDiscordSoundEnabled() {
+  try {
+    const raw = localStorage.getItem(STORAGE_DISCORD_SOUND_KEY);
+    if (raw !== null && raw !== '') {
+      return raw === '1' || raw === 'true';
+    }
+  } catch (e) {}
+  return DEFAULT_DISCORD_SOUND_ENABLED;
+}
+
+function saveDiscordSoundEnabled(enabled) {
+  try {
+    localStorage.setItem(STORAGE_DISCORD_SOUND_KEY, enabled ? '1' : '0');
+  } catch (e) {}
+}
+
 module.exports = {
   getSavedHandles,
   saveHandles,
@@ -211,5 +229,7 @@ module.exports = {
   getDiscordLoggedIn,
   saveDiscordLoggedIn,
   getShowMemberOnlyTweets,
-  saveShowMemberOnlyTweets
+  saveShowMemberOnlyTweets,
+  getDiscordSoundEnabled,
+  saveDiscordSoundEnabled
 };

@@ -5,7 +5,13 @@ const {
 } = require('./constants');
 const { sleep, showToast } = require('./utils');
 const { processAndSortTweets, getTweetKey } = require('./tweet');
-const { saveHandles, saveLastFetchTime, saveLastFetchTimeDiscord, saveDiscordLoggedIn } = require('./storage');
+const {
+  saveHandles,
+  saveLastFetchTime,
+  saveLastFetchTimeDiscord,
+  saveDiscordLoggedIn,
+  getDiscordSoundEnabled
+} = require('./storage');
 const { waitForWebviewReady, loadWebviewTarget } = require('./webview');
 const {
   parseDiscordChannelUrl,
@@ -61,10 +67,29 @@ function getOrCreateDiscordWebview(container) {
     wv.addEventListener('dom-ready', () => {
       wv._isReady = true;
     }, { once: true });
+    // The mute flag lives on the guest WebContents, which only exists once the
+    // webview is attached, so (re)apply the preference on every page load.
+    wv.addEventListener('dom-ready', () => applyDiscordSoundSetting(wv));
 
     if (container) container.appendChild(wv);
   }
   return wv;
+}
+
+/**
+ * Syncs the shared client's audio with the "Discord 通知声音" preference.
+ *
+ * Even while running unattended offscreen, the web app plays its own pings for
+ * DMs, @mentions, etc. Muting the guest WebContents silences every sound the
+ * page can make (HTMLAudio and Web Audio alike) without affecting scraping.
+ */
+function applyDiscordSoundSetting(wv = document.getElementById(DISCORD_WEBVIEW_ID)) {
+  if (!wv) return;
+  try {
+    wv.setAudioMuted(!getDiscordSoundEnabled());
+  } catch (e) {
+    // Not attached yet; the dom-ready hook applies it once the guest exists.
+  }
 }
 
 /* ----------------------------------------------------------------
@@ -857,6 +882,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
 module.exports = {
   getOrCreateDiscordWebview,
+  applyDiscordSoundSetting,
   ensureDiscordChannel,
   buildReadinessScript,
   buildDiscordExtractionScript,

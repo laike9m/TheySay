@@ -19,6 +19,7 @@ const {
 } = require('./src/grid');
 const {
   fetchSlot,
+  runDiscordBackgroundFetch,
   startPeriodicBackgroundFetch
 } = require('./src/scraper');
 const { initTweetPopup } = require('./src/popup');
@@ -125,6 +126,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Restore cached tweets
   loadSlotCache(slots);
+
+  // If any active Discord slot has legacy cached messages from before image URL extraction,
+  // automatically refresh Discord in the background once to populate inline images.
+  const hasLegacyDiscordCache = slots.slice(0, getActiveSlotCount()).some(
+    s => s && s.source === 'discord' && Array.isArray(s.loadedTweets) && s.loadedTweets.some(m => !Array.isArray(m.images))
+  );
+  if (hasLegacyDiscordCache) {
+    setTimeout(() => {
+      runDiscordBackgroundFetch({
+        slots,
+        bgWebviewsContainer,
+        getActiveSlotCount
+      });
+    }, 1200);
+  }
 
   // Save on layout changes (drag, resize) & synchronize size UI
   grid.on('change', (event, items) => {

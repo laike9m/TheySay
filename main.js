@@ -190,13 +190,16 @@ app.whenReady().then(() => {
   session.fromPartition(DISCORD_PARTITION)
     .setPermissionRequestHandler((webContents, permission, callback) => callback(false));
 
-  // Optimize & aggressively cache Twitter/X static assets and syndication data locally
+  // Optimize & aggressively cache Twitter/X and Discord static assets and media locally
   session.defaultSession.webRequest.onHeadersReceived({
     urls: [
       '*://platform.twitter.com/*',
       '*://cdn.syndication.twimg.com/*',
       '*://pbs.twimg.com/*',
-      '*://abs.twimg.com/*'
+      '*://abs.twimg.com/*',
+      '*://cdn.discordapp.com/*',
+      '*://media.discordapp.net/*',
+      '*://*.discordapp.net/*'
     ]
   }, (details, callback) => {
     const responseHeaders = Object.assign({}, details.responseHeaders);
@@ -205,7 +208,7 @@ app.whenReady().then(() => {
       responseHeaders['cache-control'] = ['public, max-age=31536000, immutable'];
     } else if (url.includes('tweet-result')) {
       responseHeaders['cache-control'] = ['public, max-age=86400, stale-while-revalidate=604800'];
-    } else if (url.includes('pbs.twimg.com')) {
+    } else if (url.includes('pbs.twimg.com') || url.includes('discordapp.com') || url.includes('discordapp.net')) {
       responseHeaders['cache-control'] = ['public, max-age=2592000'];
     }
     callback({ responseHeaders });

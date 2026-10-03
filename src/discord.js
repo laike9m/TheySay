@@ -397,18 +397,273 @@ function buildDiscordExtractionScript(guildId, channelId) {
           if (replyText.length > 80) replyText = replyText.slice(0, 80) + '…';
         }
 
-        // Attachments / embeds cannot be shown inline, so they are summarized.
-        const media = [];
+        // Extract inline images from DOM accessories and React message state
+        const images = [];
+        const seenImages = new Set();
+
+        const isExcludedImageUrl = (raw) => {
+          if (!raw || typeof raw !== 'string') return true;
+          const u = raw.trim();
+          if (u.indexOf('http://') !== 0 && u.indexOf('https://') !== 0 && u.indexOf('//') !== 0) return true;
+          const lower = u.toLowerCase();
+          if (
+            lower.indexOf('/avatars/') >= 0 ||
+            lower.indexOf('/icons/') >= 0 ||
+            lower.indexOf('/emojis/') >= 0 ||
+            lower.indexOf('/assets/') >= 0 ||
+            lower.indexOf('/role-icons/') >= 0 ||
+            lower.indexOf('/clan-badges/') >= 0 ||
+            lower.indexOf('/badge-icons/') >= 0 ||
+            lower.indexOf('/app-icons/') >= 0 ||
+            lower.indexOf('/channel-icons/') >= 0 ||
+            lower.indexOf('/guild-events/') >= 0
+          ) return true;
+          const pathPart = lower.split('?')[0].split('#')[0];
+          const nonImgExts = [
+            '.mp4', '.mov', '.webm', '.mkv', '.avi', '.mp3', '.wav', '.ogg', '.flac', '.m4a',
+            '.zip', '.rar', '.7z', '.tar', '.gz', '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+            '.ppt', '.pptx', '.txt', '.csv', '.json', '.js', '.py', '.html', '.css', '.exe', '.dmg', '.apk', '.iso'
+          ];
+          for (let i = 0; i < nonImgExts.length; i++) {
+            if (pathPart.endsWith(nonImgExts[i])) return true;
+          }
+          return false;
+        };
+
+        const looksLikeImageUrl = (raw) => {
+          if (!raw || typeof raw !== 'string') return false;
+          if (isExcludedImageUrl(raw)) return false;
+          const lower = raw.trim().toLowerCase();
+          const pathPart = lower.split('?')[0].split('#')[0];
+          const imgExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.bmp', '.svg'];
+          for (let i = 0; i < imgExts.length; i++) {
+            if (pathPart.endsWith(imgExts[i])) return true;
+          }
+          if (
+            lower.indexOf('format=webp') >= 0 ||
+            lower.indexOf('format=png') >= 0 ||
+            lower.indexOf('format=jpeg') >= 0 ||
+            lower.indexOf('format=jpg') >= 0 ||
+            lower.indexOf('format=gif') >= 0
+          ) return true;
+          return false;
+        };
+
+        const cleanImageUrl = (raw) => {
+          if (!raw || typeof raw !== 'string') return '';
+          let str = raw.trim();
+          if (str.indexOf('//') === 0) str = 'https:' + str;
+          if (isExcludedImageUrl(str)) return '';
+          try {
+            const u = new URL(str);
+            if (
+              u.hostname.indexOf('discordapp.net') >= 0 &&
+              (u.searchParams.has('width') || u.searchParams.has('height'))
+            ) {
+              const w = parseInt(u.searchParams.get('width') || '0', 10);
+              const h = parseInt(u.searchParams.get('height') || '0', 10);
+              if ((w > 0 && w < 800) || (h > 0 && h < 600)) {
+                u.searchParams.delete('width');
+                u.searchParams.delete('height');
+                return u.toString();
+              }
+            }
+          } catch (_) {}
+          return str;
+        };
+
+        const getImageDedupKey = (rawUrl) => {
+          try {
+            const u = new URL(rawUrl);
+            if (
+              u.hostname.indexOf('discordapp.com') >= 0 ||
+              u.hostname.indexOf('discordapp.net') >= 0
+            ) {
+              return u.pathname.replace(/\\/+$/, '').toLowerCase();
+            }
+            return (u.origin + u.pathname).toLowerCase();
+          } catch (_) {
+            return String(rawUrl || '').split('?')[0].toLowerCase();
+          }
+        };
+
+        const addImage = (rawUrl) => {
+          const cleaned = cleanImageUrl(rawUrl);
+          if (!cleaned) return;
+          const key = getImageDedupKey(cleaned);
+          if (!key || seenImages.has(key)) return;
+          seenImages.add(key);
+          images.push(cleaned);
+        };
+
         const acc = li.querySelector('[id^="message-accessories-"]');
+
+        // 1. Extract images from DOM inside message-accessories
+        if (acc) {
+          const imgs = acc.querySelectorAll('img');
+          for (let i = 0; i < imgs.length; i++) {
+            const img = imgs[i];
+            if (!outsideReply(img)) continue;
+            if (img.closest('[class*="reactions"], [class*="reaction_"], [class*="embedAuthor"], [class*="embedFooter"], [class*="embedProvider"], [class*="poll"]')) continue;
+            const imgCls = (typeof img.className === 'string' ? img.className : '').toLowerCase();
+            if (
+              imgCls.indexOf('emoji') >= 0 ||
+              imgCls.indexOf('avatar') >= 0 ||
+              imgCls.indexOf('authoricon') >= 0 ||
+              imgCls.indexOf('footericon') >= 0 ||
+              imgCls.indexOf('roleicon') >= 0 ||
+              imgCls.indexOf('guildicon') >= 0 ||
+              imgCls.indexOf('channelicon') >= 0 ||
+              imgCls.indexOf('badge') >= 0
+            ) continue;
+            const inMediaWrapper = !!img.closest('[class*="imageWrapper"], [class*="imageContainer"], [data-type="image"], [class*="embedImage"], [class*="embedThumbnail"], [class*="embedMedia"], [class*="embedGallery"], [class*="mosaicItem"], [class*="sticker"], [data-type="sticker"]');
+            if (!inMediaWrapper && imgCls.indexOf('icon') >= 0) continue;
+
+            const rawSrc = img.currentSrc || img.src || img.getAttribute('src') || img.getAttribute('data-safe-src') || '';
+            addImage(rawSrc);
+          }
+
+          const wrappers = acc.querySelectorAll('[class*="imageWrapper"], [class*="imageContainer"], [data-type="image"], [class*="embedImage"], [class*="embedThumbnail"], [class*="embedMedia"], [class*="mosaicItem"]');
+          for (let i = 0; i < wrappers.length; i++) {
+            const w = wrappers[i];
+            if (!outsideReply(w)) continue;
+            if (w.closest('[class*="reactions"], [class*="embedAuthor"], [class*="embedFooter"]')) continue;
+            if (w.querySelector('video')) continue;
+
+            const safeSrc = w.getAttribute('data-safe-src') || '';
+            if (safeSrc) addImage(safeSrc);
+
+            const links = w.tagName.toLowerCase() === 'a' ? [w] : Array.from(w.querySelectorAll('a[href]'));
+            for (let j = 0; j < links.length; j++) {
+              const href = links[j].getAttribute('href') || links[j].href || '';
+              const linkCls = (typeof links[j].className === 'string' ? links[j].className : '');
+              if ((linkCls.indexOf('originalLink') >= 0 || looksLikeImageUrl(href)) && looksLikeImageUrl(href)) {
+                addImage(href);
+              }
+            }
+          }
+        }
+
+        // 2. Supplement from Discord's React Fiber message state (covers offscreen / lazy-loaded images)
+        try {
+          const findReactMessage = (rootEl, targetMsgId) => {
+            const candidates = [rootEl, rootEl && rootEl.firstElementChild, acc].filter(Boolean);
+            for (let c = 0; c < candidates.length; c++) {
+              const el = candidates[c];
+              const keys = Object.keys(el);
+              let fiberKey = '';
+              for (let k = 0; k < keys.length; k++) {
+                if (keys[k].indexOf('__reactFiber$') === 0 || keys[k].indexOf('__reactInternalInstance$') === 0) {
+                  fiberKey = keys[k];
+                  break;
+                }
+              }
+              if (!fiberKey) continue;
+              let fiber = el[fiberKey];
+              for (let depth = 0; fiber && depth < 15; depth++) {
+                const p = fiber.memoizedProps;
+                if (p && typeof p === 'object') {
+                  const msg = p.message || (p.children && p.children.props && p.children.props.message);
+                  if (msg && typeof msg === 'object' && String(msg.id || '') === String(targetMsgId)) {
+                    return msg;
+                  }
+                }
+                fiber = fiber.return;
+              }
+            }
+            return null;
+          };
+
+          const collectFromMessageRecord = (msgObj) => {
+            if (!msgObj || typeof msgObj !== 'object') return;
+            const atts = Array.isArray(msgObj.attachments) ? msgObj.attachments : [];
+            for (let i = 0; i < atts.length; i++) {
+              const a = atts[i];
+              if (!a || typeof a !== 'object') continue;
+              const ct = String(a.content_type || a.contentType || '').toLowerCase();
+              const u = a.proxy_url || a.proxyUrl || a.url || '';
+              if (ct.indexOf('video/') === 0 || ct.indexOf('audio/') === 0) continue;
+              if (ct.indexOf('image/') === 0 || looksLikeImageUrl(u) || looksLikeImageUrl(a.filename || '')) {
+                addImage(u);
+              }
+            }
+
+            const embeds = Array.isArray(msgObj.embeds) ? msgObj.embeds : [];
+            for (let i = 0; i < embeds.length; i++) {
+              const emb = embeds[i];
+              if (!emb || typeof emb !== 'object') continue;
+              if (emb.image && typeof emb.image === 'object') {
+                addImage(emb.image.proxyURL || emb.image.proxy_url || emb.image.url || '');
+              }
+              if (Array.isArray(emb.images)) {
+                for (let j = 0; j < emb.images.length; j++) {
+                  const im = emb.images[j];
+                  if (im && typeof im === 'object') {
+                    addImage(im.proxyURL || im.proxy_url || im.url || '');
+                  }
+                }
+              }
+              if (emb.thumbnail && typeof emb.thumbnail === 'object') {
+                const embType = String(emb.type || '').toLowerCase();
+                if (!emb.image || embType === 'image' || embType === 'gifv') {
+                  addImage(emb.thumbnail.proxyURL || emb.thumbnail.proxy_url || emb.thumbnail.url || '');
+                }
+              }
+            }
+
+            const stickers = Array.isArray(msgObj.stickerItems)
+              ? msgObj.stickerItems
+              : (Array.isArray(msgObj.stickers) ? msgObj.stickers : []);
+            for (let i = 0; i < stickers.length; i++) {
+              const st = stickers[i];
+              if (st && st.id && st.format_type !== 3) {
+                const ext = st.format_type === 4 ? 'gif' : 'png';
+                addImage('https://media.discordapp.net/stickers/' + st.id + '.' + ext + '?size=320');
+              }
+            }
+
+            const snapshots = Array.isArray(msgObj.messageSnapshots) ? msgObj.messageSnapshots : [];
+            for (let i = 0; i < snapshots.length; i++) {
+              const snap = snapshots[i];
+              if (snap && snap.message) {
+                collectFromMessageRecord(snap.message);
+              }
+            }
+          };
+
+          const reactMsg = findReactMessage(li, messageId);
+          if (reactMsg) collectFromMessageRecord(reactMsg);
+        } catch (_) {}
+
+        // Non-image attachments / embeds are summarized as chips.
+        const media = [];
         if (acc) {
           if (acc.querySelector('video')) media.push('视频');
-          if (acc.querySelector('[class*="imageWrapper"], [class*="imageContainer"], [data-type="image"]')) media.push('图片');
-          if (acc.querySelector('[class*="embedFull"], [class*="embedWrapper"], article[class*="embed"]')) media.push('嵌入卡片');
-          if (acc.querySelector('[class*="attachment"], a[href*="cdn.discordapp.com/attachments"]')) media.push('附件');
+          if (images.length === 0 && acc.querySelector('[class*="imageWrapper"], [class*="imageContainer"], [data-type="image"]')) {
+            media.push('图片');
+          }
+          if (acc.querySelector('[class*="embedFull"], [class*="embedWrapper"], article[class*="embed"]')) {
+            const embedEl = acc.querySelector('[class*="embedFull"], [class*="embedWrapper"], article[class*="embed"]');
+            const hasEmbedText = embedEl && (embedEl.querySelector('[class*="embedTitle"], [class*="embedDescription"], [class*="embedField"]') || (embedEl.textContent || '').trim().length > 0);
+            if (hasEmbedText || images.length === 0) {
+              media.push('嵌入卡片');
+            }
+          }
+          const fileAtts = acc.querySelectorAll('[class*="attachment"], a[href*="cdn.discordapp.com/attachments"]');
+          let hasNonImageAttachment = false;
+          for (let i = 0; i < fileAtts.length; i++) {
+            const el = fileAtts[i];
+            if (el.closest('[class*="imageWrapper"], [class*="imageContainer"], [data-type="image"]')) continue;
+            const href = el.getAttribute('href') || '';
+            if (href && looksLikeImageUrl(href)) continue;
+            hasNonImageAttachment = true;
+            break;
+          }
+          if (hasNonImageAttachment) media.push('附件');
         }
         const attachments = media.filter((m, i) => media.indexOf(m) === i);
 
-        if (!text && attachments.length === 0 && !replyText) continue;
+        if (!text && images.length === 0 && attachments.length === 0 && !replyText) continue;
 
         items.push({
           id: messageId,
@@ -420,6 +675,7 @@ function buildDiscordExtractionScript(guildId, channelId) {
           isEdited: isEdited,
           replyAuthor: replyAuthor,
           replyText: replyText,
+          images: images,
           attachments: attachments
         });
       }
@@ -717,6 +973,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   );
   const existingMessages = hasExisting ? slot.loadedTweets : [];
   const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)));
+  const existingByKey = new Map(existingMessages.map(m => [getTweetKey(m), m]));
 
   if (!isBackground || !hasExisting) {
     showSlotLoading(slot, '正在读取 Discord 频道...');
@@ -775,6 +1032,25 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           if (result.guildName) meta.guildName = result.guildName;
           if (result.iconUrl) meta.iconUrl = result.iconUrl;
 
+          // Backfill images / attachments onto any already-cached messages visible on screen
+          for (let i = 0; i < result.items.length; i++) {
+            const freshMsg = toSlotMessage(result.items[i], guildId, channelId);
+            const prev = existingByKey.get(getTweetKey(freshMsg));
+            if (prev) {
+              if (Array.isArray(freshMsg.images) && freshMsg.images.length > 0) {
+                prev.images = freshMsg.images;
+              } else if (!Array.isArray(prev.images)) {
+                prev.images = [];
+              }
+              if (Array.isArray(freshMsg.attachments)) {
+                prev.attachments = freshMsg.attachments;
+              }
+              if (freshMsg.avatarUrl && !prev.avatarUrl) {
+                prev.avatarUrl = freshMsg.avatarUrl;
+              }
+            }
+          }
+
           // The list is in chronological order; walking it backwards means we
           // meet the previous crawl's newest message as early as possible.
           for (let i = result.items.length - 1; i >= 0; i--) {
@@ -799,6 +1075,12 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         const up = await runScript(wv, SCROLL_UP_SCRIPT);
         if (!up || !up.ok || up.atTop) break;
         await sleep(600);
+      }
+
+      if (hasExisting) {
+        existingMessages.forEach(m => {
+          if (!Array.isArray(m.images)) m.images = [];
+        });
       }
 
       // Leave the channel pinned to the newest message for the next crawl.

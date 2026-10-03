@@ -287,17 +287,36 @@ function renderDiscordCardInto(el, msg) {
     `;
   }
 
+  const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
+  let imagesHtml = '';
+  if (images.length > 0) {
+    imagesHtml = `
+      <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
+        ${images.map(url => `
+          <div class="discord-popup-image-wrap">
+            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="图片" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="点击在浏览器中查看原图">
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+  const visibleAttachments = images.length > 0
+    ? rawAttachments.filter(a => a !== '图片')
+    : rawAttachments;
+
   let attachmentsHtml = '';
-  if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+  if (visibleAttachments.length > 0) {
     attachmentsHtml = `
       <div class="discord-popup-attachments">
-        ${msg.attachments.map(a => `<span class="im-attachment-chip">${escapeHtml(a)}</span>`).join('')}
+        ${visibleAttachments.map(a => `<span class="im-attachment-chip">${escapeHtml(a)}</span>`).join('')}
       </div>
     `;
   }
 
   el.innerHTML = `
-    <div class="discord-popup-card">
+    <div class="discord-popup-card ${images.length > 0 ? 'has-images' : ''}">
       <div class="discord-popup-header">
         ${msg.avatarUrl
           ? `<img class="discord-popup-avatar" src="${escapeHtml(msg.avatarUrl)}" alt="">`
@@ -308,7 +327,8 @@ function renderDiscordCardInto(el, msg) {
         </div>
       </div>
       ${replyHtml}
-      <div class="discord-popup-text">${escapeHtml(rawText)}</div>
+      ${rawText ? `<div class="discord-popup-text">${escapeHtml(rawText)}</div>` : ''}
+      ${imagesHtml}
       ${attachmentsHtml}
       <div class="discord-popup-footer">
         <span class="discord-popup-time">${escapeHtml(timeDisplay)}</span>
@@ -316,6 +336,25 @@ function renderDiscordCardInto(el, msg) {
       </div>
     </div>
   `;
+
+  el.querySelectorAll('.discord-popup-image').forEach(imgEl => {
+    imgEl.addEventListener('error', () => {
+      if (!imgEl.dataset.retried) {
+        imgEl.dataset.retried = '1';
+        const src = imgEl.getAttribute('src') || '';
+        if (src.includes('media.discordapp.net/attachments/')) {
+          imgEl.src = src.replace('media.discordapp.net/attachments/', 'cdn.discordapp.com/attachments/');
+          return;
+        }
+        if (src.includes('cdn.discordapp.com/attachments/')) {
+          imgEl.src = src.replace('cdn.discordapp.com/attachments/', 'media.discordapp.net/attachments/');
+          return;
+        }
+      }
+      const wrap = imgEl.closest('.discord-popup-image-wrap');
+      if (wrap) wrap.style.display = 'none';
+    });
+  });
 
   el.querySelectorAll('[data-url]').forEach(btn => {
     btn.addEventListener('click', (e) => {

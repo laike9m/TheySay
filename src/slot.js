@@ -250,9 +250,24 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
       : `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
   }
 
-  if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+  const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
+  if (images.length > 0) {
+    const gridClass = images.length > 1 ? 'multi' : 'single';
+    html += `<div class="im-media-grid ${gridClass}">`;
+    images.forEach(imgUrl => {
+      html += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="图片" loading="lazy" referrerpolicy="no-referrer">`;
+    });
+    html += '</div>';
+  }
+
+  const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+  const visibleAttachments = images.length > 0
+    ? rawAttachments.filter(a => a !== '图片')
+    : rawAttachments;
+
+  if (visibleAttachments.length > 0) {
     html += '<span class="im-attachments">';
-    msg.attachments.forEach(a => {
+    visibleAttachments.forEach(a => {
       html += `<span class="im-attachment-chip">${escapeHtml(a)}</span>`;
     });
     html += '</span>';
@@ -487,6 +502,40 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     }
 
     bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="${linkTitle}">↗</a>` : ''}`;
+
+    // Handle inline image load (keep bottom scroll alignment) and error fallback
+    const mediaImgs = bubble.querySelectorAll('.im-media-img');
+    if (mediaImgs.length > 0) {
+      mediaImgs.forEach((imgEl) => {
+        imgEl.addEventListener('load', () => {
+          if (slot.contentContainer) {
+            const c = slot.contentContainer;
+            if (c.scrollHeight - c.scrollTop - c.clientHeight < 220) {
+              c.scrollTop = c.scrollHeight;
+            }
+          }
+        });
+        imgEl.addEventListener('error', () => {
+          if (!imgEl.dataset.retried) {
+            imgEl.dataset.retried = '1';
+            const src = imgEl.getAttribute('src') || '';
+            if (src.includes('media.discordapp.net/attachments/')) {
+              imgEl.src = src.replace('media.discordapp.net/attachments/', 'cdn.discordapp.com/attachments/');
+              return;
+            }
+            if (src.includes('cdn.discordapp.com/attachments/')) {
+              imgEl.src = src.replace('cdn.discordapp.com/attachments/', 'media.discordapp.net/attachments/');
+              return;
+            }
+          }
+          imgEl.style.display = 'none';
+          const grid = imgEl.closest('.im-media-grid');
+          if (grid && !Array.from(grid.querySelectorAll('.im-media-img')).some(el => el.style.display !== 'none')) {
+            grid.style.display = 'none';
+          }
+        });
+      });
+    }
 
     // Open external tweet link (hover button in top-right)
     if (tweet.url) {

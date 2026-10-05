@@ -187,8 +187,9 @@ app.whenReady().then(() => {
 
   // The Discord client runs unattended in the background, so silence anything
   // that would try to prompt the user (notifications, mic, camera, ...).
-  session.fromPartition(DISCORD_PARTITION)
-    .setPermissionRequestHandler((webContents, permission, callback) => callback(false));
+  const discordSession = session.fromPartition(DISCORD_PARTITION);
+  discordSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
+  discordSession.setPermissionCheckHandler(() => false);
 
   // Optimize & aggressively cache Twitter/X and Discord static assets and media locally
   session.defaultSession.webRequest.onHeadersReceived({

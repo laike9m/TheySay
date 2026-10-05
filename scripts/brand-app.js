@@ -43,17 +43,39 @@ function brandApp() {
     } catch (_) {}
   }
 
-  // 1. Update Info.plist names & bundle identifier
+  const setPlistKey = (plistPath, key, type, value) => {
+    if (!fs.existsSync(plistPath)) return;
+    try {
+      execSync(`/usr/libexec/PlistBuddy -c "Set :${key} ${value}" "${plistPath}"`, { stdio: 'ignore' });
+    } catch (_) {
+      try {
+        execSync(`/usr/libexec/PlistBuddy -c "Add :${key} ${type} ${value}" "${plistPath}"`, { stdio: 'ignore' });
+      } catch (__) {}
+    }
+  };
+
+  // 1. Update Info.plist names, bundle identifier & Continuity Camera key
   if (fs.existsSync(infoPlist)) {
-    try {
-      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleName ${appDisplayName}" "${infoPlist}"`, { stdio: 'ignore' });
-    } catch (_) {}
-    try {
-      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName ${appDisplayName}" "${infoPlist}"`, { stdio: 'ignore' });
-    } catch (_) {}
-    try {
-      execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${bundleId}" "${infoPlist}"`, { stdio: 'ignore' });
-    } catch (_) {}
+    setPlistKey(infoPlist, 'CFBundleName', 'string', appDisplayName);
+    setPlistKey(infoPlist, 'CFBundleDisplayName', 'string', appDisplayName);
+    setPlistKey(infoPlist, 'CFBundleIdentifier', 'string', bundleId);
+    setPlistKey(infoPlist, 'NSCameraUseContinuityCameraDeviceType', 'bool', 'true');
+  }
+
+  // 1b. Also add NSCameraUseContinuityCameraDeviceType to Electron Helper Info.plist bundles
+  // so Chromium's video capture utility process does not trigger the macOS AVFoundation warning
+  const frameworksDir = path.join(targetApp, 'Contents', 'Frameworks');
+  if (fs.existsSync(frameworksDir)) {
+    const helperApps = [
+      'Electron Helper.app',
+      'Electron Helper (GPU).app',
+      'Electron Helper (Plugin).app',
+      'Electron Helper (Renderer).app'
+    ];
+    for (const helper of helperApps) {
+      const helperPlist = path.join(frameworksDir, helper, 'Contents', 'Info.plist');
+      setPlistKey(helperPlist, 'NSCameraUseContinuityCameraDeviceType', 'bool', 'true');
+    }
   }
 
   // 2. Replace application icon

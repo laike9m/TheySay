@@ -1041,17 +1041,49 @@ body {
 }
 
 .slot-author-edit-hint {
+  display: none;
   font-size: 10px;
   color: var(--text-muted);
-  opacity: 0;
-  transition: opacity 0.15s;
+  opacity: 0.8;
   margin-left: 2px;
   flex-shrink: 0;
 }
 
 .slot-author-header:hover .slot-author-edit-hint {
-  opacity: 0.8;
+  display: inline;
 }
+
+.slot-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  margin-left: 3px;
+  border-radius: 9999px;
+  background-color: #1d9bf0;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(29, 155, 240, 0.35);
+  transition: transform 0.12s ease, background-color 0.15s ease;
+}
+
+.slot-unread-badge:hover {
+  background-color: #1a8cd8;
+  transform: scale(1.06);
+}
+
+.slot-unread-badge:active {
+  transform: scale(0.95);
+}
+
 
 /* Slot Content Viewport - Scrollbar hidden by default */
 .slot-content-container {

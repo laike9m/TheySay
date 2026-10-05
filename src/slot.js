@@ -54,6 +54,7 @@ function createSlotWidget(index) {
               <span class="slot-author-handle" id="author-handle-${index}"></span>
               <span class="slot-author-edit-hint" title="修改">✎</span>
             </div>
+            <span class="slot-unread-badge" id="slot-unread-badge-${index}" style="display: none;"></span>
 
             <!-- Handle input field (shown initially or when editing) -->
             <div class="slot-input-wrapper" id="slot-input-wrapper-${index}">
@@ -193,6 +194,65 @@ function updateSlotFetchTimeUI(slot, timestamp) {
     const editHint = isDiscord ? '点击修改频道' : '点击修改账号';
     slot.authorHeader.title = timeStr ? `${name} · 上次抓取: ${timeStr} (${editHint})` : `${name} (${editHint})`;
   }
+}
+
+function getSlotUnreadCount(slot) {
+  if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return 0;
+  const isDiscord = isDiscordSlot(slot);
+  const showMemberOnly = getShowMemberOnlyTweets();
+  const visible = (showMemberOnly || isDiscord)
+    ? slot.loadedTweets
+    : slot.loadedTweets.filter(t => !isMemberOnlyTweet(t));
+  let count = 0;
+  for (let i = 0; i < visible.length; i++) {
+    if (visible[i] && visible[i].isUnread) count++;
+  }
+  return count;
+}
+
+function updateSlotUnreadBadge(slot) {
+  if (!slot || !slot.unreadBadge) return;
+  const isEditing = slot.inputWrapper && slot.inputWrapper.style.display === 'flex';
+  const count = getSlotUnreadCount(slot);
+  if (!isEditing && count > 0) {
+    slot.unreadBadge.innerText = count > 99 ? '99+' : String(count);
+    slot.unreadBadge.title = `${count} 条未读消息 (点击将本栏标记为已读)`;
+    slot.unreadBadge.style.display = 'inline-flex';
+  } else {
+    slot.unreadBadge.innerText = '';
+    slot.unreadBadge.style.display = 'none';
+  }
+}
+
+function markSlotTweetsAsRead(slot, slots = []) {
+  if (!slot) return false;
+  let updated = false;
+  if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+    slot.loadedTweets.forEach(t => {
+      if (t && t.isUnread) {
+        t.isUnread = false;
+        updated = true;
+      }
+    });
+    if (updated) {
+      persistSlot(slot, {
+        handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
+        displayName: slot.authorName ? slot.authorName.innerText : '',
+        userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+        tweets: slot.loadedTweets,
+        avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
+      }, slots);
+    }
+  }
+  if (slot.tweetsList) {
+    const unreadBubbles = slot.tweetsList.querySelectorAll('.im-bubble.unread');
+    if (unreadBubbles.length > 0) {
+      unreadBubbles.forEach(b => b.classList.remove('unread'));
+      updated = true;
+    }
+  }
+  updateSlotUnreadBadge(slot);
+  return updated;
 }
 
 function showSlotLoading(slot, text) {
@@ -430,6 +490,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   // Switch to author badge view in header
   if (slot.authorHeader) slot.authorHeader.style.display = 'flex';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'none';
+  updateSlotUnreadBadge(slot);
 
   // Update header avatar
   if (avatarUrl) {
@@ -476,6 +537,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       if (bubble.classList.contains('unread')) {
         bubble.classList.remove('unread');
         tweet.isUnread = false;
+        updateSlotUnreadBadge(slot);
         persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
       }
     });
@@ -620,6 +682,7 @@ function clearSlot(slot, { slots } = {}) {
   slot.authorHandle.innerText = '';
   if (slot.authorHeader) slot.authorHeader.style.display = 'none';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
+  updateSlotUnreadBadge(slot);
   updateSlotSourceUI(slot);
   showToast('已清空此栏内容与消息缓存', 'success', 2000);
 }
@@ -747,10 +810,18 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     e.stopPropagation();
     slot.authorHeader.style.display = 'none';
     slot.inputWrapper.style.display = 'flex';
+    updateSlotUnreadBadge(slot);
     slot.handleInput.focus();
     slot.handleInput.select();
     updateClearVisibility();
   });
+
+  if (slot.unreadBadge) {
+    slot.unreadBadge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markSlotTweetsAsRead(slot, slots);
+    });
+  }
 
   // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist
   slot.handleInput.addEventListener('blur', () => {
@@ -758,6 +829,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     if (val && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
       slot.authorHeader.style.display = 'flex';
       slot.inputWrapper.style.display = 'none';
+      updateSlotUnreadBadge(slot);
     }
   });
 
@@ -766,6 +838,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
       if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
         slot.authorHeader.style.display = 'flex';
         slot.inputWrapper.style.display = 'none';
+        updateSlotUnreadBadge(slot);
       }
     }
   });
@@ -818,6 +891,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       authorHeader: el.querySelector(`#slot-author-header-${i}`),
       authorName: el.querySelector(`#author-name-${i}`),
       authorHandle: el.querySelector(`#author-handle-${i}`),
+      unreadBadge: el.querySelector(`#slot-unread-badge-${i}`),
       inputWrapper: el.querySelector(`#slot-input-wrapper-${i}`),
       inputPrefix: el.querySelector(`#slot-input-prefix-${i}`),
       handleInput: el.querySelector(`#handle-input-${i}`),
@@ -1031,31 +1105,8 @@ function loadSlotCache(slots) {
 function markAllTweetsAsRead(slots) {
   let hasMarkedAny = false;
   slots.forEach(slot => {
-    if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
-      let slotUpdated = false;
-      slot.loadedTweets.forEach(t => {
-        if (t.isUnread) {
-          t.isUnread = false;
-          slotUpdated = true;
-          hasMarkedAny = true;
-        }
-      });
-      if (slotUpdated) {
-        persistSlot(slot, {
-          handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
-          displayName: slot.authorName ? slot.authorName.innerText : '',
-          userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
-          tweets: slot.loadedTweets,
-          avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
-        }, slots);
-      }
-    }
-    if (slot.tweetsList) {
-      const unreadBubbles = slot.tweetsList.querySelectorAll('.im-bubble.unread');
-      if (unreadBubbles.length > 0) {
-        unreadBubbles.forEach(b => b.classList.remove('unread'));
-        hasMarkedAny = true;
-      }
+    if (markSlotTweetsAsRead(slot, slots)) {
+      hasMarkedAny = true;
     }
   });
 
@@ -1090,6 +1141,8 @@ module.exports = {
   updateSlotAvatar,
   updateSlotSourceUI,
   updateSlotFetchTimeUI,
+  updateSlotUnreadBadge,
+  markSlotTweetsAsRead,
   showSlotLoading,
   showSlotError,
   renderSlotTweets,
@@ -1104,3 +1157,4 @@ module.exports = {
   markAllTweetsAsRead,
   refreshSlotsContent
 };
+

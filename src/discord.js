@@ -26,6 +26,7 @@ const {
   showSlotError,
   renderSlotTweets
 } = require('./slot');
+const { notifySlotNewMessages } = require('./notification');
 
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
@@ -958,9 +959,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   saveHandles(slots);
 
   slot.isFetching = true;
-  slot.btnFetch.disabled = true;
-  slot.btnFetch.classList.add('fetching');
-  slot.btnFetch.title = '正在抓取 Discord 消息...';
+  if (slot.card) slot.card.classList.add('is-fetching');
 
   const hasExisting = (
     slot.monitoredHandle === rawInput &&
@@ -1147,6 +1146,10 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         slots,
         renderMeta
       );
+
+      if (hasExisting && collected.length > 0) {
+        notifySlotNewMessages(slot, collected);
+      }
     });
   } catch (err) {
     if (!isBackground || !hasExisting) {
@@ -1156,8 +1159,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     }
   } finally {
     slot.isFetching = false;
-    slot.btnFetch.disabled = false;
-    slot.btnFetch.classList.remove('fetching');
+    if (slot.card) slot.card.classList.remove('is-fetching');
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
   }
 }

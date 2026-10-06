@@ -1,4 +1,5 @@
 const {
+  MAX_SLOTS,
   DEFAULT_HANDLES,
   STORAGE_HANDLES_KEY,
   STORAGE_CACHE_KEY,
@@ -13,10 +14,12 @@ const {
   STORAGE_DISCORD_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
+  STORAGE_MUTED_SLOTS_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
-  DEFAULT_DISCORD_SOUND_ENABLED
+  DEFAULT_DISCORD_SOUND_ENABLED,
+  DEFAULT_SLOT_MUTED
 } = require('./constants');
 
 function getSavedHandles() {
@@ -36,6 +39,29 @@ function saveHandles(slots) {
   localStorage.setItem(STORAGE_HANDLES_KEY, JSON.stringify(current));
 }
 
+function getMutedSlots() {
+  try {
+    const raw = localStorage.getItem(STORAGE_MUTED_SLOTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return Array.from({ length: MAX_SLOTS }, (_, i) =>
+          typeof parsed[i] === 'boolean' ? parsed[i] : DEFAULT_SLOT_MUTED
+        );
+      }
+    }
+  } catch (e) {}
+  return Array(MAX_SLOTS).fill(DEFAULT_SLOT_MUTED);
+}
+
+function saveMutedSlots(slots) {
+  if (!Array.isArray(slots)) return;
+  try {
+    const current = slots.map(s => (s && typeof s.isMuted === 'boolean' ? s.isMuted : DEFAULT_SLOT_MUTED));
+    localStorage.setItem(STORAGE_MUTED_SLOTS_KEY, JSON.stringify(current));
+  } catch (e) {}
+}
+
 function getSlotCache() {
   try {
     const raw = localStorage.getItem(STORAGE_CACHE_KEY);
@@ -49,9 +75,13 @@ function saveSlotCache(slotIndex, data, slots = []) {
   try {
     const cache = getSlotCache();
     if (data) {
+      const slotObj = slots[slotIndex];
       cache[slotIndex] = {
         ...data,
-        lastFetchedAt: data.lastFetchedAt || (slots[slotIndex] && slots[slotIndex].lastFetchedAt) || null
+        isMuted: typeof data.isMuted === 'boolean'
+          ? data.isMuted
+          : (slotObj && typeof slotObj.isMuted === 'boolean' ? slotObj.isMuted : DEFAULT_SLOT_MUTED),
+        lastFetchedAt: data.lastFetchedAt || (slotObj && slotObj.lastFetchedAt) || null
       };
     } else {
       delete cache[slotIndex];
@@ -208,6 +238,8 @@ function saveDiscordSoundEnabled(enabled) {
 module.exports = {
   getSavedHandles,
   saveHandles,
+  getMutedSlots,
+  saveMutedSlots,
   getSlotCache,
   saveSlotCache,
   saveAllSlotCache,

@@ -25,6 +25,7 @@ const {
 const { initTweetPopup } = require('./src/popup');
 const { initSettings } = require('./src/settings');
 const { applyDiscordSoundSetting } = require('./src/discord');
+const { initNotifications } = require('./src/notification');
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
@@ -78,6 +79,7 @@ window.addEventListener('DOMContentLoaded', () => {
     getGridDimensions
   });
 
+  initNotifications(slots);
   initAuth();
   initSettings({
     onSave: () => {

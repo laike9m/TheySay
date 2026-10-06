@@ -1,8 +1,11 @@
-const { app, BrowserWindow, ipcMain, session, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification } = require('electron');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
 
 app.name = 'TheySay';
+if (typeof app.setAppUserModelId === 'function') {
+  app.setAppUserModelId('com.laike9m.theysay');
+}
 
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
 
@@ -21,6 +24,7 @@ app.commandLine.appendSwitch('media-cache-size', '268435456'); // 250MB
 let mainWindow = null;
 let loginWindow = null;
 let discordLoginWindow = null;
+const activeNotifications = new Set();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -177,6 +181,44 @@ ipcMain.on('open-discord-login-window', () => {
       mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
     }
   });
+});
+
+// Show native OS system notification for unmuted channels
+ipcMain.on('show-system-notification', (event, payload = {}) => {
+  try {
+    if (!Notification.isSupported()) return;
+    const { title, subtitle, body, slotIndex } = payload;
+    if (!title && !body) return;
+
+    const notif = new Notification({
+      title: String(title || 'TheySay'),
+      subtitle: subtitle ? String(subtitle) : undefined,
+      body: String(body || ''),
+      silent: false
+    });
+
+    activeNotifications.add(notif);
+
+    notif.on('click', () => {
+      activeNotifications.delete(notif);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        if (typeof slotIndex === 'number') {
+          mainWindow.webContents.send('notification-clicked', { slotIndex });
+        }
+      }
+    });
+
+    notif.on('close', () => {
+      activeNotifications.delete(notif);
+    });
+
+    notif.show();
+  } catch (err) {
+    console.warn('[Notification] Failed to show system notification:', err.message);
+  }
 });
 
 app.whenReady().then(() => {

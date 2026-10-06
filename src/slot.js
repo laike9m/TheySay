@@ -1,5 +1,5 @@
 const { shell } = require('electron');
-const { MAX_SLOTS } = require('./constants');
+const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./constants');
 const { escapeHtml, showToast, formatFetchTime } = require('./utils');
 const {
   processAndSortTweets,
@@ -14,6 +14,8 @@ const { openTweetPopup, prefetchTweet } = require('./popup');
 const {
   getSavedHandles,
   saveHandles,
+  getMutedSlots,
+  saveMutedSlots,
   getSlotCache,
   saveSlotCache,
   saveAllSlotCache,
@@ -26,6 +28,24 @@ const {
   normalizeTwitterHandle,
   parseDiscordChannelUrl
 } = require('./source');
+const { requestNotificationPermission } = require('./notification');
+
+const BELL_OFF_SVG = `
+  <svg class="mute-icon bell-off" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+    <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
+    <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
+    <path d="M18 8a6 6 0 0 0-9.33-5"></path>
+    <line x1="1" y1="1" x2="23" y2="23"></line>
+  </svg>
+`;
+
+const BELL_ON_SVG = `
+  <svg class="mute-icon bell-on" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+  </svg>
+`;
 
 function createSlotWidget(index) {
   const widget = document.createElement('div');
@@ -64,12 +84,8 @@ function createSlotWidget(index) {
             </div>
           </div>
 
-          <button class="slot-btn-fetch" id="btn-fetch-${index}" title="刷新推文">
-            <svg class="refresh-icon" viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
+          <button class="slot-btn-mute is-muted" id="btn-mute-${index}" title="已静音系统通知 (点击开启此频道通知)" aria-label="切换系统通知静音" aria-pressed="false">
+            <span class="mute-icon-wrap" id="mute-icon-${index}">${BELL_OFF_SVG}</span>
           </button>
           <button class="slot-btn-expand" id="btn-expand-${index}" title="调整格子尺寸 (1×1, 2×1, 3×1, 2×2)">
             <span class="expand-icon" id="expand-icon-${index}">
@@ -88,7 +104,7 @@ function createSlotWidget(index) {
         <div class="slot-content-container" id="slot-content-${index}">
           <div class="slot-placeholder" id="slot-placeholder-${index}">
             <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 并按回车或点击刷新</p>
+            <p>输入 handle 或频道链接并按回车</p>
           </div>
           <div class="slot-loading" id="slot-loading-${index}" style="display: none;">
             <div class="spinner-small"></div>
@@ -129,6 +145,59 @@ function isDiscordSlot(slot) {
   return getSlotSource(slot) === SOURCE_DISCORD;
 }
 
+function getSlotDisplayLabel(slot) {
+  if (!slot) return '此频道';
+  if (isDiscordSlot(slot)) {
+    return (slot.sourceTitle || (slot.authorName && slot.authorName.innerText) || '#频道').trim();
+  }
+  const h = slot.monitoredHandle || (slot.handleInput ? normalizeTwitterHandle(slot.handleInput.value) : '');
+  return h ? `@${h}` : '此频道';
+}
+
+function updateSlotMuteUI(slot) {
+  if (!slot || !slot.btnMute) return;
+  const isMuted = slot.isMuted !== false;
+  slot.btnMute.classList.toggle('is-muted', isMuted);
+  slot.btnMute.classList.toggle('is-unmuted', !isMuted);
+  slot.btnMute.setAttribute('aria-pressed', String(!isMuted));
+
+  if (slot.muteIcon) {
+    slot.muteIcon.innerHTML = isMuted ? BELL_OFF_SVG : BELL_ON_SVG;
+  }
+
+  slot.btnMute.title = isMuted
+    ? '已静音系统通知 (点击开启此频道通知)'
+    : '系统通知已开启 (点击静音此频道)';
+}
+
+function toggleSlotMute(slot, slots = []) {
+  if (!slot) return;
+  slot.isMuted = slot.isMuted === false ? true : false;
+  updateSlotMuteUI(slot);
+  saveMutedSlots(slots);
+
+  if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+    persistSlot(slot, {
+      handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
+      displayName: slot.authorName ? slot.authorName.innerText : '',
+      userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+      tweets: slot.loadedTweets,
+      avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
+    }, slots);
+  }
+
+  if (!slot.isMuted) {
+    requestNotificationPermission();
+  }
+
+  const label = getSlotDisplayLabel(slot);
+  showToast(
+    slot.isMuted ? `已静音 ${label} 的系统通知` : `已开启 ${label} 的系统通知`,
+    slot.isMuted ? 'info' : 'success',
+    2000
+  );
+}
+
 /**
  * Keeps the input affordances in sync with whatever the user is typing: a bare
  * Twitter handle reads as "@name", a pasted Discord link as a "#channel".
@@ -160,6 +229,7 @@ function persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl 
     userHandle,
     tweets,
     avatarUrl,
+    isMuted: slot.isMuted !== false,
     source: slot.source || 'twitter',
     sourceTitle: slot.sourceTitle || '',
     sourceSubtitle: slot.sourceSubtitle || ''
@@ -178,10 +248,6 @@ function updateSlotFetchTimeUI(slot, timestamp) {
   const timeStr = formatFetchTime(timestamp);
   const isDiscord = isDiscordSlot(slot);
 
-  if (slot.btnFetch) {
-    const label = isDiscord ? '刷新消息' : '刷新推文';
-    slot.btnFetch.title = timeStr ? `上次抓取: ${timeStr} (点击立即刷新)` : label;
-  }
   if (slot.authorHeader) {
     let name;
     if (isDiscord) {
@@ -666,7 +732,12 @@ function clearSlot(slot, { slots } = {}) {
   slot.handleInput.value = '';
   if (slot.btnClear) slot.btnClear.style.display = 'none';
   updateSlotAvatar(slot, null);
-  if (slots) saveHandles(slots);
+  slot.isMuted = DEFAULT_SLOT_MUTED;
+  updateSlotMuteUI(slot);
+  if (slots) {
+    saveHandles(slots);
+    saveMutedSlots(slots);
+  }
   saveSlotCache(slot.index, null);
   slot.loadedTweets = [];
   slot.monitoredHandle = '';
@@ -823,10 +894,15 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     });
   }
 
-  // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist
+  // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist for same handle
   slot.handleInput.addEventListener('blur', () => {
     const val = slot.handleInput.value.trim();
-    if (val && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
+    const monitored = (slot.monitoredHandle || '').trim();
+    const isSameTarget = val && monitored && (
+      val.toLowerCase() === monitored.toLowerCase() ||
+      normalizeTwitterHandle(val).toLowerCase() === normalizeTwitterHandle(monitored).toLowerCase()
+    );
+    if (isSameTarget && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
       slot.authorHeader.style.display = 'flex';
       slot.inputWrapper.style.display = 'none';
       updateSlotUnreadBadge(slot);
@@ -836,6 +912,12 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
   slot.handleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
+        if (slot.monitoredHandle) {
+          slot.handleInput.value = slot.monitoredHandle;
+          saveHandles(slots);
+          updateClearVisibility();
+          updateSlotSourceUI(slot);
+        }
         slot.authorHeader.style.display = 'flex';
         slot.inputWrapper.style.display = 'none';
         updateSlotUnreadBadge(slot);
@@ -850,7 +932,11 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     updateSlotSourceUI(slot);
   });
   slot.handleInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && onFetch) onFetch(slot.index);
+    if (e.key === 'Enter' && onFetch) {
+      e.preventDefault();
+      slot.handleInput.blur();
+      onFetch(slot.index);
+    }
   });
   updateClearVisibility();
   updateSlotSourceUI(slot);
@@ -861,10 +947,13 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     clearSlot(slot, { slots });
   });
 
-  // Fetch button
-  slot.btnFetch.addEventListener('click', () => {
-    if (onFetch) onFetch(slot.index);
-  });
+  // Per-channel system notification mute / unmute toggle button
+  if (slot.btnMute) {
+    slot.btnMute.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSlotMute(slot, slots);
+    });
+  }
 
   // Expand / Size Menu trigger
   slot.btnExpand.addEventListener('click', (e) => {
@@ -875,6 +964,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
 
 function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetch, onResize, getGridDimensions }) {
   const savedHandles = getSavedHandles();
+  const savedMuted = getMutedSlots();
   const slots = [];
 
   for (let i = 0; i < slotsCount; i++) {
@@ -896,7 +986,8 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       inputPrefix: el.querySelector(`#slot-input-prefix-${i}`),
       handleInput: el.querySelector(`#handle-input-${i}`),
       btnClear: el.querySelector(`#btn-clear-${i}`),
-      btnFetch: el.querySelector(`#btn-fetch-${i}`),
+      btnMute: el.querySelector(`#btn-mute-${i}`),
+      muteIcon: el.querySelector(`#mute-icon-${i}`),
       btnExpand: el.querySelector(`#btn-expand-${i}`),
       expandIcon: el.querySelector(`#expand-icon-${i}`),
       sizeMenu: el.querySelector(`#size-menu-${i}`),
@@ -907,6 +998,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       error: el.querySelector(`#slot-error-${i}`),
       tweetsList: el.querySelector(`#slot-tweets-list-${i}`),
       isFetching: false,
+      isMuted: typeof savedMuted[i] === 'boolean' ? savedMuted[i] : DEFAULT_SLOT_MUTED,
       loadedTweets: []
     };
 
@@ -927,6 +1019,8 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
     slot.source = detectSourceType(savedHandles[i] || '');
     slot.sourceTitle = '';
     slot.sourceSubtitle = '';
+
+    updateSlotMuteUI(slot);
 
     slots.push(slot);
     bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
@@ -1057,6 +1151,7 @@ function loadSlotCache(slots) {
         slot.sourceTitle = sourceTitle || '';
         slot.sourceSubtitle = sourceSubtitle || '';
         updateSlotSourceUI(slot);
+        updateSlotMuteUI(slot);
 
         // Auto-correct mismatched OpenAI avatars from past bug
         if (!isDiscord && cleanHandle && cleanHandle !== 'openai') {
@@ -1139,6 +1234,8 @@ function refreshSlotsContent(slots) {
 module.exports = {
   createSlotWidget,
   updateSlotAvatar,
+  updateSlotMuteUI,
+  toggleSlotMute,
   updateSlotSourceUI,
   updateSlotFetchTimeUI,
   updateSlotUnreadBadge,

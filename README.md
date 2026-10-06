@@ -10,14 +10,14 @@ A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with El
 - **Dark Mode / Light Mode Toggle Switch**: Header features a sleek, animated pill toggle switch with sun and moon icons to smoothly transition between dark and light themes, automatically persisting user preference.
 - **Telegram-Style Chat Bubble Feed with Date Dividers**: Replicates Telegram's clean aesthetics with centered capsule date dividers (e.g. `June 29, 2025`) displayed above each day's messages (with only one date pill per day). Chat bubbles hug content naturally with inline specific timestamps (`11:45 AM`) at the bottom right, status tags (`Pinned`, `Retweet`), removed message numbers, and a hover-revealed link button (`↗`) in the top-right corner.
 - **100-Character Truncation & Pre-Rendered Frameless Embed Modal on Click**: Long tweets are automatically truncated to the first 100 characters by default to keep the feed tidy, while quote tweets are recognized with a purple "Quote" badge. Clicking on any tweet bubble opens a frameless modal displaying the official embedded Twitter/X post. Embeds are pre-rendered in the background — on idle after a feed loads, and at high priority the moment you hover a bubble — so the real card is already built before you click. Each tweet keeps its own persistent host element inside the modal that is revealed with a pure CSS toggle, so the iframe is never re-parented (which would force a reload) and there is no placeholder-to-card swap. Combined with Electron HTTP disk cache overrides (1-year immutable caching for static assets), reopening a tweet is instant. The popup closes seamlessly by clicking the surrounding backdrop area or pressing <kbd>Esc</kbd>.
-- **Card Header with Avatar & Name, Icon-Only Refresh Button**: Header height slimmed to 34px, displays user avatar (with handle-targeted HD profile extraction to prevent sidebar recommendation contamination), name, and handle in a clean line. Click on the name anytime to switch to editing the handle. Replaces text buttons with a sleek, textless icon refresh button that spins during fetching, eliminating redundant counters and copy buttons to keep the interface minimal.
+- **Card Header with Avatar & Name, Per-Channel System Notification Mute Toggle (Default Muted)**: Header height slimmed to 34px, displays user avatar (with handle-targeted HD profile extraction to prevent sidebar recommendation contamination), name, and handle in a clean line. Click on the name anytime to switch to editing the handle and press <kbd>Enter</kbd> to fetch. Replaces the manual refresh button with a per-channel mute / notification toggle button (`🔔` / `🔕`, muted by default). Clicking the mute button toggles native OS system notifications for that specific Twitter account or Discord channel when new posts arrive, and clicking a system notification brings the app window to focus and highlights the corresponding card.
 - **Hidden Scrollbars by Default**: Card scrollbars remain invisible by default and gently fade in on hover, keeping the UI minimal and clean.
 - **Multi-Size Expansion Options (`rows × columns`: `1×1`, `2×1 vertical double`, `3×1 vertical triple`, `2×2 spotlight square`)**: Strictly follows the row-first, column-second convention.
 - **Surrounding Content Conflict Protection**: Prevents accidental displacement of active cards. Alerts you with visual red shaking and prompts when adjacent slots already contain monitored accounts.
 - **Smart Incremental Scraping**: Avoids redundant fetching! Remembers previously fetched tweets, stops scrolling immediately upon hitting known timeline boundaries, and completes in ~1s if there are no new tweets, minimizing network traffic and rate limit triggers.
-- **Input, Avatar & Layout Persistence**: Handles, avatars, cached tweets, and custom grid arrangements are saved in real time to `localStorage`. Refreshing (<kbd>Cmd + R</kbd>) preserves your entire workspace.
+- **Input, Avatar, Mute State & Layout Persistence**: Handles, avatars, per-channel mute preferences, cached tweets, and custom grid arrangements are saved in real time to `localStorage`. Refreshing (<kbd>Cmd + R</kbd>) preserves your entire workspace.
 - **Unread Tweet Highlighting, Per-Card Blue Unread Count Badge & One-Click "Mark All as Read"**: Newly scraped tweet and Discord bubbles are highlighted with a distinct soft blue tint, and a Twitter-blue circular unread count badge appears right next to each user/channel name in the card header. Hovering over any bubble decrements the badge in real time, clicking a card's blue badge marks that card's messages as read, and the double-checkmark ("✓✓") "Mark All as Read" button in the top navbar clears all unread states with one click.
-- **Default Background Polling (10-Minute Interval) & Timestamp Tracking**: Tracks and records the exact timestamp of every fetch with card tooltip display. Refreshing the page (<kbd>Cmd + R</kbd>) never triggers an immediate scrape, instead scheduling the next crawl strictly based on elapsed time since the last fetch.
+- **Default Background Polling (10-Minute Interval) & Timestamp Tracking**: Tracks and records the exact timestamp of every fetch with card header tooltip display. Refreshing the page (<kbd>Cmd + R</kbd>) never triggers an immediate scrape, instead scheduling the next crawl strictly based on elapsed time since the last fetch.
 
 ## Getting Started
 
@@ -36,10 +36,11 @@ npm start
    - Natural IM timeline order: sorted chronologically from top to bottom (oldest to newest), with the latest post at the bottom and auto-scrolling to the newest message upon load.
    - Hovering over any bubble reveals an external browser link (`↗`) in the top-right corner to open the original tweet.
    - Truncated Tweets (>100 characters) & Quoted Tweets: Instead of expanding inline and shifting subsequent messages, clicking on any tweet bubble triggers a centered modal popup embedding the complete, original Twitter/X post in a clean, frameless view. Hover triggers are omitted to prevent accidental popups. Clicking anywhere on the surrounding backdrop or pressing <kbd>Esc</kbd> cleanly closes the popup.
-2. **Theme Switcher & Clean Header with Avatar & Name**:
+2. **Theme Switcher, Clean Header & Per-Channel System Notification Mute Button**:
    - Animated pill toggle switch with sun/moon icons in the navigation bar to easily switch between dark and light themes.
    - Ultra-compact card headers (~34px) with unnecessary card numbers and separate status bars removed, maximizing vertical viewport for tweets.
    - Profile avatar and real name shown side-by-side in header with click-to-edit support and local cache.
+   - Replaces the manual refresh button with a per-channel **Mute / Unmute toggle button** (default **Muted**). Unmute any specific Twitter account or Discord channel to receive native macOS system notifications when new tweets or messages arrive; clicking a notification focuses TheySay and scrolls to the card.
    - Scrollbars hidden by default, revealing smoothly upon hover.
 3. **Smart Incremental Scraping (Zero Redundant Fetches)**:
    - Compares incoming tweets with cached tweets on the fly.
@@ -58,14 +59,14 @@ npm start
    - **Click-to-Expand Modal with Full-Size Images**: Clicking any Discord chat bubble opens a centered message detail modal displaying the full text, high-resolution images (clickable to open original in browser), author info, reply context, and attachment summary, with a button to jump directly to the message in Discord.
    - **Shared Offscreen Client, Smart Channel Switching & Strict State Verification**: Runs an offscreen background Discord webview with seamless in-app switching for same-server channels and verified target loading across different servers, preserving gateway connection and saving memory. Employs strict channel/message ID validation and cache self-healing to prevent DOM desync and cross-channel message contamination.
    - **Notification Sound Toggle**: Set "Discord 通知声音" to "关闭 (静音)" in Settings to silence every sound the background client makes (the webview's guest WebContents is muted via `setAudioMuted`). Applied instantly on save and re-applied whenever the client reloads; defaults to on.
-7. **Handle, Channel URL, Avatar & Cache Persistence**:
-   - Real-time `localStorage` persistence for Twitter handles, Discord channel links, avatars, cached messages, and custom grid coordinates.
-   - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, avatars, tweets, and Discord channel feeds.
+7. **Handle, Channel URL, Avatar, Mute State & Cache Persistence**:
+   - Real-time `localStorage` persistence for Twitter handles, Discord channel links, per-channel mute settings, avatars, cached messages, and custom grid coordinates.
+   - Reloading with <kbd>Cmd + R</kbd> retains your cards, sizes, mute states, avatars, tweets, and Discord channel feeds.
 8. **Independent Background Polling & Refresh Rate Settings (Twitter & Discord)**:
    - Dedicated Settings modal accessed via the top-bar gear button (`⚙️`) allows configuring Twitter / X and Discord refresh frequencies separately.
    - Preset options (`30s`, `1m`, `2m`, `3m`, `5m`, `10m`, `15m`, `30m`, `1h`) plus custom minute intervals with built-in validation and anti-bot rate-limit guidance.
    - Saves preferences instantly to `localStorage` and hot-reloads the polling schedulers without requiring an application restart.
-   - Accurately records timestamps for every fetch, displaying the last fetch time on card refresh button tooltips (e.g. `上次抓取: 15:09:23`).
+   - Accurately records timestamps for every fetch, displaying the last fetch time on card header tooltips (e.g. `上次抓取: 15:09:23`).
    - Page refreshes (<kbd>Cmd + R</kbd>) never trigger immediate scrapes; the app calculates remaining time from the recorded last fetch before scheduling the next crawl.
    - Executes queries sequentially one by one with gentle pauses, eliminating high-concurrency bursts and reducing rate limiting risks.
    - Background webviews are loaded lazily on demand instead of spawning 16 processes at launch.
@@ -99,18 +100,19 @@ TheySay/
 │   ├── constants.js    # Layout limits, storage keys, partition names & polling intervals
 │   ├── discord.js      # Discord shared webview client, SPA navigation & message scraper
 │   ├── grid.js         # GridStack layout management & resize collision checks
+│   ├── notification.js # Per-channel OS system notification dispatcher & click handler
 │   ├── popup.js        # Centered tweet embed modal & Discord message detail modal
 │   ├── scraper.js      # Fetch dispatcher & periodic background polling crawler
 │   ├── settings.js     # Preferences modal (refresh intervals, member-only filter, Discord sound toggle)
-│   ├── slot.js         # Card component UI, avatars, interactions & feed message bubbles
+│   ├── slot.js         # Card component UI, avatars, mute toggle, interactions & feed message bubbles
 │   ├── source.js       # Source detection & URL parsing (Twitter handle vs Discord channel)
-│   ├── storage.js      # LocalStorage persistence layer (handles, cache, auth flags)
+│   ├── storage.js      # LocalStorage persistence layer (handles, mute state, cache, auth flags)
 │   ├── theme.js        # Dark/light theme state management
 │   ├── tweet.js        # Snowflake timestamp parsing (Twitter & Discord epochs), deduplication & sorting
 │   ├── utils.js        # Jitter, delay, string escaping & toast notifications
 │   └── webview.js      # Offscreen webview pool lifecycle & navigation
 ├── index.html          # Main application window layout
-├── main.js             # Electron main process (multi-partition sessions, login windows)
+├── main.js             # Electron main process (multi-partition sessions, login windows, system notifications)
 ├── package.json        # Project metadata and run scripts
 ├── renderer.js         # Main renderer process orchestrator
 ├── styles.css          # App styling (themes, layout, animations, Discord chat bubbles)

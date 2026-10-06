@@ -20,6 +20,7 @@ const STORAGE_TWITTER_INTERVAL_KEY = 'theysay_twitter_interval_minutes';
 const STORAGE_DISCORD_INTERVAL_KEY = 'theysay_discord_interval_minutes';
 const STORAGE_SHOW_MEMBER_ONLY_KEY = 'theysay_show_member_only';
 const STORAGE_DISCORD_SOUND_KEY = 'theysay_discord_sound_enabled';
+const STORAGE_MUTED_SLOTS_KEY = 'theysay_slot_muted';
 
 const DEFAULT_TWITTER_INTERVAL_MINUTES = 10;
 const DEFAULT_DISCORD_INTERVAL_MINUTES = 10;
@@ -27,6 +28,9 @@ const DEFAULT_SHOW_MEMBER_ONLY = true;
 // The offscreen Discord client still plays Discord's own pings (DMs, @mentions,
 // ...). Kept on by default to match Discord itself; users can mute it in Settings.
 const DEFAULT_DISCORD_SOUND_ENABLED = true;
+// Per-slot system notifications default to muted (true) so users only get OS
+// notifications for channels they explicitly unmute.
+const DEFAULT_SLOT_MUTED = true;
 const BACKGROUND_FETCH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes (fallback)
 
 // Discord runs in its own persistent session so that the X login stays untouched.
@@ -57,10 +61,12 @@ module.exports = {
   STORAGE_DISCORD_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
+  STORAGE_MUTED_SLOTS_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
+  DEFAULT_SLOT_MUTED,
   BACKGROUND_FETCH_INTERVAL_MS,
   DISCORD_PARTITION,
   DISCORD_WEBVIEW_ID,

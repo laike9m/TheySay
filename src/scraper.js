@@ -22,6 +22,7 @@ const {
 } = require('./slot');
 const { SOURCE_DISCORD, SOURCE_TWITTER, detectSourceType, normalizeTwitterHandle } = require('./source');
 const { fetchDiscordSlot } = require('./discord');
+const { notifySlotNewMessages } = require('./notification');
 
 function buildExtractionScript(handle) {
   const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
@@ -298,16 +299,14 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
   saveHandles(slots);
 
   slot.isFetching = true;
-  slot.btnFetch.disabled = true;
-  slot.btnFetch.classList.add('fetching');
-  slot.btnFetch.title = '正在抓取推文...';
+  if (slot.card) slot.card.classList.add('is-fetching');
 
   // Check if we already have existing tweets for this exact handle
   const hasExisting = (slot.monitoredHandle === handle && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0);
   const existingTweets = hasExisting ? slot.loadedTweets : [];
   const existingKeys = new Set(existingTweets.map(t => getTweetKey(t)));
 
-  // In background mode with existing tweets, keep tweets visible and only spin the refresh icon
+  // In background mode with existing tweets, keep tweets visible while fetching silently
   if (!isBackground || !hasExisting) {
     showSlotLoading(slot, `正在后台抓取 @${handle}...`);
   }
@@ -451,6 +450,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
         const sorted = processAndSortTweets(merged);
         const finalTweets = sorted.slice(-20);
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
+        notifySlotNewMessages(slot, collectedNewTweets);
       }
     } else {
       if (collectedNewTweets.length > 0) {
@@ -471,8 +471,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     }
   } finally {
     slot.isFetching = false;
-    slot.btnFetch.disabled = false;
-    slot.btnFetch.classList.remove('fetching');
+    if (slot.card) slot.card.classList.remove('is-fetching');
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
   }
 }

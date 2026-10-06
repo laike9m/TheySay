@@ -29,6 +29,7 @@ const {
   parseDiscordChannelUrl
 } = require('./source');
 const { requestNotificationPermission } = require('./notification');
+const { formatTextWithTickers } = require('./ticker');
 
 const BELL_OFF_SVG = `
   <svg class="mute-icon bell-off" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -365,15 +366,15 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     html += `
       <span class="im-reply-ref">
         <span class="im-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="im-reply-text">${escapeHtml(msg.replyText || '')}</span>
+        <span class="im-reply-text">${formatTextWithTickers(msg.replyText || '')}</span>
       </span>
     `;
   }
 
   if (rawText) {
     html += isLong
-      ? `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`
-      : `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
+      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
+      : `<span class="im-text-content">${formatTextWithTickers(rawText)}</span>`;
   }
 
   const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
@@ -415,8 +416,8 @@ function buildTweetBubbleHtml(tweet) {
   if (isMemberOnlyTweet(tweet)) tagHtml += '<span class="tweet-tag member" title="仅会员 / 订阅者可见">仅会员</span>';
 
   const textHtml = isLong
-    ? `<span class="im-text-content"><span class="im-text-preview">${escapeHtml(previewText)}<span class="im-text-ellipsis">...</span></span></span>`
-    : `<span class="im-text-content">${escapeHtml(rawText)}</span>`;
+    ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
+    : `<span class="im-text-content">${formatTextWithTickers(rawText)}</span>`;
 
   return `${tagHtml}${textHtml}`;
 }

@@ -15,11 +15,18 @@ const {
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
   STORAGE_MUTED_SLOTS_KEY,
+  STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY,
+  STORAGE_TICKER_FG_COLOR_KEY,
+  STORAGE_TICKER_BG_COLOR_KEY,
+  STORAGE_TICKER_REMOTE_CACHE_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
-  DEFAULT_SLOT_MUTED
+  DEFAULT_SLOT_MUTED,
+  DEFAULT_TICKER_HIGHLIGHT_ENABLED,
+  DEFAULT_TICKER_FG_COLOR,
+  DEFAULT_TICKER_BG_COLOR
 } = require('./constants');
 
 function getSavedHandles() {
@@ -235,6 +242,74 @@ function saveDiscordSoundEnabled(enabled) {
   } catch (e) {}
 }
 
+function getTickerHighlightEnabled() {
+  try {
+    const raw = localStorage.getItem(STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY);
+    if (raw !== null && raw !== '') {
+      return raw === '1' || raw === 'true';
+    }
+  } catch (e) {}
+  return DEFAULT_TICKER_HIGHLIGHT_ENABLED;
+}
+
+function saveTickerHighlightEnabled(enabled) {
+  try {
+    localStorage.setItem(STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY, enabled ? '1' : '0');
+  } catch (e) {}
+}
+
+function getTickerFgColor() {
+  try {
+    const raw = localStorage.getItem(STORAGE_TICKER_FG_COLOR_KEY);
+    if (raw && /^#[0-9A-Fa-f]{6}$/.test(raw.trim())) {
+      return raw.trim().toLowerCase();
+    }
+  } catch (e) {}
+  return DEFAULT_TICKER_FG_COLOR;
+}
+
+function saveTickerFgColor(color) {
+  try {
+    if (color && /^#[0-9A-Fa-f]{6}$/.test(color.trim())) {
+      localStorage.setItem(STORAGE_TICKER_FG_COLOR_KEY, color.trim().toLowerCase());
+    }
+  } catch (e) {}
+}
+
+function getTickerBgColor() {
+  try {
+    const raw = localStorage.getItem(STORAGE_TICKER_BG_COLOR_KEY);
+    if (raw && /^#[0-9A-Fa-f]{6}$/.test(raw.trim())) {
+      return raw.trim().toLowerCase();
+    }
+  } catch (e) {}
+  return DEFAULT_TICKER_BG_COLOR;
+}
+
+function saveTickerBgColor(color) {
+  try {
+    if (color && /^#[0-9A-Fa-f]{6}$/.test(color.trim())) {
+      localStorage.setItem(STORAGE_TICKER_BG_COLOR_KEY, color.trim().toLowerCase());
+    }
+  } catch (e) {}
+}
+
+function getTickerRemoteCache() {
+  try {
+    const raw = localStorage.getItem(STORAGE_TICKER_REMOTE_CACHE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {}
+  return null;
+}
+
+function saveTickerRemoteCache(data) {
+  try {
+    localStorage.setItem(STORAGE_TICKER_REMOTE_CACHE_KEY, JSON.stringify(data));
+  } catch (e) {}
+}
+
 module.exports = {
   getSavedHandles,
   saveHandles,
@@ -263,5 +338,13 @@ module.exports = {
   getShowMemberOnlyTweets,
   saveShowMemberOnlyTweets,
   getDiscordSoundEnabled,
-  saveDiscordSoundEnabled
+  saveDiscordSoundEnabled,
+  getTickerHighlightEnabled,
+  saveTickerHighlightEnabled,
+  getTickerFgColor,
+  saveTickerFgColor,
+  getTickerBgColor,
+  saveTickerBgColor,
+  getTickerRemoteCache,
+  saveTickerRemoteCache
 };

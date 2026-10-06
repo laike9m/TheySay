@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
+const TICKER_DATA_PATH = path.join(__dirname, 'data', 'ticker-data.json');
+const tickerData = require('./data/ticker-data.json');
 
 app.name = 'TheySay';
 if (typeof app.setAppUserModelId === 'function') {
@@ -218,6 +221,99 @@ ipcMain.on('show-system-notification', (event, payload = {}) => {
     notif.show();
   } catch (err) {
     console.warn('[Notification] Failed to show system notification:', err.message);
+  }
+});
+
+// Fetch latest US Stock & ETF ticker symbols from live NASDAQ Screener APIs
+ipcMain.handle('fetch-online-tickers', async () => {
+  try {
+    const headers = {
+      'User-Agent': DISCORD_USER_AGENT,
+      Accept: 'application/json, text/plain, */*'
+    };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    const [stocksRes, etfsRes] = await Promise.all([
+      fetch('https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=25&offset=0&download=true', {
+        headers,
+        signal: controller.signal
+      }),
+      fetch('https://api.nasdaq.com/api/screener/etf?tableonly=true&limit=10000&offset=0&download=true', {
+        headers,
+        signal: controller.signal
+      })
+    ]);
+    clearTimeout(timeout);
+
+    const stocksJson = await stocksRes.json();
+    const etfsJson = await etfsRes.json();
+    const stocks = stocksJson?.data?.rows || stocksJson?.data?.table?.rows || [];
+    const etfs = etfsJson?.data?.data?.rows || etfsJson?.data?.rows || [];
+
+    const stopwordsSet = new Set(Array.isArray(tickerData.stopwords) ? tickerData.stopwords : []);
+    const dictSet = new Set();
+    for (const file of ['words', 'web2a', 'propernames', 'connectives']) {
+      const dictPath = path.join('/usr/share/dict', file);
+      if (fs.existsSync(dictPath)) {
+        try {
+          const lines = fs.readFileSync(dictPath, 'utf8').split(/\r?\n/);
+          for (const line of lines) {
+            const w = line.trim().replace(/[^A-Za-z]/g, '').toUpperCase();
+            if (!w) continue;
+            dictSet.add(w);
+            if (w.length >= 2) {
+              dictSet.add(w + 'S');
+              dictSet.add(w + 'ES');
+              dictSet.add(w + 'ED');
+              dictSet.add(w + 'ING');
+              dictSet.add(w + 'ER');
+              dictSet.add(w + 'ERS');
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    const contextualSet = new Set(Array.isArray(tickerData.contextual) ? tickerData.contextual : []);
+    const mergedSet = new Set(Array.isArray(tickerData.unambiguous) ? tickerData.unambiguous : []);
+    let newlyAdded = 0;
+
+    for (const row of [...stocks, ...etfs]) {
+      const sym = String(row.symbol || '').trim().toUpperCase();
+      if (
+        /^[A-Z]{3,5}$/.test(sym) &&
+        !stopwordsSet.has(sym) &&
+        !contextualSet.has(sym) &&
+        !dictSet.has(sym)
+      ) {
+        if (!mergedSet.has(sym)) {
+          mergedSet.add(sym);
+          newlyAdded++;
+        }
+      }
+    }
+
+    const symbols = Array.from(mergedSet).sort();
+    const updatedAt = new Date().toISOString().slice(0, 10);
+    tickerData.updatedAt = updatedAt;
+    tickerData.unambiguous = symbols;
+
+    try {
+      fs.writeFileSync(TICKER_DATA_PATH, JSON.stringify(tickerData, null, 2) + '\n', 'utf8');
+    } catch (writeErr) {
+      console.warn('[Ticker] Failed to write data/ticker-data.json:', writeErr.message);
+    }
+
+    return {
+      ok: true,
+      symbols,
+      newlyAdded,
+      updatedAt,
+      totalRaw: stocks.length + etfs.length
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 

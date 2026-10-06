@@ -6,6 +6,7 @@ A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with El
 - **Unified "登录账号" (Login Accounts) Dropdown Menu**: Consolidates Twitter / X and Discord accounts into a single, clean dropdown in the top navigation bar. Displays real-time status badges (Logged In / Logged Out / Checking) for each platform with an overall status indicator dot, and launches dedicated login windows on click, keeping the header uncluttered as more platforms are added.
 - **Settings Modal & Independent Platform Refresh Rates**: A gear button next to the login account dropdown opens a centralized preferences modal dialog. Configure background auto-refresh frequencies separately for Twitter / X and Discord with preset options (30s, 1m, 2m, 3m, 5m, 10m, 15m, 30m, 1h) or custom minute intervals, complete with anti-rate-limit safety hints, restore defaults, and live scheduler reload.
 - **Member-Only (Super Follows) Tweet Badging & Display Filter**: Automatically detects creator subscription / subscriber-only tweets on Twitter/X (such as posts requiring "Subscribe to unlock") and badges them with an amber `仅会员` (Member Only) tag in the timeline feed. In the Settings modal, a dedicated option "是否显示仅会员可见的帖子" (Show Member-Only Posts) allows users to toggle whether these exclusive posts are displayed or automatically filtered out, with live instant re-rendering of all active feeds.
+- **Smart Ticker Highlighting with Customizable Foreground & Background Colors**: Automatically detects stock, ETF, and crypto tickers in both Twitter and Discord messages — supporting explicit `$TICKER` cashtags (e.g. `$ZETA`, `$nvda`) as well as uppercase and lowercase bare tickers (e.g. `SMTC`, `muu`, `mu`, `uctt`, `spcx`, `intc`) backed by a built-in and online-synced NASDAQ Stock & ETF dictionary (~9,600+ symbols, with common English words and options terms like `put`/`call` excluded). Renders matched tickers in bold with a badge background (`font-weight: 700`), and provides full foreground & background color pickers, 6 one-click color presets, and a real-time preview inside the Settings modal.
 - **Discord Notification Sound Toggle**: The offscreen Discord client keeps playing Discord's own notification pings (DMs, @mentions, etc.) even though it runs unattended. A "Discord 通知声音" (Discord Notification Sound) option in the Settings modal mutes the background Discord webview at the audio level — it takes effect the moment you save, persists across restarts, and never affects message scraping.
 - **Dark Mode / Light Mode Toggle Switch**: Header features a sleek, animated pill toggle switch with sun and moon icons to smoothly transition between dark and light themes, automatically persisting user preference.
 - **Telegram-Style Chat Bubble Feed with Date Dividers**: Replicates Telegram's clean aesthetics with centered capsule date dividers (e.g. `June 29, 2025`) displayed above each day's messages (with only one date pill per day). Chat bubbles hug content naturally with inline specific timestamps (`11:45 AM`) at the bottom right, status tags (`Pinned`, `Retweet`), removed message numbers, and a hover-revealed link button (`↗`) in the top-right corner.
@@ -77,7 +78,11 @@ npm start
    - **Preference Toggle & Dynamic Filtering**: In the Settings modal, configure "是否显示仅会员可见的帖子" (Show Member-Only Posts) to either show them or automatically filter them out.
    - **Hot Reload**: Changing and saving the setting immediately re-renders all active cards without requiring a reload or re-scrape. If all posts in a feed are member-only and hidden, a clear informative notice is displayed.
    - **Instant Detail Modal**: Clicking a member-only tweet bubble opens a specialized message modal immediately with a "仅会员可见" notice and external browser link, bypassing third-party embed timeouts.
-10. **Human-like Anti-Bot Jitter & Challenge Detection**:
+10. **Ticker Highlighting & Custom Color Themes**:
+    - **Three-Tier Case-Insensitive Detection**: Recognizes `$TICKER` cashtags (e.g., `$ZETA`, `$nvda`), unambiguous US stock & ETF symbols in upper or lowercase (`SMTC`, `muu`, `mu`, `uctt`, `spcx`, `intc`), and context-aware symbols (`coin`, `hood`, `spy`) while excluding ordinary English words, options terms (`put`, `call`), URLs, and user handles.
+    - **Permanent Local Dictionary + On-Demand NASDAQ API Sync**: Ships with 9,600+ pre-filtered US Stock & ETF symbols in `data/ticker-data.json` and permanently persists any newly synced symbols from the live NASDAQ Stock & ETF Screener APIs (`api.nasdaq.com`) without expiration.
+    - **Selectable Foreground & Background Colors**: Choose from 6 curated presets (Amber Gold, Highlighter Yellow, Bullish Emerald, Cyber Blue, Neon Purple, Crimson) or pick any custom foreground text color and background color with a live preview in Settings.
+11. **Human-like Anti-Bot Jitter & Challenge Detection**:
    - **Polite Inter-Slot Pacing**: Sequential background polling pauses between accounts to avoid machine-like traffic bursts.
    - **Randomized Smooth Scrolling**: Dynamic scroll distance (`650px ~ 1050px`) with smooth behavior.
    - **Reading Pauses**: Injects `300ms ~ 600ms` scan pauses after scrolling to emulate human eye reading time.
@@ -91,6 +96,8 @@ TheySay/
 │   ├── icon.icns       # macOS application icon bundle
 │   ├── icon.png        # High-resolution (1024x1024) application icon
 │   └── icon.svg        # Master vector icon (macOS squircle dark theme & brand waves)
+├── data/
+│   └── ticker-data.json# Permanently persisted US Stock & ETF symbol dictionary & word filter list
 ├── docs/
 │   └── README_zh.md    # Chinese Documentation (中文文档)
 ├── scripts/
@@ -103,19 +110,20 @@ TheySay/
 │   ├── notification.js # Per-channel OS system notification dispatcher & click handler
 │   ├── popup.js        # Centered tweet embed modal & Discord message detail modal
 │   ├── scraper.js      # Fetch dispatcher & periodic background polling crawler
-│   ├── settings.js     # Preferences modal (refresh intervals, member-only filter, Discord sound toggle)
+│   ├── settings.js     # Preferences modal (refresh intervals, member-only filter, ticker colors, Discord sound)
 │   ├── slot.js         # Card component UI, avatars, mute toggle, interactions & feed message bubbles
 │   ├── source.js       # Source detection & URL parsing (Twitter handle vs Discord channel)
-│   ├── storage.js      # LocalStorage persistence layer (handles, mute state, cache, auth flags)
+│   ├── storage.js      # LocalStorage persistence layer (handles, mute state, ticker settings, cache, auth flags)
 │   ├── theme.js        # Dark/light theme state management
+│   ├── ticker.js       # Case-insensitive ticker highlighter, CSS color manager & NASDAQ API sync
 │   ├── tweet.js        # Snowflake timestamp parsing (Twitter & Discord epochs), deduplication & sorting
 │   ├── utils.js        # Jitter, delay, string escaping & toast notifications
 │   └── webview.js      # Offscreen webview pool lifecycle & navigation
 ├── index.html          # Main application window layout
-├── main.js             # Electron main process (multi-partition sessions, login windows, system notifications)
+├── main.js             # Electron main process (multi-partition sessions, login windows, notifications, NASDAQ API)
 ├── package.json        # Project metadata and run scripts
 ├── renderer.js         # Main renderer process orchestrator
-├── styles.css          # App styling (themes, layout, animations, Discord chat bubbles)
+├── styles.css          # App styling (themes, layout, animations, ticker badges, Discord chat bubbles)
 └── README.md           # English Documentation
 ```
 

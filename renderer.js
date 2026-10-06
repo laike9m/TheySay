@@ -26,6 +26,7 @@ const { initTweetPopup } = require('./src/popup');
 const { initSettings } = require('./src/settings');
 const { applyDiscordSoundSetting } = require('./src/discord');
 const { initNotifications } = require('./src/notification');
+const { initTickers } = require('./src/ticker');
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
@@ -79,10 +80,17 @@ window.addEventListener('DOMContentLoaded', () => {
     getGridDimensions
   });
 
+  initTickers({
+    onUpdated: () => refreshSlotsContent(slots)
+  });
   initNotifications(slots);
   initAuth();
   initSettings({
-    onSave: () => {
+    onSave: (opts = {}) => {
+      if (opts && opts.syncedTickersOnly) {
+        refreshSlotsContent(slots);
+        return;
+      }
       startPeriodicBackgroundFetch({
         slots,
         bgWebviewsContainer,

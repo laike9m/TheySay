@@ -330,6 +330,80 @@
           </div>
         </div>
 
+        <!-- Ticker 股票代码高亮分组 -->
+        <div class="settings-section">
+          <div class="settings-section-title">Ticker 股票代码高亮</div>
+          <div class="settings-section-desc">自动识别消息中的美股 / ETF / 加密货币代码（含 $ 前缀及大小写代码），加粗并添加背景色使其更显眼。</div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-platform">
+                <span class="platform-icon ticker">$</span>
+                <div>
+                  <div class="settings-card-title">Ticker 高亮与自定义配色</div>
+                  <div class="settings-card-subtitle">支持大小写 Ticker 识别、自定义前景色与背景色、NASDAQ 在线词库同步</div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-card-content">
+              <div class="settings-field-row">
+                <label for="setting-ticker-enabled" class="settings-label">高亮显示 Ticker:</label>
+                <div class="settings-input-group">
+                  <select id="setting-ticker-enabled" class="settings-select">
+                    <option value="true" selected>开启 (默认)</option>
+                    <option value="false">关闭</option>
+                  </select>
+                </div>
+              </div>
+
+              <div id="setting-ticker-colors-wrap" class="ticker-settings-colors-wrap">
+                <div class="settings-field-row ticker-presets-row">
+                  <span class="settings-label">预设配色:</span>
+                  <div id="setting-ticker-presets" class="ticker-preset-list">
+                    <button type="button" class="ticker-preset-chip" data-fg="#fde047" data-bg="#422006" style="color: #fde047; background-color: #422006;" title="琥珀金 (默认)">琥珀金</button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#0f172a" data-bg="#facc15" style="color: #0f172a; background-color: #facc15;" title="荧光黄">荧光黄</button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#4ade80" data-bg="#063925" style="color: #4ade80; background-color: #063925;" title="看涨绿">看涨绿</button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#38bdf8" data-bg="#0c2d48" style="color: #38bdf8; background-color: #0c2d48;" title="电光蓝">电光蓝</button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#c084fc" data-bg="#2e1065" style="color: #c084fc; background-color: #2e1065;" title="霓虹紫">霓虹紫</button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#fda4af" data-bg="#4c0519" style="color: #fda4af; background-color: #4c0519;" title="朱砂红">朱砂红</button>
+                  </div>
+                </div>
+
+                <div class="settings-field-row">
+                  <label for="setting-ticker-fg-color" class="settings-label">前景色 (文字颜色):</label>
+                  <div class="settings-input-group ticker-color-picker-group">
+                    <input type="color" id="setting-ticker-fg-color" class="ticker-color-input" value="#fde047" title="选择 Ticker 文字颜色">
+                    <input type="text" id="setting-ticker-fg-hex" class="ticker-hex-input" value="#fde047" maxlength="7" spellcheck="false" aria-label="Ticker 前景色 Hex">
+                  </div>
+                </div>
+
+                <div class="settings-field-row">
+                  <label for="setting-ticker-bg-color" class="settings-label">背景色 (高亮底色):</label>
+                  <div class="settings-input-group ticker-color-picker-group">
+                    <input type="color" id="setting-ticker-bg-color" class="ticker-color-input" value="#422006" title="选择 Ticker 背景颜色">
+                    <input type="text" id="setting-ticker-bg-hex" class="ticker-hex-input" value="#422006" maxlength="7" spellcheck="false" aria-label="Ticker 背景色 Hex">
+                  </div>
+                </div>
+
+                <div class="ticker-preview-box" id="setting-ticker-preview">
+                  <span class="ticker-preview-label">实时预览:</span>
+                  <span class="ticker-preview-sample">
+                    引用 <span class="ticker-highlight ticker-preview-chip">$ZETA</span> +80% · <span class="ticker-highlight ticker-preview-chip">SMTC</span> 200止盈 · 低点加仓 <span class="ticker-highlight ticker-preview-chip">muu</span> / <span class="ticker-highlight ticker-preview-chip">mu</span> / <span class="ticker-highlight ticker-preview-chip">spcx</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="settings-tip ticker-sync-tip">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <div class="ticker-sync-tip-body">
+                  <span id="setting-ticker-stats-text">支持 $ 符号识别及 NASDAQ 美股与 ETF 代码库自动匹配（兼容大小写，自动排除普通英文单词）。</span>
+                  <button type="button" id="btn-sync-tickers" class="btn-tool btn-sync-tickers" title="从 NASDAQ 官方接口同步最新美股与 ETF 列表">同步在线词库</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 通知声音分组 -->
         <div class="settings-section">
           <div class="settings-section-title">通知声音</div>

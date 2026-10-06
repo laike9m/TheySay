@@ -1,6 +1,7 @@
 const { shell, ipcRenderer } = require('electron');
 const { getTweetId, isMemberOnlyTweet } = require('./tweet');
 const { escapeHtml } = require('./utils');
+const { formatTextWithTickers } = require('./ticker');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
 // Each embed is a real iframe, so this is a memory/latency trade-off.
@@ -203,7 +204,7 @@ function renderFallbackInto(entry) {
       </div>
     </div>
     ${memberInfoHtml}
-    <div class="tweet-popup-fallback-text">${escapeHtml(rawText)}</div>
+    <div class="tweet-popup-fallback-text">${formatTextWithTickers(rawText)}</div>
     ${quoteInfoHtml}
     <div class="tweet-popup-fallback-footer">
       <span class="tweet-popup-fallback-time">${escapeHtml(timeDisplay)}</span>
@@ -282,7 +283,7 @@ function renderDiscordCardInto(el, msg) {
     replyHtml = `
       <div class="discord-popup-reply">
         <span class="discord-popup-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="discord-popup-reply-text">${escapeHtml(msg.replyText || '')}</span>
+        <span class="discord-popup-reply-text">${formatTextWithTickers(msg.replyText || '')}</span>
       </div>
     `;
   }
@@ -327,7 +328,7 @@ function renderDiscordCardInto(el, msg) {
         </div>
       </div>
       ${replyHtml}
-      ${rawText ? `<div class="discord-popup-text">${escapeHtml(rawText)}</div>` : ''}
+      ${rawText ? `<div class="discord-popup-text">${formatTextWithTickers(rawText)}</div>` : ''}
       ${imagesHtml}
       ${attachmentsHtml}
       <div class="discord-popup-footer">

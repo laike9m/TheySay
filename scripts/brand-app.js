@@ -104,6 +104,82 @@ function brandApp() {
       execSync(`/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${theySayApp}"`, { stdio: 'ignore' });
     } catch (_) {}
   }
+
+  // 7. Patch electron/cli.js to filter benign macOS AppKit / InputMethodKit NSLog noise on stderr
+  const cliJsPath = path.join(electronDir, 'cli.js');
+  if (fs.existsSync(cliJsPath)) {
+    const cliContent = `#!/usr/bin/env node
+
+const proc = require('child_process');
+
+const electron = require('./');
+
+const MACOS_NOISE_PATTERNS = [
+  'IMKCFRunLoopWakeUpReliable',
+  'IMKInputSession',
+  'NSCameraUseContinuityCameraDeviceType',
+  'AVCaptureDeviceTypeContinuityCamera',
+  'AdjustCapsLockLEDForKeyTransitionHandling'
+];
+
+function isMacOSNoise(line) {
+  for (let i = 0; i < MACOS_NOISE_PATTERNS.length; i++) {
+    if (line.indexOf(MACOS_NOISE_PATTERNS[i]) !== -1) return true;
+  }
+  return false;
+}
+
+const child = proc.spawn(electron, process.argv.slice(2), {
+  stdio: ['inherit', 'inherit', 'pipe'],
+  windowsHide: false
+});
+
+if (child.stderr) {
+  let stderrBuf = '';
+  child.stderr.on('data', function (chunk) {
+    stderrBuf += chunk.toString('utf8');
+    const lines = stderrBuf.split(/\\r?\\n/);
+    stderrBuf = lines.pop() || '';
+    for (let i = 0; i < lines.length; i++) {
+      if (!isMacOSNoise(lines[i])) {
+        process.stderr.write(lines[i] + '\\n');
+      }
+    }
+  });
+  child.stderr.on('end', function () {
+    if (stderrBuf && !isMacOSNoise(stderrBuf)) {
+      process.stderr.write(stderrBuf);
+    }
+    stderrBuf = '';
+  });
+}
+
+let childClosed = false;
+child.on('close', function (code, signal) {
+  childClosed = true;
+  if (code === null) {
+    console.error(electron, 'exited with signal', signal);
+    process.exit(1);
+  }
+  process.exit(code);
+});
+
+const handleTerminationSignal = function (signal) {
+  process.on(signal, function signalHandler() {
+    if (!childClosed) {
+      child.kill(signal);
+    }
+  });
+};
+
+handleTerminationSignal('SIGINT');
+handleTerminationSignal('SIGTERM');
+handleTerminationSignal('SIGUSR2');
+`;
+    try {
+      fs.writeFileSync(cliJsPath, cliContent, { encoding: 'utf8', mode: 0o755 });
+    } catch (_) {}
+  }
 }
 
 try {

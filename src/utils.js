@@ -58,10 +58,51 @@ function showToast(message, type = 'warning', duration = 4000) {
   }, duration);
 }
 
+const dns = require('dns');
+
+function isNetworkOnline() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return false;
+  }
+  return true;
+}
+
+async function canReachHost(hostnameOrUrl, timeoutMs = 2500) {
+  if (!isNetworkOnline()) return false;
+  let hostname = String(hostnameOrUrl || '').trim();
+  if (!hostname) return true;
+  try {
+    if (hostname.includes('://')) {
+      hostname = new URL(hostname).hostname;
+    }
+  } catch (e) {
+    return false;
+  }
+  if (!hostname) return true;
+
+  let timer = null;
+  try {
+    await Promise.race([
+      dns.promises.lookup(hostname),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('DNS_TIMEOUT')), timeoutMs);
+      })
+    ]);
+    return true;
+  } catch (e) {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+
 module.exports = {
   escapeHtml,
   randomBetween,
   sleep,
   formatFetchTime,
-  showToast
+  showToast,
+  isNetworkOnline,
+  canReachHost
 };

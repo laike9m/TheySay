@@ -3,7 +3,7 @@ const {
   DISCORD_WEBVIEW_ID,
   MAX_DISCORD_MESSAGES
 } = require('./constants');
-const { sleep, showToast } = require('./utils');
+const { sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
 const { processAndSortTweets, getTweetKey } = require('./tweet');
 const {
   saveHandles,
@@ -852,6 +852,10 @@ async function runScript(wv, script) {
  * Resolves to { ok } or { ok: false, error }.
  */
 async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
+  if (!(await canReachHost('discord.com'))) {
+    return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+  }
+
   await waitForWebviewReady(wv);
 
   let currentUrl = '';
@@ -867,7 +871,10 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
   if (!isOnDiscord) {
     if (onProgress) onProgress('正在启动 Discord 客户端...');
     timeout = BOOT_TIMEOUT_MS;
-    await loadWebviewTarget(wv, targetUrl);
+    const loadRes = await loadWebviewTarget(wv, targetUrl);
+    if (loadRes && loadRes.offline) {
+      return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+    }
   } else {
     // Check if the webview is already showing this EXACT channel and is ready
     const probe = await runScript(wv, buildReadinessScript(channelId));
@@ -883,6 +890,9 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
       if (clickRes && clickRes.clicked) {
         const quickDeadline = Date.now() + 3000;
         while (Date.now() < quickDeadline) {
+          if (!isNetworkOnline()) {
+            return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+          }
           const quickProbe = await runScript(wv, buildReadinessScript(channelId));
           if (quickProbe && quickProbe.state === 'ready') {
             inAppSwitched = true;
@@ -896,7 +906,10 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     if (!inAppSwitched) {
       if (onProgress) onProgress('正在加载频道...');
       timeout = BOOT_TIMEOUT_MS;
-      await loadWebviewTarget(wv, targetUrl);
+      const loadRes = await loadWebviewTarget(wv, targetUrl);
+      if (loadRes && loadRes.offline) {
+        return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+      }
     }
   }
 
@@ -904,6 +917,9 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
   let lastState = '';
 
   while (Date.now() < deadline) {
+    if (!isNetworkOnline()) {
+      return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+    }
     const probe = await runScript(wv, buildReadinessScript(channelId));
     if (probe) {
       lastState = probe.state;
@@ -946,20 +962,17 @@ function toSlotMessage(item, guildId, channelId) {
 
 async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slots, bgWebviewsContainer }) {
   const slot = slots[slotIndex];
-  if (!slot || slot.isFetching) return;
+  if (!slot || slot.isFetching) return { ok: false };
 
   const rawInput = slot.handleInput.value.trim();
   const parsed = parseDiscordChannelUrl(rawInput);
   if (!parsed) {
     if (!isBackground) showSlotError(slot, '无法解析 Discord 频道链接');
-    return;
+    return { ok: false };
   }
 
   const { guildId, channelId } = parsed;
   saveHandles(slots);
-
-  slot.isFetching = true;
-  if (slot.card) slot.card.classList.add('is-fetching');
 
   const hasExisting = (
     slot.monitoredHandle === rawInput &&
@@ -970,6 +983,21 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       return !p || !p.channelId || p.channelId === channelId;
     })
   );
+
+  // Skip fetching altogether when the network is disconnected
+  if (!(await canReachHost('discord.com'))) {
+    if (!isBackground) {
+      if (!hasExisting) {
+        showSlotError(slot, '当前网络已断开，无法读取 Discord 频道');
+      }
+      showToast('当前网络已断开，已暂停抓取', 'warning', 2500);
+    }
+    return { ok: false, offline: true };
+  }
+
+  slot.isFetching = true;
+  if (slot.card) slot.card.classList.add('is-fetching');
+
   const existingMessages = hasExisting ? slot.loadedTweets : [];
   const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)));
   const existingByKey = new Map(existingMessages.map(m => [getTweetKey(m), m]));
@@ -984,12 +1012,28 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     }
   };
 
+  let slotOffline = false;
   try {
     await withDiscordLock(async () => {
+      if (!(await canReachHost('discord.com'))) {
+        slotOffline = true;
+        if (!isBackground && !hasExisting) {
+          showSlotError(slot, '当前网络已断开，无法读取 Discord 频道');
+        }
+        return;
+      }
+
       const wv = getOrCreateDiscordWebview(bgWebviewsContainer);
 
       const nav = await ensureDiscordChannel(wv, guildId, channelId, setProgress);
       if (!nav.ok) {
+        if (nav.offline) {
+          slotOffline = true;
+          if (!isBackground && !hasExisting) {
+            showSlotError(slot, nav.error);
+          }
+          return;
+        }
         if (!isBackground || !hasExisting) {
           showSlotError(slot, nav.error);
         } else {
@@ -1162,6 +1206,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     if (slot.card) slot.card.classList.remove('is-fetching');
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
   }
+  return { ok: !slotOffline, offline: slotOffline };
 }
 
 module.exports = {

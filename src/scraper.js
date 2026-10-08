@@ -1,5 +1,5 @@
 const { BACKGROUND_FETCH_INTERVAL_MS } = require('./constants');
-const { randomBetween, sleep, showToast } = require('./utils');
+const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
 const { getTweetKey, processAndSortTweets } = require('./tweet');
 const {
   saveHandles,
@@ -281,7 +281,7 @@ function buildExtractionScript(handle) {
 
 async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slots, bgWebviewsContainer }) {
   const slot = slots[slotIndex];
-  if (!slot || slot.isFetching) return;
+  if (!slot || slot.isFetching) return { ok: false };
 
   const rawHandle = slot.handleInput.value.trim();
   const handle = normalizeTwitterHandle(rawHandle);
@@ -293,18 +293,29 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
       if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
       slot.handleInput.focus();
     }
-    return;
+    return { ok: false };
   }
 
   saveHandles(slots);
-
-  slot.isFetching = true;
-  if (slot.card) slot.card.classList.add('is-fetching');
 
   // Check if we already have existing tweets for this exact handle
   const hasExisting = (slot.monitoredHandle === handle && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0);
   const existingTweets = hasExisting ? slot.loadedTweets : [];
   const existingKeys = new Set(existingTweets.map(t => getTweetKey(t)));
+
+  // Skip fetching altogether when the network is disconnected
+  if (!(await canReachHost('x.com'))) {
+    if (!isBackground) {
+      if (!hasExisting) {
+        showSlotError(slot, '当前网络已断开，无法抓取推文');
+      }
+      showToast('当前网络已断开，已暂停抓取', 'warning', 2500);
+    }
+    return { ok: false, offline: true };
+  }
+
+  slot.isFetching = true;
+  if (slot.card) slot.card.classList.add('is-fetching');
 
   // In background mode with existing tweets, keep tweets visible while fetching silently
   if (!isBackground || !hasExisting) {
@@ -318,10 +329,18 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
   const boundaryTweet = existingNonPinned.length > 0 ? existingNonPinned[existingNonPinned.length - 1] : null;
   const boundaryKey = boundaryTweet ? getTweetKey(boundaryTweet) : null;
 
+  let slotOffline = false;
   try {
     const bgWebview = getOrCreateSlotWebview(slotIndex, bgWebviewsContainer, slots);
     await waitForWebviewReady(bgWebview);
-    await loadWebviewTarget(bgWebview, targetUrl);
+    const loadRes = await loadWebviewTarget(bgWebview, targetUrl);
+    if (loadRes && loadRes.offline) {
+      slotOffline = true;
+      if (!isBackground && !hasExisting) {
+        showSlotError(slot, '当前网络已断开，无法抓取推文');
+      }
+      return { ok: false, offline: true };
+    }
 
     // Brief grace period for Twitter SPA hydration
     await sleep(400);
@@ -336,6 +355,10 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     let reachedBoundary = false;
 
     while (attempts < maxAttempts) {
+      if (!isNetworkOnline()) {
+        slotOffline = true;
+        break;
+      }
       attempts++;
 
       // Guard: do not execute script if webview is currently navigating
@@ -356,7 +379,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
           } else {
             console.warn(`[Background Fetch] Error for @${handle}:`, result.error);
           }
-          return;
+          return { ok: false };
         }
 
         if (result && result.avatarUrl) {
@@ -426,6 +449,13 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
       }
     }
 
+    if (slotOffline && collectedNewTweets.length === 0) {
+      if (!isBackground && !hasExisting) {
+        showSlotError(slot, '当前网络已断开，无法抓取推文');
+      }
+      return { ok: false, offline: true };
+    }
+
     if (!latestAvatarUrl && handle) {
       latestAvatarUrl = `https://unavatar.io/x/${handle}`;
       updateSlotAvatar(slot, latestAvatarUrl);
@@ -474,6 +504,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     if (slot.card) slot.card.classList.remove('is-fetching');
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
   }
+  return { ok: !slotOffline, offline: slotOffline };
 }
 
 /**
@@ -501,16 +532,26 @@ let activeBackgroundFetchContext = null;
 
 async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
   if (isTwitterBackgroundFetching) return;
+  if (!(await canReachHost('x.com'))) return;
   isTwitterBackgroundFetching = true;
 
+  let abortedOffline = false;
   try {
     const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
     for (let i = 0; i < totalSlots; i++) {
+      if (!isNetworkOnline()) {
+        abortedOffline = true;
+        break;
+      }
       const slot = slots[i];
       if (!slot) continue;
       const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
       if (raw && detectSourceType(raw) === SOURCE_TWITTER && !slot.isFetching) {
-        await fetchTwitterSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+        const res = await fetchTwitterSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+        if (res && res.offline) {
+          abortedOffline = true;
+          break;
+        }
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
       }
@@ -519,22 +560,34 @@ async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Twitter Background Fetch] Error during sequential crawl:', err);
   } finally {
     isTwitterBackgroundFetching = false;
-    saveLastFetchTimeTwitter(Date.now());
+    if (!abortedOffline && isNetworkOnline()) {
+      saveLastFetchTimeTwitter(Date.now());
+    }
   }
 }
 
 async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
   if (isDiscordBackgroundFetching) return;
+  if (!(await canReachHost('discord.com'))) return;
   isDiscordBackgroundFetching = true;
 
+  let abortedOffline = false;
   try {
     const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
     for (let i = 0; i < totalSlots; i++) {
+      if (!isNetworkOnline()) {
+        abortedOffline = true;
+        break;
+      }
       const slot = slots[i];
       if (!slot) continue;
       const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
       if (raw && detectSourceType(raw) === SOURCE_DISCORD && !slot.isFetching) {
-        await fetchDiscordSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+        const res = await fetchDiscordSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+        if (res && res.offline) {
+          abortedOffline = true;
+          break;
+        }
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
       }
@@ -543,7 +596,9 @@ async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Discord Background Fetch] Error during sequential crawl:', err);
   } finally {
     isDiscordBackgroundFetching = false;
-    saveLastFetchTimeDiscord(Date.now());
+    if (!abortedOffline && isNetworkOnline()) {
+      saveLastFetchTimeDiscord(Date.now());
+    }
   }
 }
 

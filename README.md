@@ -70,6 +70,7 @@ npm start
    - Accurately records timestamps for every fetch, displaying the last fetch time on card header tooltips (e.g. `上次抓取: 15:09:23`).
    - Page refreshes (<kbd>Cmd + R</kbd>) never trigger immediate scrapes; the app calculates remaining time from the recorded last fetch before scheduling the next crawl.
    - Executes queries sequentially one by one with gentle pauses, eliminating high-concurrency bursts and reducing rate limiting risks.
+   - Automatically checks network and DNS reachability (`navigator.onLine` + DNS lookup) before fetching, skipping background crawls cleanly when the Mac is asleep or offline.
    - Background webviews are loaded lazily on demand instead of spawning 16 processes at launch.
    - Silences macOS Chromium kernel policy and Mojo widget warnings on terminal output.
 9. **Member-Only (Super Follows) Tweet Badging & Visibility Settings**:

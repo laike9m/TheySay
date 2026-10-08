@@ -3,7 +3,7 @@ const {
   DISCORD_WEBVIEW_ID,
   MAX_DISCORD_MESSAGES
 } = require('./constants');
-const { sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
+const { sleep, showToast, isNetworkOnline, canReachHost, stripDiscordEditedText } = require('./utils');
 const { processAndSortTweets, getTweetKey } = require('./tweet');
 const {
   saveHandles,
@@ -307,6 +307,19 @@ function buildDiscordExtractionScript(guildId, channelId) {
               out += n.nodeValue;
             } else if (n.nodeType === 1) {
               const tag = n.tagName.toLowerCase();
+              const idAttr = n.id || '';
+              const cls = typeof n.className === 'string' ? n.className : '';
+              if (
+                idAttr.indexOf('message-edited-timestamp') === 0 ||
+                cls.indexOf('edited') >= 0 ||
+                cls.indexOf('hiddenVisually') >= 0 ||
+                cls.indexOf('visuallyHidden') >= 0 ||
+                ((tag === 'time' || cls.indexOf('timestamp') >= 0) &&
+                  n.querySelector &&
+                  n.querySelector('[class*="edited"], [id^="message-edited-timestamp"]'))
+              ) {
+                continue;
+              }
               if (tag === 'img') {
                 out += (n.getAttribute('alt') || '');
               } else if (tag === 'br') {
@@ -320,7 +333,11 @@ function buildDiscordExtractionScript(guildId, channelId) {
           }
         };
         walk(root);
-        return out.replace(/\\n{3,}/g, '\\n\\n').trim();
+        return out
+          .replace(/\\s*[(\\uff08]\\s*(?:已编辑|已編輯|edited)\\s*[)\\uff09]\\s*(?:\\d{4}\\s*年[^\\r\\n]*|(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[^\\r\\n]*)?/gi, '')
+          .replace(/\\s*[(\\uff08]\\s*(?:已编辑|已編輯|edited)\\s*[)\\uff09][^\\r\\n]*$/i, '')
+          .replace(/\\n{3,}/g, '\\n\\n')
+          .trim();
       };
 
       const items = [];
@@ -954,6 +971,8 @@ async function jumpToPresent(wv) {
 function toSlotMessage(item, guildId, channelId) {
   return {
     ...item,
+    text: stripDiscordEditedText(item.text),
+    replyText: stripDiscordEditedText(item.replyText),
     source: SOURCE_DISCORD,
     url: buildDiscordMessageUrl(guildId, channelId, item.id),
     time: item.datetime
@@ -1075,11 +1094,17 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           if (result.guildName) meta.guildName = result.guildName;
           if (result.iconUrl) meta.iconUrl = result.iconUrl;
 
-          // Backfill images / attachments onto any already-cached messages visible on screen
+          // Backfill images / attachments / edited text onto any already-cached messages visible on screen
           for (let i = 0; i < result.items.length; i++) {
             const freshMsg = toSlotMessage(result.items[i], guildId, channelId);
             const prev = existingByKey.get(getTweetKey(freshMsg));
             if (prev) {
+              if (freshMsg.text) {
+                prev.text = freshMsg.text;
+              }
+              if (freshMsg.replyText) {
+                prev.replyText = freshMsg.replyText;
+              }
               if (Array.isArray(freshMsg.images) && freshMsg.images.length > 0) {
                 prev.images = freshMsg.images;
               } else if (!Array.isArray(prev.images)) {
@@ -1123,6 +1148,8 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       if (hasExisting) {
         existingMessages.forEach(m => {
           if (!Array.isArray(m.images)) m.images = [];
+          if (typeof m.text === 'string') m.text = stripDiscordEditedText(m.text);
+          if (typeof m.replyText === 'string') m.replyText = stripDiscordEditedText(m.replyText);
         });
       }
 

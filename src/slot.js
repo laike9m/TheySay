@@ -1,6 +1,6 @@
 const { shell } = require('electron');
 const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./constants');
-const { escapeHtml, showToast, formatFetchTime } = require('./utils');
+const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('./utils');
 const {
   processAndSortTweets,
   getTweetDateKey,
@@ -350,7 +350,8 @@ function authorColor(name) {
 }
 
 function buildDiscordBubbleHtml(msg, { showAuthor }) {
-  const rawText = (msg.text || '').trim();
+  const rawText = stripDiscordEditedText(msg.text || '');
+  const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
   const chars = Array.from(rawText);
   const isLong = chars.length > 100;
   const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
@@ -362,11 +363,11 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     if (msg.isBot) html += '<span class="tweet-tag bot">BOT</span>';
   }
 
-  if (msg.replyText || msg.replyAuthor) {
+  if (cleanReplyText || msg.replyAuthor) {
     html += `
       <span class="im-reply-ref">
         <span class="im-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="im-reply-text">${formatTextWithTickers(msg.replyText || '')}</span>
+        <span class="im-reply-text">${formatTextWithTickers(cleanReplyText)}</span>
       </span>
     `;
   }
@@ -1112,6 +1113,25 @@ function loadSlotCache(slots) {
             cache[slot.index].displayName = sourceTitle;
             cache[slot.index].userHandle = sourceSubtitle;
             hasCacheFix = true;
+          }
+          if (Array.isArray(tweets) && tweets.length > 0) {
+            tweets.forEach(t => {
+              if (!t) return;
+              if (typeof t.text === 'string') {
+                const cleanedText = stripDiscordEditedText(t.text);
+                if (cleanedText !== t.text) {
+                  t.text = cleanedText;
+                  hasCacheFix = true;
+                }
+              }
+              if (typeof t.replyText === 'string') {
+                const cleanedReply = stripDiscordEditedText(t.replyText);
+                if (cleanedReply !== t.replyText) {
+                  t.replyText = cleanedReply;
+                  hasCacheFix = true;
+                }
+              }
+            });
           }
         } else {
           if (cache[slot.index].displayName) {

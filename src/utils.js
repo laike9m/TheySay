@@ -96,6 +96,13 @@ async function canReachHost(hostnameOrUrl, timeoutMs = 2500) {
   }
 }
 
+function stripDiscordEditedText(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/\s*[(\uff08]\s*(?:已编辑|已編輯|edited)\s*[)\uff09]\s*(?:\d{4}\s*年[^\r\n]*|(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[^\r\n]*)?/gi, '')
+    .replace(/\s*[(\uff08]\s*(?:已编辑|已編輯|edited)\s*[)\uff09][^\r\n]*$/i, '')
+    .trim();
+}
 
 module.exports = {
   escapeHtml,
@@ -104,5 +111,6 @@ module.exports = {
   formatFetchTime,
   showToast,
   isNetworkOnline,
-  canReachHost
+  canReachHost,
+  stripDiscordEditedText
 };

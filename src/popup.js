@@ -1,6 +1,6 @@
 const { shell, ipcRenderer } = require('electron');
 const { getTweetId, isMemberOnlyTweet } = require('./tweet');
-const { escapeHtml } = require('./utils');
+const { escapeHtml, stripDiscordEditedText } = require('./utils');
 const { formatTextWithTickers } = require('./ticker');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
@@ -275,15 +275,16 @@ function getDiscordSlotEl() {
 }
 
 function renderDiscordCardInto(el, msg) {
-  const rawText = (msg.text || '').trim();
+  const rawText = stripDiscordEditedText(msg.text || '');
+  const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
   const timeDisplay = msg.datetime ? new Date(msg.datetime).toLocaleString() : (msg.time || '');
 
   let replyHtml = '';
-  if (msg.replyText || msg.replyAuthor) {
+  if (cleanReplyText || msg.replyAuthor) {
     replyHtml = `
       <div class="discord-popup-reply">
         <span class="discord-popup-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="discord-popup-reply-text">${formatTextWithTickers(msg.replyText || '')}</span>
+        <span class="discord-popup-reply-text">${formatTextWithTickers(cleanReplyText)}</span>
       </div>
     `;
   }

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
@@ -11,6 +11,75 @@ if (typeof app.setAppUserModelId === 'function') {
 }
 
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
+const DEFAULT_WINDOW_WIDTH = 1360;
+const DEFAULT_WINDOW_HEIGHT = 900;
+const MIN_WINDOW_WIDTH = 850;
+const MIN_WINDOW_HEIGHT = 650;
+
+function getWindowStatePath() {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function loadWindowState() {
+  const defaultState = {
+    width: DEFAULT_WINDOW_WIDTH,
+    height: DEFAULT_WINDOW_HEIGHT
+  };
+
+  try {
+    const statePath = getWindowStatePath();
+    if (!fs.existsSync(statePath)) {
+      return defaultState;
+    }
+    const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    if (!saved || typeof saved !== 'object') {
+      return defaultState;
+    }
+
+    let width = Number.isFinite(saved.width)
+      ? Math.max(MIN_WINDOW_WIDTH, Math.round(saved.width))
+      : DEFAULT_WINDOW_WIDTH;
+    let height = Number.isFinite(saved.height)
+      ? Math.max(MIN_WINDOW_HEIGHT, Math.round(saved.height))
+      : DEFAULT_WINDOW_HEIGHT;
+    let x = Number.isFinite(saved.x) ? Math.round(saved.x) : undefined;
+    let y = Number.isFinite(saved.y) ? Math.round(saved.y) : undefined;
+
+    const displays = screen.getAllDisplays();
+    if (Array.isArray(displays) && displays.length > 0 && x !== undefined && y !== undefined) {
+      const isVisibleOnAnyDisplay = displays.some((d) => {
+        const area = d.workArea || d.bounds;
+        return (
+          x < area.x + area.width - 100 &&
+          x + width > area.x + 100 &&
+          y < area.y + area.height - 60 &&
+          y + height > area.y
+        );
+      });
+
+      if (!isVisibleOnAnyDisplay) {
+        x = undefined;
+        y = undefined;
+        const primaryArea = screen.getPrimaryDisplay().workArea;
+        if (primaryArea) {
+          width = Math.max(MIN_WINDOW_WIDTH, Math.min(width, primaryArea.width));
+          height = Math.max(MIN_WINDOW_HEIGHT, Math.min(height, primaryArea.height));
+        }
+      }
+    }
+
+    return {
+      x,
+      y,
+      width,
+      height,
+      isMaximized: Boolean(saved.isMaximized),
+      isFullScreen: Boolean(saved.isFullScreen)
+    };
+  } catch (err) {
+    return defaultState;
+  }
+}
 
 // Discord's web client behaves best when it believes it is plain Chrome; the
 // default Electron UA makes it try to light up desktop-app-only code paths.
@@ -30,11 +99,13 @@ let discordLoginWindow = null;
 const activeNotifications = new Set();
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1360,
-    height: 900,
-    minWidth: 850,
-    minHeight: 650,
+  const windowState = loadWindowState();
+
+  const windowOptions = {
+    width: windowState.width,
+    height: windowState.height,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
     title: 'TheySay - Twitter / X 动态网格看板 (GridStack)',
     icon: ICON_PATH,
     webPreferences: {
@@ -43,7 +114,89 @@ function createWindow() {
       contextIsolation: false,
       backgroundThrottling: false
     }
-  });
+  };
+
+  if (typeof windowState.x === 'number' && typeof windowState.y === 'number') {
+    windowOptions.x = windowState.x;
+    windowOptions.y = windowState.y;
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
+
+  if (windowState.isFullScreen) {
+    mainWindow.setFullScreen(true);
+  } else if (windowState.isMaximized && process.platform !== 'darwin') {
+    mainWindow.maximize();
+  }
+
+  let currentWindowState = {
+    x: windowState.x,
+    y: windowState.y,
+    width: windowState.width,
+    height: windowState.height,
+    isMaximized: Boolean(windowState.isMaximized),
+    isFullScreen: Boolean(windowState.isFullScreen)
+  };
+  let saveStateTimer = null;
+
+  const updateWindowStateFromWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const isMaximized = mainWindow.isMaximized();
+    const isFullScreen = mainWindow.isFullScreen();
+    const isMinimized = mainWindow.isMinimized();
+
+    currentWindowState.isMaximized = isMaximized;
+    currentWindowState.isFullScreen = isFullScreen;
+
+    const canRecordNormalBounds =
+      process.platform === 'darwin'
+        ? !isFullScreen && !isMinimized
+        : !isMaximized && !isFullScreen && !isMinimized;
+
+    if (canRecordNormalBounds) {
+      const bounds = mainWindow.getBounds();
+      if (bounds.width >= MIN_WINDOW_WIDTH && bounds.height >= MIN_WINDOW_HEIGHT) {
+        currentWindowState.x = bounds.x;
+        currentWindowState.y = bounds.y;
+        currentWindowState.width = bounds.width;
+        currentWindowState.height = bounds.height;
+      }
+    }
+  };
+
+  const writeWindowStateSync = () => {
+    if (saveStateTimer) {
+      clearTimeout(saveStateTimer);
+      saveStateTimer = null;
+    }
+    updateWindowStateFromWindow();
+    try {
+      const statePath = getWindowStatePath();
+      fs.mkdirSync(path.dirname(statePath), { recursive: true });
+      fs.writeFileSync(statePath, JSON.stringify(currentWindowState, null, 2) + '\n', 'utf8');
+    } catch (err) {
+      console.warn('[WindowState] Failed to save window state:', err.message);
+    }
+  };
+
+  const scheduleSaveWindowState = () => {
+    updateWindowStateFromWindow();
+    if (saveStateTimer) {
+      clearTimeout(saveStateTimer);
+    }
+    saveStateTimer = setTimeout(() => {
+      saveStateTimer = null;
+      writeWindowStateSync();
+    }, 150);
+  };
+
+  mainWindow.on('resize', scheduleSaveWindowState);
+  mainWindow.on('move', scheduleSaveWindowState);
+  mainWindow.on('maximize', scheduleSaveWindowState);
+  mainWindow.on('unmaximize', scheduleSaveWindowState);
+  mainWindow.on('enter-full-screen', scheduleSaveWindowState);
+  mainWindow.on('leave-full-screen', scheduleSaveWindowState);
+  mainWindow.on('close', writeWindowStateSync);
 
   mainWindow.loadFile('index.html');
 

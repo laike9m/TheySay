@@ -627,7 +627,7 @@ body {
 /* Dashboard Container */
 .dashboard-container {
   height: calc(100vh - 50px);
-  padding: 8px;
+  padding: 0 8px 8px;
   overflow-y: auto;
   box-sizing: border-box;
 }

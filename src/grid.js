@@ -4,7 +4,7 @@ const { saveGridLayout } = require('./storage');
 const { updateSlotSizeUI, slotHasContent } = require('./slot');
 
 function calculateCellHeight(rows) {
-  const availableHeight = window.innerHeight - 70; // top nav + padding
+  const availableHeight = window.innerHeight - 62; // top nav (50px) + bottom padding
   const margin = 8;
   const totalMargin = (rows - 1) * margin;
   return Math.max(160, Math.floor((availableHeight - totalMargin) / rows));

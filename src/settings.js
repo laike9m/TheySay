@@ -6,7 +6,8 @@ const {
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_TICKER_HIGHLIGHT_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
-  DEFAULT_TICKER_BG_COLOR
+  DEFAULT_TICKER_BG_COLOR,
+  DEFAULT_HEADER_BG_COLOR
 } = require('./constants');
 const {
   getTwitterIntervalMinutes,
@@ -22,13 +23,19 @@ const {
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,
-  saveTickerBgColor
+  saveTickerBgColor,
+  getHeaderBgColor,
+  saveHeaderBgColor
 } = require('./storage');
 const {
   applyTickerColors,
   syncOnlineTickers,
   getTickerStats
 } = require('./ticker');
+const {
+  applyHeaderColor,
+  resolveHeaderPalette
+} = require('./theme');
 const { showToast } = require('./utils');
 
 let isInitialized = false;
@@ -74,6 +81,46 @@ function normalizeHexColor(val, fallback) {
     return `#${str.toLowerCase()}`;
   }
   return fallback;
+}
+
+function updateHeaderPreviewUI(bgColor, { liveApply = false } = {}) {
+  const palette = resolveHeaderPalette(bgColor);
+
+  const barEl = document.getElementById('setting-header-preview-bar');
+  const nameEl = document.getElementById('setting-header-preview-name');
+  const handleEl = document.getElementById('setting-header-preview-handle');
+  const dragEl = document.getElementById('setting-header-preview-drag');
+  const iconEl = document.getElementById('setting-header-preview-icon');
+
+  if (barEl) {
+    barEl.style.backgroundColor = palette.bg;
+    barEl.style.borderBottomColor = palette.border;
+  }
+  if (nameEl) nameEl.style.color = palette.text;
+  if (handleEl) handleEl.style.color = palette.subtext;
+  if (dragEl) dragEl.style.color = palette.subtext;
+  if (iconEl) iconEl.style.color = palette.subtext;
+
+  const presetChips = document.querySelectorAll('#setting-header-presets .header-preset-chip');
+  presetChips.forEach(btn => {
+    const pBg = (btn.getAttribute('data-bg') || '').toLowerCase();
+    btn.classList.toggle('active', pBg === palette.bg);
+  });
+
+  if (liveApply) {
+    applyHeaderColor(palette.bg);
+  }
+}
+
+function setHeaderColorInputs(bgColor, { liveApply = false } = {}) {
+  const bg = normalizeHexColor(bgColor, DEFAULT_HEADER_BG_COLOR);
+  const bgInput = document.getElementById('setting-header-bg-color');
+  const bgHex = document.getElementById('setting-header-bg-hex');
+
+  if (bgInput) bgInput.value = bg;
+  if (bgHex) bgHex.value = bg;
+
+  updateHeaderPreviewUI(bg, { liveApply });
 }
 
 function updateTickerPreviewUI(fgColor, bgColor, enabled = true) {
@@ -169,6 +216,7 @@ function loadCurrentSettings() {
     tickerEnabledSelect.value = tickerEnabled ? 'true' : 'false';
   }
 
+  setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
   setTickerColorInputs(getTickerFgColor(), getTickerBgColor(), tickerEnabled);
   refreshTickerStatsLabel();
 }
@@ -183,10 +231,13 @@ function openSettingsModal() {
   if (btnSettings) btnSettings.classList.add('active');
 }
 
-function closeSettingsModal() {
+function closeSettingsModal({ revert = true } = {}) {
   const overlay = getOverlay();
   if (!overlay) return;
 
+  if (revert) {
+    applyHeaderColor(getHeaderBgColor());
+  }
   overlay.classList.add('is-closed');
   const btnSettings = document.getElementById('btn-settings');
   if (btnSettings) btnSettings.classList.remove('active');
@@ -211,6 +262,9 @@ function initSettings({ onSave } = {}) {
   const discordCustomWrap = document.getElementById('setting-discord-custom-wrap');
   const discordCustomInput = document.getElementById('setting-discord-custom');
 
+  const headerBgInput = document.getElementById('setting-header-bg-color');
+  const headerBgHex = document.getElementById('setting-header-bg-hex');
+
   const tickerEnabledSelect = document.getElementById('setting-ticker-enabled');
   const tickerFgInput = document.getElementById('setting-ticker-fg-color');
   const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
@@ -222,7 +276,7 @@ function initSettings({ onSave } = {}) {
     btnSettings.addEventListener('click', (e) => {
       e.stopPropagation();
       if (isSettingsModalOpen()) {
-        closeSettingsModal();
+        closeSettingsModal({ revert: true });
       } else {
         openSettingsModal();
       }
@@ -230,17 +284,17 @@ function initSettings({ onSave } = {}) {
   }
 
   if (btnClose) {
-    btnClose.addEventListener('click', closeSettingsModal);
+    btnClose.addEventListener('click', () => closeSettingsModal({ revert: true }));
   }
 
   if (btnCancel) {
-    btnCancel.addEventListener('click', closeSettingsModal);
+    btnCancel.addEventListener('click', () => closeSettingsModal({ revert: true }));
   }
 
   if (overlay) {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        closeSettingsModal();
+        closeSettingsModal({ revert: true });
       }
     });
   }
@@ -264,6 +318,42 @@ function initSettings({ onSave } = {}) {
       }
     });
   }
+
+  const getCurrentFormHeaderBg = () =>
+    normalizeHexColor(
+      headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
+      DEFAULT_HEADER_BG_COLOR
+    );
+
+  if (headerBgInput && headerBgHex) {
+    headerBgInput.addEventListener('input', () => {
+      headerBgHex.value = headerBgInput.value.toLowerCase();
+      updateHeaderPreviewUI(getCurrentFormHeaderBg(), { liveApply: true });
+    });
+    headerBgHex.addEventListener('input', () => {
+      const val = headerBgHex.value.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+        headerBgInput.value = val.toLowerCase();
+        updateHeaderPreviewUI(val.toLowerCase(), { liveApply: true });
+      }
+    });
+    headerBgHex.addEventListener('blur', () => {
+      const norm = normalizeHexColor(
+        headerBgHex.value,
+        headerBgInput.value || DEFAULT_HEADER_BG_COLOR
+      );
+      headerBgHex.value = norm;
+      headerBgInput.value = norm;
+      updateHeaderPreviewUI(norm, { liveApply: true });
+    });
+  }
+
+  document.querySelectorAll('#setting-header-presets .header-preset-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bg = btn.getAttribute('data-bg') || DEFAULT_HEADER_BG_COLOR;
+      setHeaderColorInputs(bg, { liveApply: true });
+    });
+  });
 
   const getCurrentFormTickerState = () => ({
     enabled: !tickerEnabledSelect || tickerEnabledSelect.value === 'true',
@@ -386,6 +476,7 @@ function initSettings({ onSave } = {}) {
       if (tickerEnabledSelect) {
         tickerEnabledSelect.value = DEFAULT_TICKER_HIGHLIGHT_ENABLED ? 'true' : 'false';
       }
+      setHeaderColorInputs(DEFAULT_HEADER_BG_COLOR, { liveApply: true });
       setTickerColorInputs(
         DEFAULT_TICKER_FG_COLOR,
         DEFAULT_TICKER_BG_COLOR,
@@ -435,6 +526,8 @@ function initSettings({ onSave } = {}) {
         discordSoundEnabled = discordSoundSelect.value === 'true';
       }
 
+      const headerBgColor = getCurrentFormHeaderBg();
+      const headerPalette = resolveHeaderPalette(headerBgColor);
       const { enabled: tickerHighlightEnabled, fg: tickerFgColor, bg: tickerBgColor } =
         getCurrentFormTickerState();
 
@@ -442,6 +535,8 @@ function initSettings({ onSave } = {}) {
       saveDiscordIntervalMinutes(discordMinutes);
       saveShowMemberOnlyTweets(showMemberOnly);
       saveDiscordSoundEnabled(discordSoundEnabled);
+      saveHeaderBgColor(headerBgColor);
+      applyHeaderColor(headerBgColor);
       saveTickerHighlightEnabled(tickerHighlightEnabled);
       saveTickerFgColor(tickerFgColor);
       saveTickerBgColor(tickerBgColor);
@@ -453,6 +548,7 @@ function initSettings({ onSave } = {}) {
           discordMinutes,
           showMemberOnly,
           discordSoundEnabled,
+          headerBgColor,
           tickerHighlightEnabled,
           tickerFgColor,
           tickerBgColor
@@ -463,8 +559,12 @@ function initSettings({ onSave } = {}) {
       const memberText = showMemberOnly ? '显示会员推文' : '隐藏会员推文';
       const tickerText = tickerHighlightEnabled ? 'Ticker高亮开启' : 'Ticker高亮关闭';
       const soundText = discordSoundEnabled ? 'Discord 提示音开启' : 'Discord 已静音';
-      showToast(`设置已保存 (Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText}, ${tickerText}, ${soundText})`, 'success', 2500);
-      closeSettingsModal();
+      showToast(
+        `设置已保存 (Title栏: ${headerPalette.name}, Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText}, ${tickerText}, ${soundText})`,
+        'success',
+        2500
+      );
+      closeSettingsModal({ revert: false });
     });
   }
 
@@ -472,7 +572,7 @@ function initSettings({ onSave } = {}) {
     if (e.key === 'Escape' && isSettingsModalOpen()) {
       e.preventDefault();
       e.stopPropagation();
-      closeSettingsModal();
+      closeSettingsModal({ revert: true });
     }
   };
 
@@ -481,7 +581,7 @@ function initSettings({ onSave } = {}) {
 
   if (ipcRenderer) {
     ipcRenderer.on('global-escape', () => {
-      if (isSettingsModalOpen()) closeSettingsModal();
+      if (isSettingsModalOpen()) closeSettingsModal({ revert: true });
     });
   }
 }

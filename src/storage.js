@@ -19,6 +19,7 @@ const {
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
+  STORAGE_HEADER_BG_COLOR_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
@@ -26,7 +27,8 @@ const {
   DEFAULT_SLOT_MUTED,
   DEFAULT_TICKER_HIGHLIGHT_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
-  DEFAULT_TICKER_BG_COLOR
+  DEFAULT_TICKER_BG_COLOR,
+  DEFAULT_HEADER_BG_COLOR
 } = require('./constants');
 
 function getSavedHandles() {
@@ -310,6 +312,24 @@ function saveTickerRemoteCache(data) {
   } catch (e) {}
 }
 
+function getHeaderBgColor() {
+  try {
+    const raw = localStorage.getItem(STORAGE_HEADER_BG_COLOR_KEY);
+    if (raw && /^#[0-9A-Fa-f]{6}$/.test(raw.trim())) {
+      return raw.trim().toLowerCase();
+    }
+  } catch (e) {}
+  return DEFAULT_HEADER_BG_COLOR;
+}
+
+function saveHeaderBgColor(color) {
+  try {
+    if (color && /^#[0-9A-Fa-f]{6}$/.test(color.trim())) {
+      localStorage.setItem(STORAGE_HEADER_BG_COLOR_KEY, color.trim().toLowerCase());
+    }
+  } catch (e) {}
+}
+
 module.exports = {
   getSavedHandles,
   saveHandles,
@@ -346,5 +366,7 @@ module.exports = {
   getTickerBgColor,
   saveTickerBgColor,
   getTickerRemoteCache,
-  saveTickerRemoteCache
+  saveTickerRemoteCache,
+  getHeaderBgColor,
+  saveHeaderBgColor
 };

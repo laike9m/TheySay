@@ -25,6 +25,7 @@ const STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY = 'theysay_ticker_highlight_enabled';
 const STORAGE_TICKER_FG_COLOR_KEY = 'theysay_ticker_fg_color';
 const STORAGE_TICKER_BG_COLOR_KEY = 'theysay_ticker_bg_color';
 const STORAGE_TICKER_REMOTE_CACHE_KEY = 'theysay_ticker_remote_cache';
+const STORAGE_HEADER_BG_COLOR_KEY = 'theysay_header_bg_color';
 
 const DEFAULT_TWITTER_INTERVAL_MINUTES = 10;
 const DEFAULT_DISCORD_INTERVAL_MINUTES = 10;
@@ -38,6 +39,7 @@ const DEFAULT_SLOT_MUTED = true;
 const DEFAULT_TICKER_HIGHLIGHT_ENABLED = true;
 const DEFAULT_TICKER_FG_COLOR = '#fde047';
 const DEFAULT_TICKER_BG_COLOR = '#422006';
+const DEFAULT_HEADER_BG_COLOR = '#f3ede2';
 
 const TICKER_COLOR_PRESETS = [
   { id: 'amber', name: '琥珀金', fg: '#fde047', bg: '#422006' },
@@ -46,6 +48,81 @@ const TICKER_COLOR_PRESETS = [
   { id: 'cyberblue', name: '电光蓝', fg: '#38bdf8', bg: '#0c2d48' },
   { id: 'neonpurple', name: '霓虹紫', fg: '#c084fc', bg: '#2e1065' },
   { id: 'crimson', name: '朱砂红', fg: '#fda4af', bg: '#4c0519' }
+];
+
+const HEADER_COLOR_PRESETS = [
+  {
+    id: 'navy',
+    name: '深邃暗夜蓝',
+    bg: '#1e293b',
+    text: '#f8fafc',
+    subtext: '#94a3b8',
+    border: '#0f172a',
+    hoverBg: 'rgba(255, 255, 255, 0.1)',
+    activeIcon: '#38bdf8',
+    activeBg: 'rgba(56, 189, 248, 0.2)',
+    badgeBorder: 'transparent'
+  },
+  {
+    id: 'royalblue',
+    name: '经典天青蓝',
+    bg: '#2563eb',
+    text: '#ffffff',
+    subtext: '#dbeafe',
+    border: '#1d4ed8',
+    hoverBg: 'rgba(255, 255, 255, 0.14)',
+    activeIcon: '#ffffff',
+    activeBg: 'rgba(255, 255, 255, 0.24)',
+    badgeBorder: 'rgba(255, 255, 255, 0.85)'
+  },
+  {
+    id: 'linen',
+    name: '温暖亚麻米',
+    bg: '#f3ede2',
+    text: '#0f1419',
+    subtext: '#536471',
+    border: '#e2d9c8',
+    hoverBg: 'rgba(15, 23, 42, 0.07)',
+    activeIcon: '#1d9bf0',
+    activeBg: 'rgba(29, 155, 240, 0.15)',
+    badgeBorder: 'transparent'
+  },
+  {
+    id: 'mint',
+    name: '清新薄荷绿',
+    bg: '#dff2ea',
+    text: '#0f1419',
+    subtext: '#47655a',
+    border: '#c6e4d8',
+    hoverBg: 'rgba(15, 23, 42, 0.07)',
+    activeIcon: '#1d9bf0',
+    activeBg: 'rgba(29, 155, 240, 0.15)',
+    badgeBorder: 'transparent'
+  },
+  {
+    id: 'lavender',
+    name: '雾光薰衣草紫',
+    bg: '#eae6f9',
+    text: '#0f1419',
+    subtext: '#5b547a',
+    border: '#d8d0f2',
+    hoverBg: 'rgba(15, 23, 42, 0.07)',
+    activeIcon: '#1d9bf0',
+    activeBg: 'rgba(29, 155, 240, 0.15)',
+    badgeBorder: 'transparent'
+  },
+  {
+    id: 'apricot',
+    name: '暖阳奶油杏',
+    bg: '#faeed4',
+    text: '#0f1419',
+    subtext: '#6b5a3e',
+    border: '#ead8b3',
+    hoverBg: 'rgba(15, 23, 42, 0.07)',
+    activeIcon: '#1d9bf0',
+    activeBg: 'rgba(29, 155, 240, 0.15)',
+    badgeBorder: 'transparent'
+  }
 ];
 
 const BACKGROUND_FETCH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes (fallback)
@@ -83,6 +160,7 @@ module.exports = {
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
+  STORAGE_HEADER_BG_COLOR_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
@@ -91,7 +169,9 @@ module.exports = {
   DEFAULT_TICKER_HIGHLIGHT_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
+  DEFAULT_HEADER_BG_COLOR,
   TICKER_COLOR_PRESETS,
+  HEADER_COLOR_PRESETS,
   BACKGROUND_FETCH_INTERVAL_MS,
   DISCORD_PARTITION,
   DISCORD_WEBVIEW_ID,

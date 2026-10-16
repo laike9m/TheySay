@@ -131,6 +131,10 @@ function updateTickerPreviewUI(fgColor, bgColor, enabled = true) {
   if (colorsWrap) {
     colorsWrap.classList.toggle('is-disabled', !enabled);
   }
+  const dualColorGroup = document.querySelector('.ticker-dual-color-group');
+  if (dualColorGroup) {
+    dualColorGroup.classList.toggle('is-disabled', !enabled);
+  }
 
   const previewChips = document.querySelectorAll('#setting-ticker-preview .ticker-preview-chip');
   previewChips.forEach(chip => {
@@ -177,7 +181,7 @@ function refreshTickerStatsLabel() {
   if (!statsEl) return;
   const stats = getTickerStats();
   const countStr = stats && stats.totalCount ? stats.totalCount.toLocaleString() : '9,600+';
-  statsEl.textContent = `已加载 ${countStr} 个 NASDAQ 美股与 ETF 代码，支持 $ 符号与大小写自动匹配（自动排除普通英文单词）。`;
+  statsEl.textContent = `已加载 ${countStr} 个 NASDAQ 美股与 ETF 代码（支持 $ 符号与大小写自动匹配）`;
 }
 
 function loadCurrentSettings() {

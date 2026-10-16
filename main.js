@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen 
 const fs = require('fs');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
+const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/tweet_embed');
 const TICKER_DATA_PATH = path.join(__dirname, 'data', 'ticker-data.json');
 const tickerData = require('./data/ticker-data.json');
 
@@ -200,10 +201,40 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // Ensure external links clicked in iframes / embedded widgets open in system browser
+  // Block automatic popups from embedded tweet iframes; allowed actions
+  // (top-right X logo & Read replies button) open explicitly via postMessage.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (url && url.includes('#__theysay_open')) {
+      shell.openExternal(url.replace('#__theysay_open', ''));
+    }
     return { action: 'deny' };
+  });
+
+  const injectIntoEmbedFrames = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
+      const frames = mainWindow.webContents.mainFrame.framesInSubtree || [];
+      for (const frame of frames) {
+        if (frame && !frame.isDestroyed() && frame.url && frame.url.includes('platform.twitter.com/embed/')) {
+          frame.executeJavaScript(TWEET_EMBED_ENHANCEMENT_SCRIPT).catch(() => {});
+        }
+      }
+    } catch (_) {}
+  };
+
+  mainWindow.webContents.on('frame-created', (event, { frame }) => {
+    if (!frame) return;
+    frame.on('dom-ready', () => {
+      if (!frame.isDestroyed() && frame.url && frame.url.includes('platform.twitter.com/embed/')) {
+        frame.executeJavaScript(TWEET_EMBED_ENHANCEMENT_SCRIPT).catch(() => {});
+      }
+    });
+  });
+
+  mainWindow.webContents.on('did-frame-finish-load', (event, isMainFrame) => {
+    if (!isMainFrame) {
+      injectIntoEmbedFrames();
+    }
   });
 
   // Ensure Cmd+R / Ctrl+R always reloads the main app window, and Escape closes open popups across frames

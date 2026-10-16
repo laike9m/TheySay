@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <base href="https://platform.twitter.com/embed/Tweet.html">
+  <title>Twitter Embed</title>
+  <style>
+    html, body, * {
+      overscroll-behavior: auto !important;
+    }
+  </style>
+  <script>
+    try {
+      if (window.parent && typeof window.parent.__theysayInitEmbedFrame === 'function') {
+        window.parent.__theysayInitEmbedFrame(window, document);
+      }
+    } catch (_) {}
+  </script>
+  <script defer="defer" src="https://platform.twitter.com/embed/embed.runtime.3b19346e5d08b0b587c7.js"></script>
+  <script defer="defer" src="https://platform.twitter.com/embed/embed.9449.78398904051446294e3d.js"></script>
+  <script defer="defer" src="https://platform.twitter.com/embed/embed.Tweet.70198ef24afe05adbecf.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>

@@ -2,6 +2,7 @@ const { shell, ipcRenderer } = require('electron');
 const { getTweetId, isMemberOnlyTweet } = require('./tweet');
 const { escapeHtml, stripDiscordEditedText } = require('./utils');
 const { formatTextWithTickers } = require('./ticker');
+const { installRendererEmbedHooks } = require('./tweet_embed');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
 // Each embed is a real iframe, so this is a memory/latency trade-off.
@@ -488,7 +489,31 @@ function clearTweetWidgetCache() {
   }
 }
 
+function setupEmbedIntegration() {
+  installRendererEmbedHooks({
+    onOpenExternal: (url) => {
+      if (url) shell.openExternal(url);
+    },
+    onEmbedResize: ({ tweetId, embedId, height }) => {
+      if (!height || height <= 0) return;
+      let iframe = embedId ? document.getElementById(embedId) : null;
+      if (!iframe && tweetId) {
+        const entry = embedSlots.get(String(tweetId));
+        if (entry && entry.el) {
+          iframe = entry.el.querySelector('iframe');
+        }
+      }
+      if (iframe) {
+        iframe.style.height = `${Math.ceil(height)}px`;
+      }
+    }
+  });
+}
+
+setupEmbedIntegration();
+
 function initTweetPopup() {
+  setupEmbedIntegration();
   const overlay = getOverlay();
 
   if (overlay) {

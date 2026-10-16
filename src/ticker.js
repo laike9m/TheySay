@@ -31,7 +31,7 @@ const LOCAL_PRICE_BEFORE_RE = /\d+(?:\.\d+)?(?:\s*(?:股|刀|块|以下|以上|�
 // Group 2: Explicit $TICKER cashtags (1-6 letters + optional .A/.B share class, upper or lower)
 // Group 3: Standalone 2-5 letter words (upper or lower, with optional .A/.B share class)
 const TOKEN_RE =
-  /(https?:\/\/[^\s<>"')\]}]+|www\.[^\s<>"')\]}]+|\b[A-Za-z0-9-]+\.(?:com|org|net|io|ai|co|gg|me|dev|app|xyz|tv|us|uk|cn|jp|hk|edu|gov)\b(?:\/[^\s<>"')\]}]*)?|[@#][A-Za-z0-9_.-]+)|((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z])?(?![A-Za-z0-9_]))|((?<![A-Za-z0-9_$@#-])[A-Za-z]{2,5}(?:\.[ABab])?(?![A-Za-z0-9_-]))/g;
+  /(https?:\/\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|www\.[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|\b[A-Za-z0-9-]+\.(?:com|org|net|io|ai|co|gg|me|dev|app|xyz|tv|us|uk|cn|jp|hk|edu|gov)\b(?:\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]*)?|[@#][A-Za-z0-9_.-]+)|((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z])?(?![A-Za-z0-9_]))|((?<![A-Za-z0-9_$@#-])[A-Za-z]{2,5}(?:\.[ABab])?(?![A-Za-z0-9_-]))/g;
 
 function loadCachedRemoteSymbols() {
   const cached = getTickerRemoteCache();
@@ -85,17 +85,20 @@ function isWordTicker(word, rawText, offset, hasTradingContext) {
 
 /**
  * Safely HTML-escapes plain text while wrapping recognized stock/ETF/crypto tickers
- * (both uppercase and lowercase, with or without `$`) in `<span class="ticker-highlight">`.
+ * (both uppercase and lowercase, with or without `$`) in `<span class="ticker-highlight">`,
+ * and optionally converting URLs into clickable `<a class="popup-inline-link">` elements.
  */
-function formatTextWithTickers(rawText, contextText) {
+function formatTextWithTickers(rawText, contextText, options = {}) {
   const str = String(rawText || '');
   if (!str) return '';
-  if (!getTickerHighlightEnabled()) {
+  const linkifyUrls = !!(options && options.linkifyUrls);
+  const highlightTickers = getTickerHighlightEnabled();
+  if (!highlightTickers && !linkifyUrls) {
     return escapeHtml(str);
   }
 
   const fullContext = contextText ? String(contextText) : str;
-  const hasTradingContext = TRADING_CONTEXT_RE.test(fullContext);
+  const hasTradingContext = highlightTickers ? TRADING_CONTEXT_RE.test(fullContext) : false;
   let result = '';
   let lastIndex = 0;
 
@@ -113,10 +116,21 @@ function formatTextWithTickers(rawText, contextText) {
     }
 
     if (urlOrHandle) {
-      result += escapeHtml(fullMatch);
-    } else if (cashtag) {
+      const isHandleOrTag = urlOrHandle[0] === '@' || urlOrHandle[0] === '#';
+      if (linkifyUrls && !isHandleOrTag) {
+        const trailingMatch = urlOrHandle.match(/[.,;:!?]+$/);
+        const cleanUrl = trailingMatch
+          ? urlOrHandle.slice(0, -trailingMatch[0].length)
+          : urlOrHandle;
+        const trailingPunct = trailingMatch ? trailingMatch[0] : '';
+        const href = /^https?:\/\//i.test(cleanUrl) ? cleanUrl : `https://${cleanUrl}`;
+        result += `<a href="#" class="popup-inline-link" data-url="${escapeHtml(href)}">${escapeHtml(cleanUrl)}</a>${escapeHtml(trailingPunct)}`;
+      } else {
+        result += escapeHtml(fullMatch);
+      }
+    } else if (highlightTickers && cashtag) {
       result += `<span class="ticker-highlight">${escapeHtml(cashtag)}</span>`;
-    } else if (word && isWordTicker(word, str, matchIndex, hasTradingContext)) {
+    } else if (highlightTickers && word && isWordTicker(word, str, matchIndex, hasTradingContext)) {
       result += `<span class="ticker-highlight">${escapeHtml(word)}</span>`;
     } else {
       result += escapeHtml(fullMatch);

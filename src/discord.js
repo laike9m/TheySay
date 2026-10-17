@@ -4,7 +4,14 @@ const {
   MAX_DISCORD_MESSAGES
 } = require('./constants');
 const { sleep, showToast, isNetworkOnline, canReachHost, stripDiscordEditedText } = require('./utils');
-const { processAndSortTweets, getTweetKey } = require('./tweet');
+const {
+  processAndSortTweets,
+  getTweetKey,
+  ensureSlotReadTracking,
+  recordSlotReadTweets,
+  shouldMarkScrapedItemUnread,
+  resetSlotReadTracking
+} = require('./tweet');
 const {
   saveHandles,
   saveLastFetchTime,
@@ -12,7 +19,7 @@ const {
   saveDiscordLoggedIn,
   getDiscordSoundEnabled
 } = require('./storage');
-const { waitForWebviewReady, loadWebviewTarget } = require('./webview');
+const { waitForWebviewReady, loadWebviewTarget, executeWebviewScript } = require('./webview');
 const {
   parseDiscordChannelUrl,
   buildDiscordChannelUrl,
@@ -22,10 +29,12 @@ const {
 } = require('./source');
 const {
   updateSlotAvatar,
+  updateSlotHeaderMeta,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
   renderSlotTweets,
+  persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
 } = require('./slot');
@@ -860,9 +869,9 @@ function buildDiscordExtractionScript(guildId, channelId) {
 
 async function runScript(wv, script) {
   try {
-    return await wv.executeJavaScript(script);
+    return await executeWebviewScript(wv, script, 8000);
   } catch (e) {
-    // Thrown while the page is mid-navigation; the caller just polls again.
+    // Thrown while the page is mid-navigation or timed out; the caller just polls again.
     return null;
   }
 }
@@ -1003,12 +1012,15 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     const restored = restoreSlotFromTargetCache(slot, rawInput, slots);
     if (!restored) {
       slot.loadedTweets = [];
+      resetSlotReadTracking(slot);
       slot.monitoredHandle = rawInput;
       updateSlotAvatar(slot, null);
     }
   } else if (!Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) {
     restoreSlotFromTargetCache(slot, rawInput, slots);
   }
+
+  ensureSlotReadTracking(slot);
 
   const hasExisting = (
     getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
@@ -1033,10 +1045,6 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
   slot.isFetching = true;
   if (slot.card) slot.card.classList.add('is-fetching');
-
-  const existingMessages = hasExisting ? slot.loadedTweets : [];
-  const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)));
-  const existingByKey = new Map(existingMessages.map(m => [getTweetKey(m), m]));
 
   if (!hasExisting) {
     showSlotLoading(slot, '正在读取 Discord 频道...');
@@ -1085,6 +1093,18 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       await jumpToPresent(wv);
       await sleep(400);
 
+      // Snapshot existing messages after lock acquisition & navigation so we see
+      // any read-state updates the user made while waiting.
+      ensureSlotReadTracking(slot);
+      const existingMessages = hasExisting && Array.isArray(slot.loadedTweets) ? slot.loadedTweets : [];
+      if (hasExisting) {
+        recordSlotReadTweets(slot, existingMessages);
+      }
+      const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)).filter(Boolean));
+      for (const k of slot.knownKeys) existingKeys.add(k);
+      for (const k of slot.readKeys) existingKeys.add(k);
+      const backfilledByKey = new Map();
+
       const collected = [];
       const seen = new Set();
       let meta = { channelName: '', guildName: '', iconUrl: '' };
@@ -1120,28 +1140,12 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           if (result.guildName) meta.guildName = result.guildName;
           if (result.iconUrl) meta.iconUrl = result.iconUrl;
 
-          // Backfill images / attachments / edited text onto any already-cached messages visible on screen
+          // Record fresh fields for any already-cached messages visible on screen
           for (let i = 0; i < result.items.length; i++) {
             const freshMsg = toSlotMessage(result.items[i], guildId, channelId);
-            const prev = existingByKey.get(getTweetKey(freshMsg));
-            if (prev) {
-              if (freshMsg.text) {
-                prev.text = freshMsg.text;
-              }
-              if (freshMsg.replyText) {
-                prev.replyText = freshMsg.replyText;
-              }
-              if (Array.isArray(freshMsg.images) && freshMsg.images.length > 0) {
-                prev.images = freshMsg.images;
-              } else if (!Array.isArray(prev.images)) {
-                prev.images = [];
-              }
-              if (Array.isArray(freshMsg.attachments)) {
-                prev.attachments = freshMsg.attachments;
-              }
-              if (freshMsg.avatarUrl && !prev.avatarUrl) {
-                prev.avatarUrl = freshMsg.avatarUrl;
-              }
+            const freshKey = getTweetKey(freshMsg);
+            if (freshKey && existingKeys.has(freshKey)) {
+              backfilledByKey.set(freshKey, freshMsg);
             }
           }
 
@@ -1157,7 +1161,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
               reachedBoundary = true;
               break;
             }
-            msg.isUnread = true;
+            msg.isUnread = hasExisting ? shouldMarkScrapedItemUnread(slot, msg) : true;
             collected.push(msg);
           }
         }
@@ -1171,16 +1175,55 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         await sleep(600);
       }
 
+      // Leave the channel pinned to the newest message for the next crawl.
+      if (hasExisting && collected.length > 0) await jumpToPresent(wv);
+
+      // Re-read the live slot messages right before merging/rendering so any
+      // mark-as-read interactions during scraping are strictly preserved.
+      const liveExistingMessages = (
+        hasExisting &&
+        getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
+        Array.isArray(slot.loadedTweets) &&
+        slot.loadedTweets.length > 0
+      ) ? slot.loadedTweets : existingMessages;
+
+      let backfillChanged = false;
       if (hasExisting) {
-        existingMessages.forEach(m => {
+        liveExistingMessages.forEach(m => {
           if (!Array.isArray(m.images)) m.images = [];
           if (typeof m.text === 'string') m.text = stripDiscordEditedText(m.text);
           if (typeof m.replyText === 'string') m.replyText = stripDiscordEditedText(m.replyText);
-        });
-      }
 
-      // Leave the channel pinned to the newest message for the next crawl.
-      if (hasExisting && collected.length > 0) await jumpToPresent(wv);
+          const freshMsg = backfilledByKey.get(getTweetKey(m));
+          if (freshMsg) {
+            if (freshMsg.text && freshMsg.text !== m.text) {
+              m.text = freshMsg.text;
+              backfillChanged = true;
+            }
+            if (freshMsg.replyText && freshMsg.replyText !== m.replyText) {
+              m.replyText = freshMsg.replyText;
+              backfillChanged = true;
+            }
+            if (Array.isArray(freshMsg.images) && freshMsg.images.length > 0) {
+              if (JSON.stringify(m.images) !== JSON.stringify(freshMsg.images)) {
+                m.images = freshMsg.images;
+                backfillChanged = true;
+              }
+            }
+            if (Array.isArray(freshMsg.attachments)) {
+              if (JSON.stringify(m.attachments || []) !== JSON.stringify(freshMsg.attachments)) {
+                m.attachments = freshMsg.attachments;
+                backfillChanged = true;
+              }
+            }
+            if (freshMsg.avatarUrl && !m.avatarUrl) {
+              m.avatarUrl = freshMsg.avatarUrl;
+              backfillChanged = true;
+            }
+          }
+        });
+        recordSlotReadTweets(slot, liveExistingMessages);
+      }
 
       slot.monitoredHandle = rawInput;
       slot.source = SOURCE_DISCORD;
@@ -1215,14 +1258,20 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
       if (collected.length === 0 && hasExisting) {
         if (!isBackground) showToast(`${channelLabel} 已是最新，暂无新消息`, 'info', 2000);
-        renderSlotTweets(
-          slot,
-          processAndSortTweets(existingMessages),
-          rawInput,
-          meta.iconUrl || null,
-          slots,
-          renderMeta
-        );
+        if (backfillChanged) {
+          renderSlotTweets(
+            slot,
+            processAndSortTweets(liveExistingMessages),
+            rawInput,
+            meta.iconUrl || null,
+            slots,
+            renderMeta
+          );
+        } else {
+          if (meta.iconUrl) updateSlotAvatar(slot, meta.iconUrl);
+          updateSlotHeaderMeta(slot, renderMeta);
+          persistSlot(slot, slots);
+        }
         return;
       }
 
@@ -1231,22 +1280,23 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         return;
       }
 
-      if (hasExisting) {
-        showToast(`${channelLabel} 抓取到 ${collected.length} 条新消息`, 'success', 2500);
+      const newUnreadItems = collected.filter(m => m.isUnread !== false);
+      if (hasExisting && newUnreadItems.length > 0) {
+        showToast(`${channelLabel} 抓取到 ${newUnreadItems.length} 条新消息`, 'success', 2500);
       }
 
-      const merged = processAndSortTweets([...collected, ...existingMessages]);
+      const merged = processAndSortTweets([...liveExistingMessages, ...collected]);
       renderSlotTweets(
         slot,
-        merged.slice(-Math.max(MAX_DISCORD_MESSAGES, existingMessages.length)),
+        merged.slice(-Math.max(MAX_DISCORD_MESSAGES, liveExistingMessages.length)),
         rawInput,
         meta.iconUrl || null,
         slots,
         renderMeta
       );
 
-      if (hasExisting && collected.length > 0) {
-        notifySlotNewMessages(slot, collected);
+      if (hasExisting && newUnreadItems.length > 0) {
+        notifySlotNewMessages(slot, newUnreadItems);
       }
     });
   } catch (err) {

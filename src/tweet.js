@@ -30,11 +30,12 @@ function getTweetTimestamp(tweet) {
 }
 
 function getTweetKey(tweet) {
-  const prefix = tweet.source ? `${tweet.source}_` : '';
+  if (!tweet) return '';
+  const prefix = tweet.source === 'discord' ? 'discord_' : '';
   const id = getTweetId(tweet);
   if (id) return `${prefix}id_${id}`;
   if (tweet.url) return `${prefix}url_${tweet.url}`;
-  return `${prefix}txt_${(tweet.text || '').slice(0, 40)}_${tweet.time || ''}`;
+  return `${prefix}txt_${(tweet.text || '').slice(0, 40)}_${tweet.datetime || tweet.time || ''}`;
 }
 
 function processAndSortTweets(tweets) {
@@ -48,12 +49,26 @@ function processAndSortTweets(tweets) {
     isMemberOnly: isMemberOnlyTweet(t)
   }));
 
-  // 2. Deduplicate by unique key
+  // 2. Deduplicate by unique key (preserving isUnread: false and backfilled fields)
   const uniqueMap = new Map();
   for (const t of normalized) {
     const key = getTweetKey(t);
     if (!uniqueMap.has(key)) {
       uniqueMap.set(key, t);
+    } else {
+      const prev = uniqueMap.get(key);
+      if (prev.isUnread === false || t.isUnread === false) {
+        prev.isUnread = false;
+      }
+      if (!prev.avatarUrl && t.avatarUrl) prev.avatarUrl = t.avatarUrl;
+      if (t.hasQuote && !prev.hasQuote) prev.hasQuote = true;
+      if (t.quoteUrl && !prev.quoteUrl) prev.quoteUrl = t.quoteUrl;
+      if (Array.isArray(t.images) && t.images.length > 0 && (!Array.isArray(prev.images) || prev.images.length === 0)) {
+        prev.images = t.images;
+      }
+      if (Array.isArray(t.attachments) && t.attachments.length > 0 && (!Array.isArray(prev.attachments) || prev.attachments.length === 0)) {
+        prev.attachments = t.attachments;
+      }
     }
   }
   const uniqueTweets = Array.from(uniqueMap.values());
@@ -204,6 +219,107 @@ function isMemberOnlyTweet(tweet) {
   return false;
 }
 
+const MAX_TRACKED_KEYS = 500;
+
+function ensureSlotReadTracking(slot, cachedEntry = null) {
+  if (!slot) return;
+  if (!(slot.readKeys instanceof Set)) {
+    slot.readKeys = new Set(Array.isArray(slot.readKeys) ? slot.readKeys : []);
+  }
+  if (!(slot.knownKeys instanceof Set)) {
+    slot.knownKeys = new Set(Array.isArray(slot.knownKeys) ? slot.knownKeys : []);
+  }
+  if (typeof slot.maxReadTimestamp !== 'number' || isNaN(slot.maxReadTimestamp)) {
+    slot.maxReadTimestamp = 0;
+  }
+  if (cachedEntry && typeof cachedEntry === 'object') {
+    if (Array.isArray(cachedEntry.readKeys)) {
+      cachedEntry.readKeys.forEach(k => {
+        if (k) slot.readKeys.add(k);
+      });
+    }
+    if (Array.isArray(cachedEntry.knownKeys)) {
+      cachedEntry.knownKeys.forEach(k => {
+        if (k) slot.knownKeys.add(k);
+      });
+    }
+    if (typeof cachedEntry.maxReadTimestamp === 'number' && cachedEntry.maxReadTimestamp > slot.maxReadTimestamp) {
+      slot.maxReadTimestamp = cachedEntry.maxReadTimestamp;
+    }
+    if (Array.isArray(cachedEntry.tweets)) {
+      cachedEntry.tweets.forEach(t => {
+        if (!t) return;
+        const k = getTweetKey(t);
+        if (k) slot.knownKeys.add(k);
+        if (!t.isUnread) {
+          if (k) slot.readKeys.add(k);
+          const ts = getTweetTimestamp(t);
+          if (!t.isPinned && ts > slot.maxReadTimestamp) {
+            slot.maxReadTimestamp = ts;
+          }
+        }
+      });
+    }
+  }
+}
+
+function recordSlotReadTweets(slot, tweets = null) {
+  if (!slot) return;
+  ensureSlotReadTracking(slot);
+  const list = Array.isArray(tweets) ? tweets : (Array.isArray(slot.loadedTweets) ? slot.loadedTweets : []);
+  for (const t of list) {
+    if (!t) continue;
+    const key = getTweetKey(t);
+    const ts = getTweetTimestamp(t);
+    if (key) {
+      slot.knownKeys.add(key);
+    }
+    if (key && slot.readKeys.has(key)) {
+      t.isUnread = false;
+    }
+    if (!t.isUnread) {
+      if (key) slot.readKeys.add(key);
+      if (!t.isPinned && ts > slot.maxReadTimestamp) {
+        slot.maxReadTimestamp = ts;
+      }
+    }
+  }
+}
+
+function shouldMarkScrapedItemUnread(slot, item) {
+  if (!item) return false;
+  if (!slot) return true;
+  ensureSlotReadTracking(slot);
+  const key = getTweetKey(item);
+  if (key && (slot.readKeys.has(key) || slot.knownKeys.has(key))) {
+    return false;
+  }
+  const ts = getTweetTimestamp(item);
+  if (ts > 0 && slot.maxReadTimestamp > 0 && ts <= slot.maxReadTimestamp) {
+    return false;
+  }
+  return true;
+}
+
+function serializeSlotReadTracking(slot) {
+  if (!slot) {
+    return { readKeys: [], knownKeys: [], maxReadTimestamp: 0 };
+  }
+  ensureSlotReadTracking(slot);
+  return {
+    readKeys: Array.from(slot.readKeys).slice(-MAX_TRACKED_KEYS),
+    knownKeys: Array.from(slot.knownKeys).slice(-MAX_TRACKED_KEYS),
+    maxReadTimestamp: slot.maxReadTimestamp || 0
+  };
+}
+
+function resetSlotReadTracking(slot) {
+  if (!slot) return;
+  slot.readKeys = new Set();
+  slot.knownKeys = new Set();
+  slot.maxReadTimestamp = 0;
+}
+
 module.exports = {
   getTweetId,
   getTweetTimestamp,
@@ -216,6 +332,11 @@ module.exports = {
   isTweetTruncated,
   isTweetWithQuote,
   shouldShowTweetPopup,
-  isMemberOnlyTweet
+  isMemberOnlyTweet,
+  ensureSlotReadTracking,
+  recordSlotReadTweets,
+  shouldMarkScrapedItemUnread,
+  serializeSlotReadTracking,
+  resetSlotReadTracking
 };
 

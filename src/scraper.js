@@ -1,6 +1,13 @@
 const { BACKGROUND_FETCH_INTERVAL_MS } = require('./constants');
 const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
-const { getTweetKey, processAndSortTweets } = require('./tweet');
+const {
+  getTweetKey,
+  processAndSortTweets,
+  ensureSlotReadTracking,
+  recordSlotReadTweets,
+  shouldMarkScrapedItemUnread,
+  resetSlotReadTracking
+} = require('./tweet');
 const {
   saveHandles,
   getLastFetchTime,
@@ -12,13 +19,19 @@ const {
   getTwitterIntervalMinutes,
   getDiscordIntervalMinutes
 } = require('./storage');
-const { getOrCreateSlotWebview, waitForWebviewReady, loadWebviewTarget } = require('./webview');
+const {
+  getOrCreateSlotWebview,
+  waitForWebviewReady,
+  loadWebviewTarget,
+  executeWebviewScript
+} = require('./webview');
 const {
   updateSlotAvatar,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
   renderSlotTweets,
+  persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
 } = require('./slot');
@@ -117,14 +130,16 @@ function buildExtractionScript(handle) {
 
       const items = [];
       for (const article of articles) {
-        const statusLink = article.querySelector('a[href*="/status/"]');
+        const timeEl = article.querySelector('time');
+        const userNameEl = article.querySelector('[data-testid="User-Name"]');
+        const statusLink = (timeEl && timeEl.closest('a[href*="/status/"]')) ||
+          (userNameEl && userNameEl.querySelector('a[href*="/status/"]')) ||
+          article.querySelector('a[href*="/status/"]');
         const tweetUrl = statusLink ? statusLink.getAttribute('href') : '';
         let textEl = article.querySelector('[data-testid="tweetText"]');
         if (!textEl) {
           textEl = article.querySelector('[class*="whitespace-pre-wrap"]:not(a)');
         }
-        const timeEl = article.querySelector('time');
-        const userNameEl = article.querySelector('[data-testid="User-Name"]');
 
         let isPinned = false;
         let isRetweet = false;
@@ -308,6 +323,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     archiveSlotScrapedData(slot);
     const restored = restoreSlotFromTargetCache(slot, handle, slots);
     if (!restored) {
+      resetSlotReadTracking(slot);
       slot.loadedTweets = [];
       slot.monitoredHandle = handle;
       updateSlotAvatar(slot, null);
@@ -323,7 +339,15 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     slot.loadedTweets.length > 0
   );
   const existingTweets = hasExisting ? slot.loadedTweets : [];
-  const existingKeys = new Set(existingTweets.map(t => getTweetKey(t)));
+  ensureSlotReadTracking(slot);
+  if (hasExisting) {
+    recordSlotReadTweets(slot, existingTweets);
+  }
+  const existingKeys = new Set([
+    ...existingTweets.map(t => getTweetKey(t)),
+    ...(slot.knownKeys || []),
+    ...(slot.readKeys || [])
+  ]);
 
   // Skip fetching altogether when the network is disconnected
   if (!(await canReachHost('x.com'))) {
@@ -364,8 +388,16 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
       return { ok: false, offline: true };
     }
 
+    // Ensure the background webview starts at the very top of the profile timeline
+    // so Chromium scroll restoration never hides new top tweets above the fold.
+    await executeWebviewScript(
+      bgWebview,
+      "try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; window.scrollTo(0, 0); } catch (e) {}",
+      3000
+    );
+
     // Brief grace period for Twitter SPA hydration
-    await sleep(400);
+    await sleep(450);
 
     const INITIAL_TARGET_COUNT = 5;
     const collectedNewTweets = [];
@@ -393,7 +425,15 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
       try {
         const extractionScript = buildExtractionScript(handle);
-        const result = await bgWebview.executeJavaScript(extractionScript);
+        const result = await executeWebviewScript(bgWebview, extractionScript, 8000);
+
+        if (!result) {
+          consecutiveEmptyScrolls++;
+          if (consecutiveEmptyScrolls >= 5) {
+            break;
+          }
+          continue;
+        }
 
         if (result && result.error) {
           if (!hasExisting) {
@@ -419,23 +459,19 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
           for (const item of result.items) {
             const key = getTweetKey(item);
-            if (seenInThisRun.has(key)) continue;
+            if (!key || seenInThisRun.has(key)) continue;
             seenInThisRun.add(key);
 
             // Boundary detection: if this normal tweet was already fetched before
-            if (hasExisting && !item.isPinned) {
-              if (boundaryKey && key === boundaryKey) {
+            if (hasExisting && !item.isPinned && !item.isRetweet) {
+              if ((boundaryKey && key === boundaryKey) || existingKeys.has(key)) {
                 reachedBoundary = true;
-                break;
-              }
-              if (existingKeys.has(key)) {
-                reachedBoundary = true;
-                break;
+                continue;
               }
             }
 
             if (!existingKeys.has(key)) {
-              item.isUnread = true;
+              item.isUnread = hasExisting ? shouldMarkScrapedItemUnread(slot, item) : true;
               collectedNewTweets.push(item);
               foundNewOnThisScroll++;
             }
@@ -459,7 +495,11 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
           }
 
           const scrollDistance = randomBetween(650, 1050);
-          await bgWebview.executeJavaScript(`window.scrollBy({ top: ${scrollDistance}, behavior: 'smooth' });`);
+          await executeWebviewScript(
+            bgWebview,
+            `window.scrollBy({ top: ${scrollDistance}, behavior: 'smooth' });`,
+            3000
+          );
           await sleep(randomBetween(300, 600));
 
           if (consecutiveEmptyScrolls >= 5) {
@@ -478,6 +518,14 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
       return { ok: false, offline: true };
     }
 
+    // Ensure slot wasn't switched to a different target while the scrape was in flight
+    const currentSlotHandle = normalizeTwitterHandle(
+      slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')
+    ).toLowerCase();
+    if (currentSlotHandle && currentSlotHandle !== handle.toLowerCase()) {
+      return { ok: false };
+    }
+
     if (!latestAvatarUrl && handle) {
       latestAvatarUrl = (slot.avatarImg && slot.avatarImg.src) || `https://unavatar.io/x/${handle}`;
       updateSlotAvatar(slot, latestAvatarUrl);
@@ -489,25 +537,61 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     saveLastFetchTimeTwitter(slot.lastFetchedAt);
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 
+    // Always read the live slot.loadedTweets right at merge time so any mark-as-read
+    // action performed by the user while the scrape was running is preserved.
+    const liveExistingTweets = (
+      hasExisting &&
+      Array.isArray(slot.loadedTweets) &&
+      slot.loadedTweets.length > 0
+    )
+      ? slot.loadedTweets
+      : existingTweets;
+    if (liveExistingTweets.length > 0) {
+      recordSlotReadTweets(slot, liveExistingTweets);
+    }
+
     if (hasExisting) {
       if (collectedNewTweets.length === 0) {
         if (!isBackground) {
           showToast(`@${handle} 已是最新，暂无新推文`, 'info', 2000);
         }
-        const sortedExisting = processAndSortTweets(existingTweets);
-        renderSlotTweets(slot, sortedExisting, handle, latestAvatarUrl, slots);
+        if (slot.tweetsList && slot.tweetsList.children.length > 0 && liveExistingTweets.length > 0) {
+          persistSlot(slot, {
+            handle,
+            displayName: slot.authorName ? slot.authorName.innerText : '',
+            userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+            tweets: liveExistingTweets,
+            avatarUrl: latestAvatarUrl || (slot.avatarImg && slot.avatarImg.src) || ''
+          }, slots);
+        } else {
+          const sortedExisting = processAndSortTweets(liveExistingTweets);
+          recordSlotReadTweets(slot, sortedExisting);
+          renderSlotTweets(slot, sortedExisting, handle, latestAvatarUrl, slots);
+        }
       } else {
-        showToast(`@${handle} 抓取到 ${collectedNewTweets.length} 条新推文`, 'success', 2500);
-        const merged = [...collectedNewTweets, ...existingTweets];
+        collectedNewTweets.forEach(item => {
+          if (!shouldMarkScrapedItemUnread(slot, item)) {
+            item.isUnread = false;
+          }
+        });
+        const unreadNewTweets = collectedNewTweets.filter(t => t.isUnread);
+        const merged = [...liveExistingTweets, ...collectedNewTweets];
         const sorted = processAndSortTweets(merged);
-        const finalTweets = sorted.slice(-Math.max(20, existingTweets.length));
+        const finalTweets = sorted.slice(-Math.max(20, liveExistingTweets.length));
+        recordSlotReadTweets(slot, finalTweets);
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
-        notifySlotNewMessages(slot, collectedNewTweets);
+        if (unreadNewTweets.length > 0) {
+          showToast(`@${handle} 抓取到 ${unreadNewTweets.length} 条新推文`, 'success', 2500);
+          notifySlotNewMessages(slot, unreadNewTweets);
+        } else if (!isBackground) {
+          showToast(`@${handle} 已是最新，暂无新推文`, 'info', 2000);
+        }
       }
     } else {
       if (collectedNewTweets.length > 0) {
         const sorted = processAndSortTweets(collectedNewTweets);
         const finalTweets = sorted.slice(-20);
+        recordSlotReadTweets(slot, finalTweets);
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
       } else {
         showSlotError(slot, '抓取超时：未检测到推文。请确认右上角已登录，或该用户近期是否发过推文。');

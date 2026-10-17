@@ -32,6 +32,65 @@ const {
   DEFAULT_HEADER_BG_COLOR
 } = require('./constants');
 const { detectSourceType, getCanonicalTargetKey } = require('./source');
+const { getTweetKey, getTweetTimestamp } = require('./tweet');
+
+const MAX_CACHE_TRACKED_KEYS = 500;
+
+function mergeCacheEntryReadState(prevEntry, nextEntry) {
+  if (!nextEntry || typeof nextEntry !== 'object') return nextEntry;
+  const readSet = new Set();
+  const knownSet = new Set();
+  let maxReadTs = 0;
+
+  const ingestEntry = (entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    if (Array.isArray(entry.readKeys)) {
+      entry.readKeys.forEach(k => { if (k) readSet.add(k); });
+    }
+    if (Array.isArray(entry.knownKeys)) {
+      entry.knownKeys.forEach(k => { if (k) knownSet.add(k); });
+    }
+    if (typeof entry.maxReadTimestamp === 'number' && entry.maxReadTimestamp > maxReadTs) {
+      maxReadTs = entry.maxReadTimestamp;
+    }
+    if (Array.isArray(entry.tweets)) {
+      entry.tweets.forEach(t => {
+        if (!t) return;
+        const k = getTweetKey(t);
+        if (k) knownSet.add(k);
+        if (!t.isUnread) {
+          if (k) readSet.add(k);
+          const ts = getTweetTimestamp(t);
+          if (!t.isPinned && ts > maxReadTs) {
+            maxReadTs = ts;
+          }
+        }
+      });
+    }
+  };
+
+  ingestEntry(prevEntry);
+  ingestEntry(nextEntry);
+
+  const mergedTweets = Array.isArray(nextEntry.tweets)
+    ? nextEntry.tweets.map(t => {
+        if (!t) return t;
+        const k = getTweetKey(t);
+        if (k && readSet.has(k) && t.isUnread) {
+          return { ...t, isUnread: false };
+        }
+        return t;
+      })
+    : nextEntry.tweets;
+
+  return {
+    ...nextEntry,
+    tweets: mergedTweets,
+    readKeys: Array.from(readSet).slice(-MAX_CACHE_TRACKED_KEYS),
+    knownKeys: Array.from(knownSet).slice(-MAX_CACHE_TRACKED_KEYS),
+    maxReadTimestamp: maxReadTs
+  };
+}
 
 function getSavedHandles() {
   try {
@@ -123,11 +182,13 @@ function saveTargetCacheEntry(handleOrUrl, data) {
     if (!key) return;
 
     const targetCache = getTargetCache();
-    targetCache[key] = {
+    const prev = targetCache[key] || null;
+    const merged = mergeCacheEntryReadState(prev, {
       ...data,
       handle: data.handle || rawTarget,
-      lastFetchedAt: data.lastFetchedAt || (targetCache[key] && targetCache[key].lastFetchedAt) || Date.now()
-    };
+      lastFetchedAt: data.lastFetchedAt || (prev && prev.lastFetchedAt) || Date.now()
+    });
+    targetCache[key] = merged;
     saveTargetCache(targetCache);
   } catch (e) {}
 }
@@ -172,13 +233,20 @@ function saveSlotCache(slotIndex, data, slots = []) {
     const cache = getSlotCache();
     if (data) {
       const slotObj = slots[slotIndex];
-      const entry = {
+      const prevSlotEntry = cache[slotIndex] || null;
+      const sameTargetPrev =
+        prevSlotEntry &&
+        getCanonicalTargetKey(prevSlotEntry.handle, prevSlotEntry.source) ===
+          getCanonicalTargetKey(data.handle, data.source)
+          ? prevSlotEntry
+          : null;
+      const entry = mergeCacheEntryReadState(sameTargetPrev, {
         ...data,
         isMuted: typeof data.isMuted === 'boolean'
           ? data.isMuted
           : (slotObj && typeof slotObj.isMuted === 'boolean' ? slotObj.isMuted : DEFAULT_SLOT_MUTED),
         lastFetchedAt: data.lastFetchedAt || (slotObj && slotObj.lastFetchedAt) || null
-      };
+      });
       cache[slotIndex] = entry;
       // Archive into per-target cache so switching handles never loses scraped data
       saveTargetCacheEntry(entry.handle, entry);
@@ -195,16 +263,20 @@ function saveSlotCache(slotIndex, data, slots = []) {
 
 function saveAllSlotCache(cache) {
   try {
-    localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(cache));
     if (cache && typeof cache === 'object') {
+      const existingSlotCache = getSlotCache();
       const targetCache = getTargetCache();
       let updatedTarget = false;
       for (const slotKey of Object.keys(cache)) {
         const entry = cache[slotKey];
         if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0) {
+          const prevSlot = existingSlotCache[slotKey];
           const key = getCanonicalTargetKey(entry.handle, entry.source);
+          const prevTarget = key ? targetCache[key] : null;
+          const merged = mergeCacheEntryReadState(prevTarget || prevSlot, entry);
+          cache[slotKey] = merged;
           if (key) {
-            targetCache[key] = { ...entry };
+            targetCache[key] = { ...merged };
             updatedTarget = true;
           }
         }
@@ -213,6 +285,7 @@ function saveAllSlotCache(cache) {
         saveTargetCache(targetCache);
       }
     }
+    localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(cache));
   } catch (e) {}
 }
 
@@ -612,6 +685,7 @@ module.exports = {
   saveTargetCache,
   saveTargetCacheEntry,
   getTargetCacheEntry,
+  mergeCacheEntryReadState,
   getSlotCache,
   saveSlotCache,
   saveAllSlotCache,

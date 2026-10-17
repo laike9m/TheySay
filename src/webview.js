@@ -92,7 +92,12 @@ async function loadWebviewTarget(wv, targetUrl) {
         errorDescription: desc
       });
     };
+    let loadTimer = null;
     const cleanup = () => {
+      if (loadTimer) {
+        clearTimeout(loadTimer);
+        loadTimer = null;
+      }
       wv.removeEventListener('dom-ready', onReady);
       wv.removeEventListener('did-fail-load', onFail);
     };
@@ -100,7 +105,7 @@ async function loadWebviewTarget(wv, targetUrl) {
     wv.addEventListener('dom-ready', onReady, { once: true });
     wv.addEventListener('did-fail-load', onFail);
 
-    setTimeout(() => {
+    loadTimer = setTimeout(() => {
       finish({ ok: isNetworkOnline(), offline: !isNetworkOnline() });
     }, 6000);
 
@@ -115,9 +120,30 @@ async function loadWebviewTarget(wv, targetUrl) {
   });
 }
 
+async function executeWebviewScript(wv, script, timeoutMs = 8000) {
+  if (!wv || typeof wv.executeJavaScript !== 'function') return null;
+  let timer = null;
+  try {
+    const execPromise = Promise.resolve(wv.executeJavaScript(script)).catch(() => null);
+    const timeoutPromise = new Promise((resolve) => {
+      timer = setTimeout(() => resolve({ __timedOut: true }), timeoutMs);
+    });
+    const res = await Promise.race([execPromise, timeoutPromise]);
+    if (res && res.__timedOut) {
+      return null;
+    }
+    return res;
+  } catch (e) {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 module.exports = {
   getOrCreateSlotWebview,
   initBackgroundWebviews,
   waitForWebviewReady,
-  loadWebviewTarget
+  loadWebviewTarget,
+  executeWebviewScript
 };

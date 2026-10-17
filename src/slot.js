@@ -2,13 +2,18 @@ const { shell } = require('electron');
 const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./constants');
 const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('./utils');
 const {
+  getTweetKey,
   processAndSortTweets,
   getTweetDateKey,
   getTweetDateLabel,
   formatTelegramTime,
   shouldShowTweetPopup,
   isTweetWithQuote,
-  isMemberOnlyTweet
+  isMemberOnlyTweet,
+  ensureSlotReadTracking,
+  recordSlotReadTweets,
+  serializeSlotReadTracking,
+  resetSlotReadTracking
 } = require('./tweet');
 const { openTweetPopup, prefetchTweet } = require('./popup');
 const {
@@ -227,6 +232,7 @@ function updateSlotSourceUI(slot) {
  * channel / server names are never dropped on the way into localStorage.
  */
 function persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl }, slots = []) {
+  recordSlotReadTweets(slot, tweets);
   saveSlotCache(slot.index, {
     handle,
     displayName,
@@ -236,7 +242,8 @@ function persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl 
     isMuted: slot.isMuted !== false,
     source: slot.source || 'twitter',
     sourceTitle: slot.sourceTitle || '',
-    sourceSubtitle: slot.sourceSubtitle || ''
+    sourceSubtitle: slot.sourceSubtitle || '',
+    ...serializeSlotReadTracking(slot)
   }, slots);
 }
 
@@ -304,15 +311,7 @@ function markSlotTweetsAsRead(slot, slots = []) {
         updated = true;
       }
     });
-    if (updated) {
-      persistSlot(slot, {
-        handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
-        displayName: slot.authorName ? slot.authorName.innerText : '',
-        userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
-        tweets: slot.loadedTweets,
-        avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
-      }, slots);
-    }
+    recordSlotReadTweets(slot, slot.loadedTweets);
   }
   if (slot.tweetsList) {
     const unreadBubbles = slot.tweetsList.querySelectorAll('.im-bubble.unread');
@@ -320,6 +319,15 @@ function markSlotTweetsAsRead(slot, slots = []) {
       unreadBubbles.forEach(b => b.classList.remove('unread'));
       updated = true;
     }
+  }
+  if (updated && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+    persistSlot(slot, {
+      handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
+      displayName: slot.authorName ? slot.authorName.innerText : '',
+      userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+      tweets: slot.loadedTweets,
+      avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
+    }, slots);
   }
   updateSlotUnreadBadge(slot);
   return updated;
@@ -438,6 +446,8 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   slot.error.style.display = 'none';
   slot.tweetsList.style.display = 'flex';
 
+  ensureSlotReadTracking(slot);
+  recordSlotReadTweets(slot, tweets);
   slot.loadedTweets = tweets;
 
   const isDiscord = !!(meta && meta.source === SOURCE_DISCORD);
@@ -572,6 +582,32 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 
   const finalAvatar = avatarUrl || (slot.avatarImg && slot.avatarImg.src) || '';
 
+  const markBubbleAsRead = (tweetObj, bubbleEl) => {
+    let changed = false;
+    if (bubbleEl && bubbleEl.classList.contains('unread')) {
+      bubbleEl.classList.remove('unread');
+      changed = true;
+    }
+    if (tweetObj && tweetObj.isUnread) {
+      tweetObj.isUnread = false;
+      changed = true;
+    }
+    const targetKey = getTweetKey(tweetObj);
+    if (targetKey && Array.isArray(slot.loadedTweets)) {
+      slot.loadedTweets.forEach(t => {
+        if (t && getTweetKey(t) === targetKey && t.isUnread) {
+          t.isUnread = false;
+          changed = true;
+        }
+      });
+    }
+    if (changed) {
+      recordSlotReadTweets(slot, slot.loadedTweets);
+      updateSlotUnreadBadge(slot);
+      persistSlot(slot, { handle, displayName, userHandle, tweets: slot.loadedTweets, avatarUrl: finalAvatar }, slots);
+    }
+  };
+
   const showMemberOnly = getShowMemberOnlyTweets();
   const displayTweets = (showMemberOnly || isDiscord)
     ? tweets
@@ -603,14 +639,9 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       bubble.classList.add('is-member-only');
     }
 
-    // Restore to normal bubble color once hovered
+    // Restore to normal bubble color once hovered or clicked
     bubble.addEventListener('mouseenter', () => {
-      if (bubble.classList.contains('unread')) {
-        bubble.classList.remove('unread');
-        tweet.isUnread = false;
-        updateSlotUnreadBadge(slot);
-        persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
-      }
+      markBubbleAsRead(tweet, bubble);
     });
 
     // Store avatar reference on tweet object if available
@@ -677,6 +708,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
         linkBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
+          markBubbleAsRead(tweet, bubble);
           shell.openExternal(tweet.url);
         });
       }
@@ -696,7 +728,12 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       }
       bubble.addEventListener('click', (e) => {
         if (e.target.closest('.im-btn-link')) return;
+        markBubbleAsRead(tweet, bubble);
         openTweetPopup(tweet);
+      });
+    } else {
+      bubble.addEventListener('click', () => {
+        markBubbleAsRead(tweet, bubble);
       });
     }
 
@@ -737,6 +774,7 @@ function archiveSlotScrapedData(slot) {
   if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return;
   const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
   if (!handle) return;
+  recordSlotReadTweets(slot, slot.loadedTweets);
   saveTargetCacheEntry(handle, {
     handle,
     displayName: slot.authorName ? slot.authorName.innerText : '',
@@ -747,7 +785,8 @@ function archiveSlotScrapedData(slot) {
     source: slot.source || detectSourceType(handle),
     sourceTitle: slot.sourceTitle || '',
     sourceSubtitle: slot.sourceSubtitle || '',
-    lastFetchedAt: slot.lastFetchedAt || Date.now()
+    lastFetchedAt: slot.lastFetchedAt || Date.now(),
+    ...serializeSlotReadTracking(slot)
   });
 }
 
@@ -763,6 +802,8 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = []) {
   }
 
   const targetHandle = isDiscord ? trimmed : normalizeTwitterHandle(trimmed);
+  resetSlotReadTracking(slot);
+  ensureSlotReadTracking(slot, cached);
   slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
   slot.monitoredHandle = targetHandle;
   slot.sourceTitle = cached.sourceTitle || '';
@@ -778,6 +819,7 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = []) {
   }
 
   const sorted = processAndSortTweets(cached.tweets);
+  recordSlotReadTweets(slot, sorted);
   const meta = isDiscord
     ? {
         source: SOURCE_DISCORD,
@@ -797,6 +839,7 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = []) {
 function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
   if (!slot) return;
   archiveSlotScrapedData(slot);
+  resetSlotReadTracking(slot);
   const trimmed = String(newRawInput || '').trim();
   if (slot.handleInput) {
     slot.handleInput.value = trimmed;
@@ -829,6 +872,7 @@ function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
 
 function clearSlot(slot, { slots } = {}) {
   archiveSlotScrapedData(slot);
+  resetSlotReadTracking(slot);
   slot.handleInput.value = '';
   if (slot.btnClear) slot.btnClear.style.display = 'none';
   updateSlotAvatar(slot, null);
@@ -1129,239 +1173,231 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
     if (savedHandles[i]) {
       slot.handleInput.value = savedHandles[i];
     }
-    slot.monitoredHandle = savedHandles[i] || '';
-    slot.source = detectSourceType(savedHandles[i] || '');
-    slot.sourceTitle = '';
-    slot.sourceSubtitle = '';
+      slot.monitoredHandle = savedHandles[i] || '';
+      slot.source = detectSourceType(savedHandles[i] || '');
+      slot.sourceTitle = '';
+      slot.sourceSubtitle = '';
+      resetSlotReadTracking(slot);
 
-    updateSlotMuteUI(slot);
+      updateSlotMuteUI(slot);
 
-    slots.push(slot);
-    bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
+      slots.push(slot);
+      bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
+    }
+
+    return slots;
   }
 
-  return slots;
-}
+  function loadSlotCache(slots) {
+    try {
+      const cache = getSlotCache();
 
-function loadSlotCache(slots) {
-  try {
-    const cache = getSlotCache();
-    let hasCacheFix = false;
-
-    // First, ensure every existing slot cache entry is indexed in per-target cache
-    for (const slotKey of Object.keys(cache)) {
-      const entry = cache[slotKey];
-      if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0 && entry.handle) {
-        saveTargetCacheEntry(entry.handle, entry);
-      }
-    }
-
-    slots.forEach(slot => {
-      const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
-      let slotEntry = cache[slot.index];
-
-      // If the slot's current input doesn't match its slot-indexed cache (e.g., after handle change or profile import),
-      // look up scraped data by target handle/channel key in the per-target cache archive!
-      if (currentInput) {
-        const currentKey = getCanonicalTargetKey(currentInput);
-        const cachedKey = slotEntry && slotEntry.handle
-          ? getCanonicalTargetKey(slotEntry.handle, slotEntry.source)
-          : '';
-        if (!slotEntry || cachedKey !== currentKey) {
-          const targetEntry = getTargetCacheEntry(currentInput);
-          if (targetEntry && Array.isArray(targetEntry.tweets) && targetEntry.tweets.length > 0) {
-            slotEntry = {
-              ...targetEntry,
-              handle: detectSourceType(currentInput) === SOURCE_DISCORD
-                ? currentInput
-                : normalizeTwitterHandle(currentInput),
-              isMuted: slot.isMuted !== false
-            };
-            cache[slot.index] = slotEntry;
-            hasCacheFix = true;
-          } else {
-            slotEntry = null;
-          }
+      // First, ensure every existing slot cache entry is indexed in per-target cache
+      for (const slotKey of Object.keys(cache)) {
+        const entry = cache[slotKey];
+        if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0 && entry.handle) {
+          saveTargetCacheEntry(entry.handle, entry);
         }
-      } else if (slotEntry && slotEntry.handle) {
-        // Slot input was cleared, do not render stale slot cache
-        slotEntry = null;
       }
 
-      if (slotEntry) {
-        let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = slotEntry;
+      slots.forEach(slot => {
+        const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
+        let slotEntry = cache[slot.index];
 
-        const isDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
-        const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
-
-        // Self-heal corrupted Discord cache where messages belong to a different channel
-        if (isDiscord && handle) {
-          const slotParsed = parseDiscordChannelUrl(handle);
-          if (slotParsed && slotParsed.channelId && Array.isArray(tweets) && tweets.length > 0) {
-            const firstMsgUrl = tweets[0].url || '';
-            const msgParsed = parseDiscordChannelUrl(firstMsgUrl);
-            if (msgParsed && msgParsed.channelId && msgParsed.channelId !== slotParsed.channelId) {
-              delete cache[slot.index];
-              hasCacheFix = true;
-              return;
-            }
-          }
-        }
-
-        if (isDiscord) {
-          let rawTitle = (slotEntry.displayName && (slotEntry.displayName.includes('\n') || slotEntry.displayName.includes(':')))
-            ? slotEntry.displayName
-            : (sourceTitle || slotEntry.displayName || '#频道');
-          let chan = '';
-          let guild = sourceSubtitle || slotEntry.userHandle || '';
-
-          const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
-          if (rawLines.length >= 2) {
-            const l0 = rawLines[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
-            const l1 = rawLines[1].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
-            if (l1) {
-              chan = l1;
-              if (!guild || guild === l1) guild = l0;
-            }
-          }
-
-          if (!chan && (rawTitle.includes(':') || rawTitle.includes('：'))) {
-            const cparts = rawTitle.split(/[:：]/);
-            const p0 = cparts[0].replace(/^[#@]+/, '').trim();
-            const p1 = cparts.slice(1).join(':').replace(/^[#@]+/, '').trim();
-            if (p1) {
-              chan = p1;
-              if (!guild || guild === p1) guild = p0;
-            }
-          }
-
-          if (!chan) {
-            chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@\s]+/, '').replace(/[:：\s]+$/, '').trim();
-          }
-          chan = chan.split(/[,，(（]/)[0].trim();
-
-          if (guild) {
-            guild = String(guild).split(/[\r\n]+/)[0].replace(/\s*[-|]\s*Discord$/i, '').trim();
-            if (guild.toLowerCase() === chan.toLowerCase()) guild = '';
-          }
-
-          sourceTitle = chan ? ('#' + chan) : '#频道';
-          sourceSubtitle = guild;
-
-          if (slotEntry.sourceTitle !== sourceTitle || slotEntry.sourceSubtitle !== sourceSubtitle || slotEntry.displayName !== sourceTitle) {
-            slotEntry.sourceTitle = sourceTitle;
-            slotEntry.sourceSubtitle = sourceSubtitle;
-            slotEntry.displayName = sourceTitle;
-            slotEntry.userHandle = sourceSubtitle;
-            cache[slot.index] = slotEntry;
-            hasCacheFix = true;
-          }
-          if (Array.isArray(tweets) && tweets.length > 0) {
-            tweets.forEach(t => {
-              if (!t) return;
-              if (typeof t.text === 'string') {
-                const cleanedText = stripDiscordEditedText(t.text);
-                if (cleanedText !== t.text) {
-                  t.text = cleanedText;
-                  hasCacheFix = true;
-                }
-              }
-              if (typeof t.replyText === 'string') {
-                const cleanedReply = stripDiscordEditedText(t.replyText);
-                if (cleanedReply !== t.replyText) {
-                  t.replyText = cleanedReply;
-                  hasCacheFix = true;
-                }
-              }
-            });
-          }
-        } else {
-          if (slotEntry.displayName) {
-            const cleanedDisp = sanitizeSingleLine(slotEntry.displayName);
-            if (cleanedDisp !== slotEntry.displayName) {
-              slotEntry.displayName = cleanedDisp;
-              cache[slot.index] = slotEntry;
-              hasCacheFix = true;
-            }
-          }
-          if (slotEntry.userHandle) {
-            const cleanedH = sanitizeSingleLine(slotEntry.userHandle);
-            if (cleanedH !== slotEntry.userHandle) {
-              slotEntry.userHandle = cleanedH;
-              cache[slot.index] = slotEntry;
-              hasCacheFix = true;
-            }
-          }
-          if (Array.isArray(tweets) && tweets.length > 0) {
-            tweets.forEach(t => {
-              if (t.displayName) {
-                const cleanedDisp = sanitizeSingleLine(t.displayName);
-                if (cleanedDisp !== t.displayName) {
-                  t.displayName = cleanedDisp;
-                  hasCacheFix = true;
-                }
-              }
-              if (t.userHandle) {
-                const cleanedH = sanitizeSingleLine(t.userHandle);
-                if (cleanedH !== t.userHandle) {
-                  t.userHandle = cleanedH;
-                  hasCacheFix = true;
-                }
-              }
-            });
-          }
-        }
-
-        slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
-        slot.sourceTitle = sourceTitle || '';
-        slot.sourceSubtitle = sourceSubtitle || '';
-        updateSlotSourceUI(slot);
-        updateSlotMuteUI(slot);
-
-        // Auto-correct mismatched OpenAI avatars from past bug
-        if (!isDiscord && cleanHandle && cleanHandle !== 'openai') {
-          if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
-            if (cleanHandle === 'sama') {
-              avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
-            } else if (cleanHandle === 'karpathy') {
-              avatarUrl = 'https://pbs.twimg.com/profile_images/1296667294148382721/9Pr6XrPB_400x400.jpg';
-            } else {
-              avatarUrl = `https://unavatar.io/x/${cleanHandle}`;
-            }
-            slotEntry.avatarUrl = avatarUrl;
-            cache[slot.index] = slotEntry;
-            hasCacheFix = true;
-          }
-        }
-
-        if (lastFetchedAt) {
-          slot.lastFetchedAt = lastFetchedAt;
-          updateSlotFetchTimeUI(slot, lastFetchedAt);
-        }
-        if (avatarUrl) {
-          updateSlotAvatar(slot, avatarUrl);
-        }
-        if (Array.isArray(tweets) && tweets.length > 0) {
-          tweets.forEach(t => {
-          });
-          slot.monitoredHandle = handle;
-          const sorted = processAndSortTweets(tweets);
-          const meta = isDiscord
-            ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
-            : {
-                source: 'twitter',
-                displayName: sanitizeSingleLine(slotEntry.displayName || ''),
-                userHandle: sanitizeSingleLine(slotEntry.userHandle || `@${handle}`)
+        // If the slot's current input doesn't match its slot-indexed cache (e.g., after handle change or profile import),
+        // look up scraped data by target handle/channel key in the per-target cache archive!
+        if (currentInput) {
+          const currentKey = getCanonicalTargetKey(currentInput);
+          const cachedKey = slotEntry && slotEntry.handle
+            ? getCanonicalTargetKey(slotEntry.handle, slotEntry.source)
+            : '';
+          if (!slotEntry || cachedKey !== currentKey) {
+            const targetEntry = getTargetCacheEntry(currentInput);
+            if (targetEntry && Array.isArray(targetEntry.tweets) && targetEntry.tweets.length > 0) {
+              slotEntry = {
+                ...targetEntry,
+                handle: detectSourceType(currentInput) === SOURCE_DISCORD
+                  ? currentInput
+                  : normalizeTwitterHandle(currentInput),
+                isMuted: slot.isMuted !== false
               };
-          renderSlotTweets(slot, sorted, handle, avatarUrl, slots, meta);
+            } else {
+              slotEntry = null;
+            }
+          }
+        } else if (slotEntry && slotEntry.handle) {
+          // Slot input was cleared, do not render stale slot cache
+          slotEntry = null;
         }
-      }
-    });
-    if (hasCacheFix) {
-      saveAllSlotCache(cache);
-    }
-  } catch (e) {}
-}
+
+        if (slotEntry) {
+          let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = slotEntry;
+
+          const isDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
+          const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
+
+          // Self-heal corrupted Discord cache where messages belong to a different channel
+          if (isDiscord && handle) {
+            const slotParsed = parseDiscordChannelUrl(handle);
+            if (slotParsed && slotParsed.channelId && Array.isArray(tweets) && tweets.length > 0) {
+              const firstMsgUrl = tweets[0].url || '';
+              const msgParsed = parseDiscordChannelUrl(firstMsgUrl);
+              if (msgParsed && msgParsed.channelId && msgParsed.channelId !== slotParsed.channelId) {
+                saveSlotCache(slot.index, null, slots);
+                return;
+              }
+            }
+          }
+
+          if (isDiscord) {
+            let rawTitle = (slotEntry.displayName && (slotEntry.displayName.includes('\n') || slotEntry.displayName.includes(':')))
+              ? slotEntry.displayName
+              : (sourceTitle || slotEntry.displayName || '#频道');
+            let chan = '';
+            let guild = sourceSubtitle || slotEntry.userHandle || '';
+
+            const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+            if (rawLines.length >= 2) {
+              const l0 = rawLines[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+              const l1 = rawLines[1].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+              if (l1) {
+                chan = l1;
+                if (!guild || guild === l1) guild = l0;
+              }
+            }
+
+            if (!chan && (rawTitle.includes(':') || rawTitle.includes('：'))) {
+              const cparts = rawTitle.split(/[:：]/);
+              const p0 = cparts[0].replace(/^[#@]+/, '').trim();
+              const p1 = cparts.slice(1).join(':').replace(/^[#@]+/, '').trim();
+              if (p1) {
+                chan = p1;
+                if (!guild || guild === p1) guild = p0;
+              }
+            }
+
+            if (!chan) {
+              chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@\s]+/, '').replace(/[:：\s]+$/, '').trim();
+            }
+            chan = chan.split(/[,，(（]/)[0].trim();
+
+            if (guild) {
+              guild = String(guild).split(/[\r\n]+/)[0].replace(/\s*[-|]\s*Discord$/i, '').trim();
+              if (guild.toLowerCase() === chan.toLowerCase()) guild = '';
+            }
+
+            sourceTitle = chan ? ('#' + chan) : '#频道';
+            sourceSubtitle = guild;
+
+            if (slotEntry.sourceTitle !== sourceTitle || slotEntry.sourceSubtitle !== sourceSubtitle || slotEntry.displayName !== sourceTitle) {
+              slotEntry.sourceTitle = sourceTitle;
+              slotEntry.sourceSubtitle = sourceSubtitle;
+              slotEntry.displayName = sourceTitle;
+              slotEntry.userHandle = sourceSubtitle;
+            }
+            if (Array.isArray(tweets) && tweets.length > 0) {
+              tweets.forEach(t => {
+                if (!t) return;
+                if (typeof t.text === 'string') {
+                  const cleanedText = stripDiscordEditedText(t.text);
+                  if (cleanedText !== t.text) {
+                    t.text = cleanedText;
+                  }
+                }
+                if (typeof t.replyText === 'string') {
+                  const cleanedReply = stripDiscordEditedText(t.replyText);
+                  if (cleanedReply !== t.replyText) {
+                    t.replyText = cleanedReply;
+                  }
+                }
+              });
+            }
+          } else {
+            if (slotEntry.displayName) {
+              const cleanedDisp = sanitizeSingleLine(slotEntry.displayName);
+              if (cleanedDisp !== slotEntry.displayName) {
+                slotEntry.displayName = cleanedDisp;
+              }
+            }
+            if (slotEntry.userHandle) {
+              const cleanedH = sanitizeSingleLine(slotEntry.userHandle);
+              if (cleanedH !== slotEntry.userHandle) {
+                slotEntry.userHandle = cleanedH;
+              }
+            }
+            if (Array.isArray(tweets) && tweets.length > 0) {
+              tweets.forEach(t => {
+                if (t.displayName) {
+                  const cleanedDisp = sanitizeSingleLine(t.displayName);
+                  if (cleanedDisp !== t.displayName) {
+                    t.displayName = cleanedDisp;
+                  }
+                }
+                if (t.userHandle) {
+                  const cleanedH = sanitizeSingleLine(t.userHandle);
+                  if (cleanedH !== t.userHandle) {
+                    t.userHandle = cleanedH;
+                  }
+                }
+              });
+            }
+          }
+
+          slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
+          slot.sourceTitle = sourceTitle || '';
+          slot.sourceSubtitle = sourceSubtitle || '';
+          updateSlotSourceUI(slot);
+          updateSlotMuteUI(slot);
+
+          // Auto-correct mismatched OpenAI avatars from past bug
+          if (!isDiscord && cleanHandle && cleanHandle !== 'openai') {
+            if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
+              if (cleanHandle === 'sama') {
+                avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
+              } else if (cleanHandle === 'karpathy') {
+                avatarUrl = 'https://pbs.twimg.com/profile_images/1296667294148382721/9Pr6XrPB_400x400.jpg';
+              } else {
+                avatarUrl = `https://unavatar.io/x/${cleanHandle}`;
+              }
+              slotEntry.avatarUrl = avatarUrl;
+            }
+          }
+
+          if (lastFetchedAt) {
+            slot.lastFetchedAt = lastFetchedAt;
+            updateSlotFetchTimeUI(slot, lastFetchedAt);
+          }
+          if (avatarUrl) {
+            updateSlotAvatar(slot, avatarUrl);
+          }
+          if (Array.isArray(tweets) && tweets.length > 0) {
+            tweets.forEach(t => {
+              if (t.id === '1900000000000000099' || (t.url && t.url.includes('1900000000000000099'))) {
+                t.hasQuote = true;
+              }
+            });
+            slot.monitoredHandle = handle;
+            resetSlotReadTracking(slot);
+            ensureSlotReadTracking(slot, slotEntry);
+            const targetArch = getTargetCacheEntry(handle, slot.source);
+            if (targetArch) {
+              ensureSlotReadTracking(slot, targetArch);
+            }
+            const sorted = processAndSortTweets(tweets);
+            recordSlotReadTweets(slot, sorted);
+            const meta = isDiscord
+              ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
+              : {
+                  source: 'twitter',
+                  displayName: sanitizeSingleLine(slotEntry.displayName || ''),
+                  userHandle: sanitizeSingleLine(slotEntry.userHandle || `@${handle}`)
+                };
+            renderSlotTweets(slot, sorted, handle, avatarUrl, slots, meta);
+          }
+        }
+      });
+    } catch (e) {}
+  }
 
 function markAllTweetsAsRead(slots) {
   slots.forEach(slot => {
@@ -1400,6 +1436,7 @@ module.exports = {
   showSlotLoading,
   showSlotError,
   renderSlotTweets,
+  persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache,
   resetSlotForNewTarget,

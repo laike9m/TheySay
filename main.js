@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
@@ -266,16 +266,25 @@ ipcMain.handle('check-login-status', async () => {
 });
 
 // Open dedicated Twitter login window
-ipcMain.on('open-login-window', () => {
+ipcMain.on('open-login-window', async () => {
   if (loginWindow && !loginWindow.isDestroyed()) {
     loginWindow.focus();
     return;
   }
 
+  const xSession = session.fromPartition('persist:x_session');
+  let initialAuthToken = '';
+  try {
+    const cookies = await xSession.cookies.get({ name: 'auth_token' });
+    if (cookies.length > 0 && cookies[0].value) {
+      initialAuthToken = cookies[0].value;
+    }
+  } catch (e) {}
+
   loginWindow = new BrowserWindow({
     width: 620,
     height: 750,
-    title: '登录 Twitter / X',
+    title: initialAuthToken ? '切换或重新登录 Twitter / X 账号' : '登录 Twitter / X',
     icon: ICON_PATH,
     parent: mainWindow,
     modal: false,
@@ -285,28 +294,47 @@ ipcMain.on('open-login-window', () => {
     }
   });
 
-  loginWindow.loadURL('https://x.com/i/flow/login', {
+  // If already logged in, open X's logout/switch confirmation page so the window
+  // doesn't immediately redirect from /i/flow/login to /home and auto-close.
+  // Scraped data in mainWindow's defaultSession localStorage is never touched.
+  const targetUrl = initialAuthToken ? 'https://x.com/logout' : 'https://x.com/i/flow/login';
+  loginWindow.loadURL(targetUrl, {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
   });
 
-  // Automatically detect successful login
-  loginWindow.webContents.on('did-navigate', async (event, url) => {
-    if (url.includes('x.com/home') || url === 'https://x.com/' || url === 'https://x.com') {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('login-status-changed', { loggedIn: true });
+  let hasClearedOrVisitedLogin = !initialAuthToken;
+
+  const checkTwitterNavigation = async (url) => {
+    try {
+      const cookies = await xSession.cookies.get({ name: 'auth_token' });
+      const currentToken = cookies.length > 0 && cookies[0].value ? cookies[0].value : '';
+
+      if (!currentToken || url.includes('/login') || url.includes('/i/flow/login')) {
+        hasClearedOrVisitedLogin = true;
       }
-      setTimeout(() => {
-        if (loginWindow && !loginWindow.isDestroyed()) {
-          loginWindow.close();
+
+      if (url.includes('x.com/home') || url === 'https://x.com/' || url === 'https://x.com') {
+        if (currentToken && (hasClearedOrVisitedLogin || currentToken !== initialAuthToken)) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('login-status-changed', { loggedIn: true });
+          }
+          setTimeout(() => {
+            if (loginWindow && !loginWindow.isDestroyed()) {
+              loginWindow.close();
+            }
+          }, 1000);
         }
-      }, 1000);
-    }
-  });
+      }
+    } catch (e) {}
+  };
+
+  // Automatically detect successful login or account switch
+  loginWindow.webContents.on('did-navigate', (event, url) => checkTwitterNavigation(url));
+  loginWindow.webContents.on('did-navigate-in-page', (event, url) => checkTwitterNavigation(url));
 
   loginWindow.on('closed', async () => {
     loginWindow = null;
     if (mainWindow && !mainWindow.isDestroyed()) {
-      const xSession = session.fromPartition('persist:x_session');
       const cookies = await xSession.cookies.get({ name: 'auth_token' });
       const loggedIn = cookies.length > 0 && !!cookies[0].value;
       mainWindow.webContents.send('login-status-changed', { loggedIn });
@@ -318,16 +346,31 @@ ipcMain.on('open-login-window', () => {
 // Unlike X, Discord keeps its auth token in localStorage rather than a cookie,
 // so the only thing the main process can observe is where the app navigates:
 // landing on /channels/... means the session is live.
-ipcMain.on('open-discord-login-window', () => {
+ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   if (discordLoginWindow && !discordLoginWindow.isDestroyed()) {
     discordLoginWindow.focus();
     return;
   }
 
+  const discordSession = session.fromPartition(DISCORD_PARTITION);
+  // If user is already logged in and clicks to switch Discord account, clear only
+  // the Discord partition session so /login does not immediately bounce back to /app
+  // and close the window. Main window's scraped data cache is never touched.
+  if (payload && payload.wasLoggedIn) {
+    try {
+      await discordSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'sessionstorage']
+      });
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('discord-login-status-changed', { loggedIn: false });
+      }
+    } catch (e) {}
+  }
+
   discordLoginWindow = new BrowserWindow({
     width: 900,
     height: 760,
-    title: '登录 Discord',
+    title: payload && payload.wasLoggedIn ? '切换或重新登录 Discord 账号' : '登录 Discord',
     icon: ICON_PATH,
     parent: mainWindow,
     modal: false,
@@ -368,6 +411,51 @@ ipcMain.on('open-discord-login-window', () => {
       mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
     }
   });
+});
+
+// Export user profile (all settings + all followed accounts/channels) to a JSON file
+ipcMain.handle('export-profile', async (event, profileData = {}) => {
+  try {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const defaultPath = path.join(app.getPath('downloads'), `theysay-profile-${dateStr}.json`);
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: '导出 TheySay Profile 配置',
+      defaultPath,
+      buttonLabel: '导出 Profile',
+      filters: [{ name: 'JSON Profile', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) {
+      return { ok: false, canceled: true };
+    }
+    fs.writeFileSync(filePath, JSON.stringify(profileData, null, 2) + '\n', 'utf8');
+    return { ok: true, filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Import user profile from a JSON file
+ipcMain.handle('import-profile', async () => {
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: '导入 TheySay Profile 配置',
+      buttonLabel: '导入 Profile',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON Profile', extensions: ['json'] }]
+    });
+    if (canceled || !Array.isArray(filePaths) || filePaths.length === 0) {
+      return { ok: false, canceled: true };
+    }
+    const filePath = filePaths[0];
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const profile = JSON.parse(raw);
+    if (!profile || typeof profile !== 'object') {
+      return { ok: false, error: '无效的 Profile JSON 文件格式' };
+    }
+    return { ok: true, profile, filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // Show native OS system notification for unmuted channels

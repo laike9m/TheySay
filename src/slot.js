@@ -16,6 +16,8 @@ const {
   saveHandles,
   getMutedSlots,
   saveMutedSlots,
+  getTargetCacheEntry,
+  saveTargetCacheEntry,
   getSlotCache,
   saveSlotCache,
   saveAllSlotCache,
@@ -26,7 +28,8 @@ const {
   SOURCE_DISCORD,
   detectSourceType,
   normalizeTwitterHandle,
-  parseDiscordChannelUrl
+  parseDiscordChannelUrl,
+  getCanonicalTargetKey
 } = require('./source');
 const { requestNotificationPermission } = require('./notification');
 const { formatTextWithTickers } = require('./ticker');
@@ -730,7 +733,102 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 }
 
 
+function archiveSlotScrapedData(slot) {
+  if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return;
+  const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
+  if (!handle) return;
+  saveTargetCacheEntry(handle, {
+    handle,
+    displayName: slot.authorName ? slot.authorName.innerText : '',
+    userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+    tweets: slot.loadedTweets,
+    avatarUrl: (slot.avatarImg && slot.avatarImg.src) || '',
+    isMuted: slot.isMuted !== false,
+    source: slot.source || detectSourceType(handle),
+    sourceTitle: slot.sourceTitle || '',
+    sourceSubtitle: slot.sourceSubtitle || '',
+    lastFetchedAt: slot.lastFetchedAt || Date.now()
+  });
+}
+
+function restoreSlotFromTargetCache(slot, rawInput, slots = []) {
+  if (!slot) return false;
+  const trimmed = String(rawInput || '').trim();
+  if (!trimmed) return false;
+
+  const isDiscord = detectSourceType(trimmed) === SOURCE_DISCORD;
+  const cached = getTargetCacheEntry(trimmed, isDiscord ? SOURCE_DISCORD : 'twitter');
+  if (!cached || !Array.isArray(cached.tweets) || cached.tweets.length === 0) {
+    return false;
+  }
+
+  const targetHandle = isDiscord ? trimmed : normalizeTwitterHandle(trimmed);
+  slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
+  slot.monitoredHandle = targetHandle;
+  slot.sourceTitle = cached.sourceTitle || '';
+  slot.sourceSubtitle = cached.sourceSubtitle || '';
+  if (cached.lastFetchedAt) {
+    slot.lastFetchedAt = cached.lastFetchedAt;
+    updateSlotFetchTimeUI(slot, cached.lastFetchedAt);
+  }
+  if (cached.avatarUrl) {
+    updateSlotAvatar(slot, cached.avatarUrl);
+  } else {
+    updateSlotAvatar(slot, null);
+  }
+
+  const sorted = processAndSortTweets(cached.tweets);
+  const meta = isDiscord
+    ? {
+        source: SOURCE_DISCORD,
+        title: cached.sourceTitle || cached.displayName || '#频道',
+        subtitle: cached.sourceSubtitle || cached.userHandle || ''
+      }
+    : {
+        source: 'twitter',
+        displayName: sanitizeSingleLine(cached.displayName || ''),
+        userHandle: sanitizeSingleLine(cached.userHandle || `@${targetHandle}`)
+      };
+
+  renderSlotTweets(slot, sorted, targetHandle, cached.avatarUrl || null, slots, meta);
+  return true;
+}
+
+function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
+  if (!slot) return;
+  archiveSlotScrapedData(slot);
+  const trimmed = String(newRawInput || '').trim();
+  if (slot.handleInput) {
+    slot.handleInput.value = trimmed;
+  }
+  if (slot.btnClear) {
+    slot.btnClear.style.display = trimmed.length > 0 ? 'flex' : 'none';
+  }
+  updateSlotAvatar(slot, null);
+  slot.loadedTweets = [];
+  slot.monitoredHandle = trimmed
+    ? (detectSourceType(trimmed) === SOURCE_DISCORD ? trimmed : normalizeTwitterHandle(trimmed))
+    : '';
+  slot.source = detectSourceType(trimmed);
+  slot.sourceTitle = '';
+  slot.sourceSubtitle = '';
+  slot.lastFetchedAt = null;
+  slot.tweetsList.innerHTML = '';
+  slot.tweetsList.style.display = 'none';
+  slot.loading.style.display = 'none';
+  slot.error.style.display = 'none';
+  slot.placeholder.style.display = 'flex';
+  slot.authorName.innerText = '';
+  slot.authorHandle.innerText = '';
+  if (slot.authorHeader) slot.authorHeader.style.display = 'none';
+  if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
+  updateSlotUnreadBadge(slot);
+  updateSlotSourceUI(slot);
+  saveSlotCache(slot.index, null, slots);
+}
+
 function clearSlot(slot, { slots } = {}) {
+  archiveSlotScrapedData(slot);
   slot.handleInput.value = '';
   if (slot.btnClear) slot.btnClear.style.display = 'none';
   updateSlotAvatar(slot, null);
@@ -740,7 +838,7 @@ function clearSlot(slot, { slots } = {}) {
     saveHandles(slots);
     saveMutedSlots(slots);
   }
-  saveSlotCache(slot.index, null);
+  saveSlotCache(slot.index, null, slots);
   slot.loadedTweets = [];
   slot.monitoredHandle = '';
   slot.source = '';
@@ -757,7 +855,7 @@ function clearSlot(slot, { slots } = {}) {
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
   updateSlotUnreadBadge(slot);
   updateSlotSourceUI(slot);
-  showToast('已清空此栏内容与消息缓存', 'success', 2000);
+  showToast('已清空此栏显示 (历史抓取数据已保留在缓存中)', 'success', 2000);
 }
 
 function slotHasContent(slot) {
@@ -896,15 +994,17 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     });
   }
 
-  // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist for same handle
+  // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist for same handle (or if left empty)
   slot.handleInput.addEventListener('blur', () => {
     const val = slot.handleInput.value.trim();
     const monitored = (slot.monitoredHandle || '').trim();
-    const isSameTarget = val && monitored && (
-      val.toLowerCase() === monitored.toLowerCase() ||
-      normalizeTwitterHandle(val).toLowerCase() === normalizeTwitterHandle(monitored).toLowerCase()
-    );
-    if (isSameTarget && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
+    const isSameOrEmpty = !val || (monitored && getCanonicalTargetKey(val) === getCanonicalTargetKey(monitored));
+    if (isSameOrEmpty && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
+      if (!val && monitored) {
+        slot.handleInput.value = monitored;
+        updateClearVisibility();
+        updateSlotSourceUI(slot);
+      }
       slot.authorHeader.style.display = 'flex';
       slot.inputWrapper.style.display = 'none';
       updateSlotUnreadBadge(slot);
@@ -929,23 +1029,35 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
 
   // Input changes
   slot.handleInput.addEventListener('input', () => {
-    saveHandles(slots);
+    if (!slot.loadedTweets || slot.loadedTweets.length === 0) {
+      saveHandles(slots);
+    }
     updateClearVisibility();
     updateSlotSourceUI(slot);
   });
   slot.handleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && onFetch) {
       e.preventDefault();
-      slot.handleInput.blur();
       onFetch(slot.index);
+      slot.handleInput.blur();
     }
   });
   updateClearVisibility();
   updateSlotSourceUI(slot);
 
-  // Clear handle button
+  // Clear handle button inside input box
   slot.btnClear.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.monitoredHandle) {
+      // In edit mode on an active card: only clear the input text so user can type a new handle
+      // without wiping already-scraped data.
+      archiveSlotScrapedData(slot);
+      slot.handleInput.value = '';
+      updateClearVisibility();
+      updateSlotSourceUI(slot);
+      slot.handleInput.focus();
+      return;
+    }
     clearSlot(slot, { slots });
   });
 
@@ -1035,20 +1147,49 @@ function loadSlotCache(slots) {
   try {
     const cache = getSlotCache();
     let hasCacheFix = false;
+
+    // First, ensure every existing slot cache entry is indexed in per-target cache
+    for (const slotKey of Object.keys(cache)) {
+      const entry = cache[slotKey];
+      if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0 && entry.handle) {
+        saveTargetCacheEntry(entry.handle, entry);
+      }
+    }
+
     slots.forEach(slot => {
-      if (cache[slot.index]) {
-        let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = cache[slot.index];
-        const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
-        if (currentInput && handle) {
-          const isCurrDiscord = detectSourceType(currentInput) === SOURCE_DISCORD;
-          const isCachedDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
-          if (isCurrDiscord !== isCachedDiscord) return;
-          if (isCurrDiscord) {
-            if (currentInput.toLowerCase() !== handle.toLowerCase()) return;
+      const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
+      let slotEntry = cache[slot.index];
+
+      // If the slot's current input doesn't match its slot-indexed cache (e.g., after handle change or profile import),
+      // look up scraped data by target handle/channel key in the per-target cache archive!
+      if (currentInput) {
+        const currentKey = getCanonicalTargetKey(currentInput);
+        const cachedKey = slotEntry && slotEntry.handle
+          ? getCanonicalTargetKey(slotEntry.handle, slotEntry.source)
+          : '';
+        if (!slotEntry || cachedKey !== currentKey) {
+          const targetEntry = getTargetCacheEntry(currentInput);
+          if (targetEntry && Array.isArray(targetEntry.tweets) && targetEntry.tweets.length > 0) {
+            slotEntry = {
+              ...targetEntry,
+              handle: detectSourceType(currentInput) === SOURCE_DISCORD
+                ? currentInput
+                : normalizeTwitterHandle(currentInput),
+              isMuted: slot.isMuted !== false
+            };
+            cache[slot.index] = slotEntry;
+            hasCacheFix = true;
           } else {
-            if (normalizeTwitterHandle(currentInput).toLowerCase() !== normalizeTwitterHandle(handle).toLowerCase()) return;
+            slotEntry = null;
           }
         }
+      } else if (slotEntry && slotEntry.handle) {
+        // Slot input was cleared, do not render stale slot cache
+        slotEntry = null;
+      }
+
+      if (slotEntry) {
+        let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = slotEntry;
 
         const isDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
         const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
@@ -1068,11 +1209,11 @@ function loadSlotCache(slots) {
         }
 
         if (isDiscord) {
-          let rawTitle = (cache[slot.index].displayName && (cache[slot.index].displayName.includes('\n') || cache[slot.index].displayName.includes(':')))
-            ? cache[slot.index].displayName
-            : (sourceTitle || cache[slot.index].displayName || '#频道');
+          let rawTitle = (slotEntry.displayName && (slotEntry.displayName.includes('\n') || slotEntry.displayName.includes(':')))
+            ? slotEntry.displayName
+            : (sourceTitle || slotEntry.displayName || '#频道');
           let chan = '';
-          let guild = sourceSubtitle || cache[slot.index].userHandle || '';
+          let guild = sourceSubtitle || slotEntry.userHandle || '';
 
           const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
           if (rawLines.length >= 2) {
@@ -1107,11 +1248,12 @@ function loadSlotCache(slots) {
           sourceTitle = chan ? ('#' + chan) : '#频道';
           sourceSubtitle = guild;
 
-          if (cache[slot.index].sourceTitle !== sourceTitle || cache[slot.index].sourceSubtitle !== sourceSubtitle || cache[slot.index].displayName !== sourceTitle) {
-            cache[slot.index].sourceTitle = sourceTitle;
-            cache[slot.index].sourceSubtitle = sourceSubtitle;
-            cache[slot.index].displayName = sourceTitle;
-            cache[slot.index].userHandle = sourceSubtitle;
+          if (slotEntry.sourceTitle !== sourceTitle || slotEntry.sourceSubtitle !== sourceSubtitle || slotEntry.displayName !== sourceTitle) {
+            slotEntry.sourceTitle = sourceTitle;
+            slotEntry.sourceSubtitle = sourceSubtitle;
+            slotEntry.displayName = sourceTitle;
+            slotEntry.userHandle = sourceSubtitle;
+            cache[slot.index] = slotEntry;
             hasCacheFix = true;
           }
           if (Array.isArray(tweets) && tweets.length > 0) {
@@ -1134,17 +1276,19 @@ function loadSlotCache(slots) {
             });
           }
         } else {
-          if (cache[slot.index].displayName) {
-            const cleanedDisp = sanitizeSingleLine(cache[slot.index].displayName);
-            if (cleanedDisp !== cache[slot.index].displayName) {
-              cache[slot.index].displayName = cleanedDisp;
+          if (slotEntry.displayName) {
+            const cleanedDisp = sanitizeSingleLine(slotEntry.displayName);
+            if (cleanedDisp !== slotEntry.displayName) {
+              slotEntry.displayName = cleanedDisp;
+              cache[slot.index] = slotEntry;
               hasCacheFix = true;
             }
           }
-          if (cache[slot.index].userHandle) {
-            const cleanedH = sanitizeSingleLine(cache[slot.index].userHandle);
-            if (cleanedH !== cache[slot.index].userHandle) {
-              cache[slot.index].userHandle = cleanedH;
+          if (slotEntry.userHandle) {
+            const cleanedH = sanitizeSingleLine(slotEntry.userHandle);
+            if (cleanedH !== slotEntry.userHandle) {
+              slotEntry.userHandle = cleanedH;
+              cache[slot.index] = slotEntry;
               hasCacheFix = true;
             }
           }
@@ -1184,7 +1328,8 @@ function loadSlotCache(slots) {
             } else {
               avatarUrl = `https://unavatar.io/x/${cleanHandle}`;
             }
-            cache[slot.index].avatarUrl = avatarUrl;
+            slotEntry.avatarUrl = avatarUrl;
+            cache[slot.index] = slotEntry;
             hasCacheFix = true;
           }
         }
@@ -1205,8 +1350,8 @@ function loadSlotCache(slots) {
             ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
             : {
                 source: 'twitter',
-                displayName: sanitizeSingleLine(cache[slot.index].displayName || ''),
-                userHandle: sanitizeSingleLine(cache[slot.index].userHandle || `@${handle}`)
+                displayName: sanitizeSingleLine(slotEntry.displayName || ''),
+                userHandle: sanitizeSingleLine(slotEntry.userHandle || `@${handle}`)
               };
           renderSlotTweets(slot, sorted, handle, avatarUrl, slots, meta);
         }
@@ -1219,18 +1364,9 @@ function loadSlotCache(slots) {
 }
 
 function markAllTweetsAsRead(slots) {
-  let hasMarkedAny = false;
   slots.forEach(slot => {
-    if (markSlotTweetsAsRead(slot, slots)) {
-      hasMarkedAny = true;
-    }
+    markSlotTweetsAsRead(slot, slots);
   });
-
-  if (hasMarkedAny) {
-    showToast('已将所有消息标记为已读', 'success', 2000);
-  } else {
-    showToast('暂无未读消息', 'info', 1500);
-  }
 }
 
 function refreshSlotsContent(slots) {
@@ -1264,6 +1400,9 @@ module.exports = {
   showSlotLoading,
   showSlotError,
   renderSlotTweets,
+  archiveSlotScrapedData,
+  restoreSlotFromTargetCache,
+  resetSlotForNewTarget,
   clearSlot,
   slotHasContent,
   updateSlotSizeUI,

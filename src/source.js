@@ -55,6 +55,26 @@ function normalizeTwitterHandle(input) {
     .replace(/\/$/, '');
 }
 
+/**
+ * Produces a stable, case-insensitive lookup key for any Twitter handle or
+ * Discord channel URL so scraped data can be indexed per account/channel.
+ */
+function getCanonicalTargetKey(input, sourceHint) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const source = sourceHint || detectSourceType(raw);
+  if (source === SOURCE_DISCORD) {
+    const parsed = parseDiscordChannelUrl(raw);
+    if (parsed && parsed.guildId && parsed.channelId) {
+      return `discord:${parsed.guildId}/${parsed.channelId}`;
+    }
+    return `discord:${raw.toLowerCase()}`;
+  }
+  const cleanHandle = normalizeTwitterHandle(raw).toLowerCase();
+  if (!cleanHandle) return '';
+  return `twitter:${cleanHandle}`;
+}
+
 module.exports = {
   SOURCE_TWITTER,
   SOURCE_DISCORD,
@@ -63,5 +83,6 @@ module.exports = {
   detectSourceType,
   buildDiscordChannelUrl,
   buildDiscordMessageUrl,
-  normalizeTwitterHandle
+  normalizeTwitterHandle,
+  getCanonicalTargetKey
 };

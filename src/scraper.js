@@ -18,7 +18,9 @@ const {
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
-  renderSlotTweets
+  renderSlotTweets,
+  archiveSlotScrapedData,
+  restoreSlotFromTargetCache
 } = require('./slot');
 const { SOURCE_DISCORD, SOURCE_TWITTER, detectSourceType, normalizeTwitterHandle } = require('./source');
 const { fetchDiscordSlot } = require('./discord');
@@ -298,8 +300,28 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
   saveHandles(slots);
 
+  // If the slot was switched to a different handle, archive previous handle's tweets
+  // and immediately restore any previously scraped tweets for the new handle.
+  const prevMonitored = normalizeTwitterHandle(slot.monitoredHandle || '').toLowerCase();
+  const isSameHandle = prevMonitored === handle.toLowerCase();
+  if (!isSameHandle) {
+    archiveSlotScrapedData(slot);
+    const restored = restoreSlotFromTargetCache(slot, handle, slots);
+    if (!restored) {
+      slot.loadedTweets = [];
+      slot.monitoredHandle = handle;
+      updateSlotAvatar(slot, null);
+    }
+  } else if (!Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) {
+    restoreSlotFromTargetCache(slot, handle, slots);
+  }
+
   // Check if we already have existing tweets for this exact handle
-  const hasExisting = (slot.monitoredHandle === handle && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0);
+  const hasExisting = (
+    normalizeTwitterHandle(slot.monitoredHandle || '').toLowerCase() === handle.toLowerCase() &&
+    Array.isArray(slot.loadedTweets) &&
+    slot.loadedTweets.length > 0
+  );
   const existingTweets = hasExisting ? slot.loadedTweets : [];
   const existingKeys = new Set(existingTweets.map(t => getTweetKey(t)));
 
@@ -317,8 +339,8 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
   slot.isFetching = true;
   if (slot.card) slot.card.classList.add('is-fetching');
 
-  // In background mode with existing tweets, keep tweets visible while fetching silently
-  if (!isBackground || !hasExisting) {
+  // Whenever existing tweets are present, keep them visible on screen while fetching
+  if (!hasExisting) {
     showSlotLoading(slot, `正在后台抓取 @${handle}...`);
   }
 
@@ -374,8 +396,10 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
         const result = await bgWebview.executeJavaScript(extractionScript);
 
         if (result && result.error) {
-          if (!isBackground || !hasExisting) {
+          if (!hasExisting) {
             showSlotError(slot, result.error);
+          } else if (!isBackground) {
+            showToast(`@${handle}: ${result.error}`, 'warning', 3000);
           } else {
             console.warn(`[Background Fetch] Error for @${handle}:`, result.error);
           }
@@ -427,10 +451,8 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
           if (foundNewOnThisScroll > 0) {
             consecutiveEmptyScrolls = 0;
-            if (!isBackground || !hasExisting) {
-              slot.loadingText.innerText = hasExisting
-                ? `发现新推文 (${collectedNewTweets.length})...`
-                : `已获取 (${collectedNewTweets.length}/${INITIAL_TARGET_COUNT})...`;
+            if (!hasExisting) {
+              slot.loadingText.innerText = `已获取 (${collectedNewTweets.length}/${INITIAL_TARGET_COUNT})...`;
             }
           } else {
             consecutiveEmptyScrolls++;
@@ -457,7 +479,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     }
 
     if (!latestAvatarUrl && handle) {
-      latestAvatarUrl = `https://unavatar.io/x/${handle}`;
+      latestAvatarUrl = (slot.avatarImg && slot.avatarImg.src) || `https://unavatar.io/x/${handle}`;
       updateSlotAvatar(slot, latestAvatarUrl);
     }
 
@@ -478,7 +500,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
         showToast(`@${handle} 抓取到 ${collectedNewTweets.length} 条新推文`, 'success', 2500);
         const merged = [...collectedNewTweets, ...existingTweets];
         const sorted = processAndSortTweets(merged);
-        const finalTweets = sorted.slice(-20);
+        const finalTweets = sorted.slice(-Math.max(20, existingTweets.length));
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
         notifySlotNewMessages(slot, collectedNewTweets);
       }
@@ -488,14 +510,14 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
         const finalTweets = sorted.slice(-20);
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
       } else {
-        if (!isBackground || !hasExisting) {
-          showSlotError(slot, '抓取超时：未检测到推文。请确认右上角已登录，或该用户近期是否发过推文。');
-        }
+        showSlotError(slot, '抓取超时：未检测到推文。请确认右上角已登录，或该用户近期是否发过推文。');
       }
     }
   } catch (err) {
-    if (!isBackground || !hasExisting) {
+    if (!hasExisting) {
       showSlotError(slot, `发生异常: ${err.message}`);
+    } else if (!isBackground) {
+      showToast(`@${handle} 抓取异常: ${err.message}`, 'warning', 3000);
     } else {
       console.warn(`[Background Fetch] Exception for @${handle}:`, err);
     }

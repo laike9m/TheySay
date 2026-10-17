@@ -68,11 +68,13 @@ async function checkTwitterLoginStatus() {
   }
 }
 
-function initAuth() {
+function initAuth({ onExportProfile, onImportProfile } = {}) {
   const btnLoginMenu = document.getElementById('btn-login-menu');
   const loginMenu = document.getElementById('login-dropdown-menu');
   const itemTwitter = document.getElementById('item-login-twitter');
   const itemDiscord = document.getElementById('item-login-discord');
+  const itemExportProfile = document.getElementById('item-export-profile');
+  const itemImportProfile = document.getElementById('item-import-profile');
 
   function toggleMenu(forceOpen) {
     if (!loginMenu || !btnLoginMenu) return;
@@ -127,7 +129,25 @@ function initAuth() {
   if (itemDiscord) {
     itemDiscord.addEventListener('click', () => {
       closeMenu();
-      ipcRenderer.send('open-discord-login-window');
+      ipcRenderer.send('open-discord-login-window', { wasLoggedIn: isDiscordLoggedIn });
+    });
+  }
+
+  if (itemExportProfile) {
+    itemExportProfile.addEventListener('click', () => {
+      closeMenu();
+      if (typeof onExportProfile === 'function') {
+        onExportProfile();
+      }
+    });
+  }
+
+  if (itemImportProfile) {
+    itemImportProfile.addEventListener('click', () => {
+      closeMenu();
+      if (typeof onImportProfile === 'function') {
+        onImportProfile();
+      }
     });
   }
 

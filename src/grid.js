@@ -1,6 +1,6 @@
 const { MAX_SLOTS } = require('./constants');
 const { showToast } = require('./utils');
-const { saveGridLayout } = require('./storage');
+const { getSavedGridLayout, saveGridLayout } = require('./storage');
 const { updateSlotSizeUI, slotHasContent } = require('./slot');
 
 function calculateCellHeight(rows) {
@@ -11,7 +11,7 @@ function calculateCellHeight(rows) {
 }
 
 function parsePreset(presetStr) {
-  const [r, c] = presetStr.split('x').map(Number);
+  const [r, c] = String(presetStr || '2x2').split('x').map(Number);
   return { rows: r || 2, cols: c || 2 };
 }
 
@@ -22,6 +22,34 @@ function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPosition
   grid.cellHeight(calculateCellHeight(rows));
 
   const totalSlots = rows * cols;
+  const savedLayout = !resetPositions ? getSavedGridLayout() : null;
+  const savedBySlot = {};
+
+  if (Array.isArray(savedLayout) && savedLayout.length === totalSlots) {
+    savedLayout.forEach((item, idx) => {
+      if (!item || typeof item !== 'object') return;
+      const sIdx = typeof item.slotIndex === 'number'
+        ? item.slotIndex
+        : (typeof item.id === 'string' && item.id.startsWith('slot-')
+            ? parseInt(item.id.replace('slot-', ''), 10)
+            : idx);
+      if (
+        Number.isFinite(sIdx) &&
+        typeof item.x === 'number' &&
+        typeof item.y === 'number' &&
+        typeof item.w === 'number' &&
+        typeof item.h === 'number' &&
+        item.x >= 0 &&
+        item.y >= 0 &&
+        item.w >= 1 &&
+        item.h >= 1 &&
+        item.x + item.w <= cols &&
+        item.y + item.h <= rows
+      ) {
+        savedBySlot[sIdx] = { x: item.x, y: item.y, w: item.w, h: item.h };
+      }
+    });
+  }
 
   // 1. Remove widgets beyond totalSlots from GridStack and DOM
   for (let i = totalSlots; i < maxSlots; i++) {
@@ -46,15 +74,18 @@ function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPosition
     const isAttached = !!slot.element.parentElement;
     const col = i % cols;
     const row = Math.floor(i / cols);
+    const savedPos = !resetPositions && savedBySlot[i]
+      ? savedBySlot[i]
+      : { x: col, y: row, w: 1, h: 1 };
 
     if (!isAttached) {
       gridContainer.appendChild(slot.element);
       grid.makeWidget(slot.element);
-      grid.update(slot.element, { x: col, y: row, w: 1, h: 1 });
-      updateSlotSizeUI(slot, 1, 1);
-    } else if (resetPositions || !slot.element.gridstackNode) {
-      grid.update(slot.element, { x: col, y: row, w: 1, h: 1 });
-      updateSlotSizeUI(slot, 1, 1);
+      grid.update(slot.element, savedPos);
+      updateSlotSizeUI(slot, savedPos.w, savedPos.h);
+    } else if (resetPositions || !slot.element.gridstackNode || savedBySlot[i]) {
+      grid.update(slot.element, savedPos);
+      updateSlotSizeUI(slot, savedPos.w, savedPos.h);
     }
   }
 

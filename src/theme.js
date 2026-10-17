@@ -77,9 +77,10 @@ function applyTheme(theme, btnThemeToggle) {
   if (typeof clearTweetWidgetCache === 'function') {
     clearTweetWidgetCache();
   }
-  if (btnThemeToggle) {
-    btnThemeToggle.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
-    btnThemeToggle.title = theme === 'light' ? '切换深色模式' : '切换浅色模式';
+  const toggleEl = btnThemeToggle || document.getElementById('btn-theme-toggle');
+  if (toggleEl) {
+    toggleEl.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
+    toggleEl.title = theme === 'light' ? '切换深色模式' : '切换浅色模式';
   }
 }
 

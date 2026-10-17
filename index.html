@@ -152,6 +152,44 @@
                 </div>
               </button>
             </div>
+
+            <div class="login-menu-divider"></div>
+            <div class="login-menu-header">Profile 配置与关注列表</div>
+            <div class="login-menu-list">
+              <!-- 导出 Profile -->
+              <button class="login-menu-item" id="item-export-profile" title="导出全部设置与所有关注账号为 JSON 文件">
+                <div class="login-item-left">
+                  <span class="platform-icon profile-export">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </span>
+                  <span class="platform-name">导出 Profile</span>
+                </div>
+                <div class="login-item-right">
+                  <span class="profile-action-hint">JSON</span>
+                </div>
+              </button>
+
+              <!-- 导入 Profile -->
+              <button class="login-menu-item" id="item-import-profile" title="从 JSON 文件导入 Profile 配置（保留已抓取数据）">
+                <div class="login-item-left">
+                  <span class="platform-icon profile-import">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                  </span>
+                  <span class="platform-name">导入 Profile</span>
+                </div>
+                <div class="login-item-right">
+                  <span class="profile-action-hint">恢复</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -411,6 +449,33 @@
                   <span id="setting-ticker-stats-text">支持 $ 符号识别及 NASDAQ 美股与 ETF 代码库自动匹配。</span>
                   <button type="button" id="btn-sync-tickers" class="btn-tool btn-sync-tickers" title="从 NASDAQ 官方接口同步最新美股与 ETF 列表">同步在线词库</button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile 配置导出与导入 -->
+        <div class="settings-section">
+          <div class="settings-section-title">Profile 配置与关注列表备份</div>
+          <div class="settings-card settings-card-compact">
+            <div class="settings-compact-row">
+              <div class="settings-card-platform">
+                <span class="platform-icon profile-export">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </span>
+                <div>
+                  <div class="settings-card-title">个人 Profile 档案</div>
+                  <div class="settings-card-subtitle">包含全部偏好设置、网格布局与 follow 的所有账号/频道</div>
+                </div>
+              </div>
+              <div class="settings-input-group">
+                <button type="button" id="btn-import-profile" class="btn-tool" title="从 JSON 文件导入 Profile 配置（保留已抓取数据）">导入 Profile</button>
+                <button type="button" id="btn-export-profile" class="btn-tool btn-export-profile" title="导出全部设置与 follow 的所有人到 JSON 文件">导出 Profile</button>
               </div>
             </div>
           </div>

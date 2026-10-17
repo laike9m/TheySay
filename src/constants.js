@@ -9,6 +9,7 @@ const DEFAULT_HANDLES = [
 
 const STORAGE_HANDLES_KEY = 'theysay_slot_handles';
 const STORAGE_CACHE_KEY = 'theysay_slot_cache';
+const STORAGE_TARGET_CACHE_KEY = 'theysay_target_cache';
 const STORAGE_PRESET_KEY = 'theysay_grid_preset';
 const STORAGE_GRID_LAYOUT_KEY = 'theysay_grid_layout';
 const STORAGE_THEME_KEY = 'theysay_theme';
@@ -144,6 +145,7 @@ module.exports = {
   DEFAULT_HANDLES,
   STORAGE_HANDLES_KEY,
   STORAGE_CACHE_KEY,
+  STORAGE_TARGET_CACHE_KEY,
   STORAGE_PRESET_KEY,
   STORAGE_GRID_LAYOUT_KEY,
   STORAGE_THEME_KEY,

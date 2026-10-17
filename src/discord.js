@@ -17,6 +17,7 @@ const {
   parseDiscordChannelUrl,
   buildDiscordChannelUrl,
   buildDiscordMessageUrl,
+  getCanonicalTargetKey,
   SOURCE_DISCORD
 } = require('./source');
 const {
@@ -24,7 +25,9 @@ const {
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
-  renderSlotTweets
+  renderSlotTweets,
+  archiveSlotScrapedData,
+  restoreSlotFromTargetCache
 } = require('./slot');
 const { notifySlotNewMessages } = require('./notification');
 
@@ -993,8 +996,22 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   const { guildId, channelId } = parsed;
   saveHandles(slots);
 
+  const prevKey = getCanonicalTargetKey(slot.monitoredHandle || '');
+  const currKey = getCanonicalTargetKey(rawInput, SOURCE_DISCORD);
+  if (prevKey !== currKey) {
+    archiveSlotScrapedData(slot);
+    const restored = restoreSlotFromTargetCache(slot, rawInput, slots);
+    if (!restored) {
+      slot.loadedTweets = [];
+      slot.monitoredHandle = rawInput;
+      updateSlotAvatar(slot, null);
+    }
+  } else if (!Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) {
+    restoreSlotFromTargetCache(slot, rawInput, slots);
+  }
+
   const hasExisting = (
-    slot.monitoredHandle === rawInput &&
+    getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
     Array.isArray(slot.loadedTweets) &&
     slot.loadedTweets.length > 0 &&
     slot.loadedTweets.every(m => {
@@ -1021,12 +1038,12 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)));
   const existingByKey = new Map(existingMessages.map(m => [getTweetKey(m), m]));
 
-  if (!isBackground || !hasExisting) {
+  if (!hasExisting) {
     showSlotLoading(slot, '正在读取 Discord 频道...');
   }
 
   const setProgress = (text) => {
-    if ((!isBackground || !hasExisting) && slot.loadingText) {
+    if (!hasExisting && slot.loadingText) {
       slot.loadingText.innerText = text;
     }
   };
@@ -1053,8 +1070,10 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           }
           return;
         }
-        if (!isBackground || !hasExisting) {
+        if (!hasExisting) {
           showSlotError(slot, nav.error);
+        } else if (!isBackground) {
+          showToast(nav.error, 'warning', 3000);
         } else {
           console.warn(`[Discord] ${rawInput}: ${nav.error}`);
         }
@@ -1079,13 +1098,20 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
         if (result && result.error === 'NOT_LOGGED_IN') {
           saveDiscordLoggedIn(false);
-          if (!isBackground || !hasExisting) {
-            showSlotError(slot, '尚未登录 Discord，请点击右上角【登录 Discord】完成登录');
+          const loginErrMsg = '尚未登录 Discord，请点击右上角【登录 Discord】完成登录';
+          if (!hasExisting) {
+            showSlotError(slot, loginErrMsg);
+          } else if (!isBackground) {
+            showToast(loginErrMsg, 'warning', 3000);
           }
           return;
         }
         if (result && result.error) {
-          if (!isBackground || !hasExisting) showSlotError(slot, `Discord 抓取失败: ${result.error}`);
+          if (!hasExisting) {
+            showSlotError(slot, `Discord 抓取失败: ${result.error}`);
+          } else if (!isBackground) {
+            showToast(`Discord 抓取失败: ${result.error}`, 'warning', 3000);
+          }
           return;
         }
 
@@ -1168,7 +1194,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         .split(/[,，(（]/)[0]
         .replace(/[:：\s]+$/, '')
         .trim();
-      const channelLabel = cleanChan ? `#${cleanChan}` : '#频道';
+      const channelLabel = cleanChan ? `#${cleanChan}` : (slot.sourceTitle || '#频道');
 
       let guildLabel = String(meta.guildName || '')
         .split(/[\r\n]+/)[0]
@@ -1176,6 +1202,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         .trim();
       if (guildLabel.toLowerCase() === cleanChan.toLowerCase()) {
         guildLabel = '';
+      }
+      if (!guildLabel && slot.sourceSubtitle) {
+        guildLabel = slot.sourceSubtitle;
       }
 
       const renderMeta = {
@@ -1198,9 +1227,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       }
 
       if (collected.length === 0) {
-        if (!isBackground || !hasExisting) {
-          showSlotError(slot, '未读取到消息。请确认该频道有历史消息，且账号拥有查看权限。');
-        }
+        showSlotError(slot, '未读取到消息。请确认该频道有历史消息，且账号拥有查看权限。');
         return;
       }
 
@@ -1211,7 +1238,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       const merged = processAndSortTweets([...collected, ...existingMessages]);
       renderSlotTweets(
         slot,
-        merged.slice(-MAX_DISCORD_MESSAGES),
+        merged.slice(-Math.max(MAX_DISCORD_MESSAGES, existingMessages.length)),
         rawInput,
         meta.iconUrl || null,
         slots,
@@ -1223,8 +1250,10 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       }
     });
   } catch (err) {
-    if (!isBackground || !hasExisting) {
+    if (!hasExisting) {
       showSlotError(slot, `发生异常: ${err.message}`);
+    } else if (!isBackground) {
+      showToast(`Discord 抓取异常: ${err.message}`, 'warning', 3000);
     } else {
       console.warn(`[Discord] Exception for ${rawInput}:`, err);
     }

@@ -247,7 +247,80 @@ function closeSettingsModal({ revert = true } = {}) {
   if (btnSettings) btnSettings.classList.remove('active');
 }
 
-function initSettings({ onSave } = {}) {
+function getFormSettingsOverrides() {
+  if (!isSettingsModalOpen()) return {};
+
+  const twitterSelect = document.getElementById('setting-twitter-interval');
+  const twitterCustomInput = document.getElementById('setting-twitter-custom');
+  const discordSelect = document.getElementById('setting-discord-interval');
+  const discordCustomInput = document.getElementById('setting-discord-custom');
+  const memberOnlySelect = document.getElementById('setting-show-member-only');
+  const discordSoundSelect = document.getElementById('setting-discord-sound');
+  const headerBgInput = document.getElementById('setting-header-bg-color');
+  const headerBgHex = document.getElementById('setting-header-bg-hex');
+  const tickerEnabledSelect = document.getElementById('setting-ticker-enabled');
+  const tickerFgInput = document.getElementById('setting-ticker-fg-color');
+  const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
+  const tickerBgInput = document.getElementById('setting-ticker-bg-color');
+  const tickerBgHex = document.getElementById('setting-ticker-bg-hex');
+
+  let twitterIntervalMinutes = getTwitterIntervalMinutes();
+  if (twitterSelect) {
+    if (twitterSelect.value === 'custom' && twitterCustomInput) {
+      const val = parseFloat(twitterCustomInput.value);
+      if (!isNaN(val) && val > 0) twitterIntervalMinutes = Math.max(1, Math.round(val));
+    } else {
+      const val = parseFloat(twitterSelect.value);
+      if (!isNaN(val) && val > 0) twitterIntervalMinutes = val;
+    }
+  }
+
+  let discordIntervalMinutes = getDiscordIntervalMinutes();
+  if (discordSelect) {
+    if (discordSelect.value === 'custom' && discordCustomInput) {
+      const val = parseFloat(discordCustomInput.value);
+      if (!isNaN(val) && val > 0) discordIntervalMinutes = Math.max(0.5, Math.round(val * 10) / 10);
+    } else {
+      const val = parseFloat(discordSelect.value);
+      if (!isNaN(val) && val > 0) discordIntervalMinutes = val;
+    }
+  }
+
+  const showMemberOnlyTweets = memberOnlySelect
+    ? memberOnlySelect.value === 'true'
+    : getShowMemberOnlyTweets();
+  const discordSoundEnabled = discordSoundSelect
+    ? discordSoundSelect.value === 'true'
+    : getDiscordSoundEnabled();
+  const headerBgColor = normalizeHexColor(
+    headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
+    getHeaderBgColor()
+  );
+  const tickerHighlightEnabled = tickerEnabledSelect
+    ? tickerEnabledSelect.value === 'true'
+    : getTickerHighlightEnabled();
+  const tickerFgColor = normalizeHexColor(
+    tickerFgHex ? tickerFgHex.value : (tickerFgInput && tickerFgInput.value),
+    getTickerFgColor()
+  );
+  const tickerBgColor = normalizeHexColor(
+    tickerBgHex ? tickerBgHex.value : (tickerBgInput && tickerBgInput.value),
+    getTickerBgColor()
+  );
+
+  return {
+    twitterIntervalMinutes,
+    discordIntervalMinutes,
+    showMemberOnlyTweets,
+    discordSoundEnabled,
+    headerBgColor,
+    tickerHighlightEnabled,
+    tickerFgColor,
+    tickerBgColor
+  };
+}
+
+function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
   if (isInitialized) return;
   isInitialized = true;
 
@@ -275,6 +348,24 @@ function initSettings({ onSave } = {}) {
   const tickerBgInput = document.getElementById('setting-ticker-bg-color');
   const tickerBgHex = document.getElementById('setting-ticker-bg-hex');
   const btnSyncTickers = document.getElementById('btn-sync-tickers');
+  const btnExportProfile = document.getElementById('btn-export-profile');
+  const btnImportProfile = document.getElementById('btn-import-profile');
+
+  if (btnExportProfile) {
+    btnExportProfile.addEventListener('click', () => {
+      if (typeof onExportProfile === 'function') {
+        onExportProfile(getFormSettingsOverrides());
+      }
+    });
+  }
+
+  if (btnImportProfile) {
+    btnImportProfile.addEventListener('click', () => {
+      if (typeof onImportProfile === 'function') {
+        onImportProfile();
+      }
+    });
+  }
 
   if (btnSettings) {
     btnSettings.addEventListener('click', (e) => {
@@ -594,5 +685,7 @@ module.exports = {
   initSettings,
   openSettingsModal,
   closeSettingsModal,
-  isSettingsModalOpen
+  isSettingsModalOpen,
+  loadCurrentSettings,
+  getFormSettingsOverrides
 };

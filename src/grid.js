@@ -196,19 +196,15 @@ function requestSlotResize({ grid, slot, targetW, targetH, currentRows, currentC
 }
 
 const SECTION_STAY_RESTORE_MS = 20000;
-const HEADER_HOVER_DWELL_MS = 55;
-const CONTENT_HOVER_DWELL_MS = 35;
+const HEADER_HOVER_DWELL_MS = 140;
 
 let hoverEffectState = {
   expandedSlotIndex: null,
-  lastContentSlotIndex: null,
-  settledSlots: new Set(),
-  settledRects: null,
+  staySlotIndex: null,
   stayTimer: null,
   headerTimer: null,
-  contentTimer: null,
   pendingHeaderSlotIndex: null,
-  pendingContentSlotIndex: null,
+  pointerDownInfo: null,
   lastClientX: -1,
   lastClientY: -1,
   isInteractingWithGrid: false
@@ -223,12 +219,23 @@ function clearHoverTimers() {
     clearTimeout(hoverEffectState.headerTimer);
     hoverEffectState.headerTimer = null;
   }
-  if (hoverEffectState.contentTimer) {
-    clearTimeout(hoverEffectState.contentTimer);
-    hoverEffectState.contentTimer = null;
-  }
   hoverEffectState.pendingHeaderSlotIndex = null;
-  hoverEffectState.pendingContentSlotIndex = null;
+}
+
+function restartSectionStayTimer(slots) {
+  if (hoverEffectState.stayTimer) {
+    clearTimeout(hoverEffectState.stayTimer);
+    hoverEffectState.stayTimer = null;
+  }
+  if (hoverEffectState.expandedSlotIndex === null) {
+    return;
+  }
+  hoverEffectState.stayTimer = setTimeout(() => {
+    hoverEffectState.stayTimer = null;
+    if (hoverEffectState.expandedSlotIndex !== null) {
+      restoreColumnHoverEffect(slots);
+    }
+  }, SECTION_STAY_RESTORE_MS);
 }
 
 function formatCellCalc(multiplier) {
@@ -261,75 +268,11 @@ function restoreSlotVerticalGeometry(slot) {
   slot.element.style.height = n.h > 1 ? `calc(${n.h} * var(--gs-cell-height))` : '';
 }
 
-function restoreColumnHoverEffect(slots, { triggerHeaderEl = null, settledSlotIndex = null } = {}) {
-  if (hoverEffectState.stayTimer) {
-    clearTimeout(hoverEffectState.stayTimer);
-    hoverEffectState.stayTimer = null;
-  }
-  if (hoverEffectState.contentTimer) {
-    clearTimeout(hoverEffectState.contentTimer);
-    hoverEffectState.contentTimer = null;
-  }
-  hoverEffectState.pendingContentSlotIndex = null;
+function restoreColumnHoverEffect(slots) {
+  clearHoverTimers();
+  hoverEffectState.staySlotIndex = null;
 
-  const prevExpandedIndex = hoverEffectState.expandedSlotIndex;
-  if (Number.isFinite(prevExpandedIndex)) {
-    hoverEffectState.settledSlots.add(prevExpandedIndex);
-  }
-  if (Number.isFinite(settledSlotIndex)) {
-    hoverEffectState.settledSlots.add(settledSlotIndex);
-    hoverEffectState.lastContentSlotIndex = settledSlotIndex;
-  }
-
-  let expRect = hoverEffectState.settledRects ? hoverEffectState.settledRects.expRect : null;
-  let normalRect = hoverEffectState.settledRects ? hoverEffectState.settledRects.normalRect : null;
-
-  if (prevExpandedIndex !== null) {
-    const prevSlot = Array.isArray(slots) ? slots[prevExpandedIndex] : null;
-    if (prevSlot && prevSlot.element && prevSlot.element.parentElement) {
-      const r = prevSlot.element.getBoundingClientRect();
-      expRect = {
-        left: r.left,
-        right: r.right,
-        top: r.top - 28,
-        bottom: r.bottom + 28
-      };
-      const n = prevSlot.element.gridstackNode;
-      const gridEl = prevSlot.element.parentElement;
-      const gridRect = gridEl.getBoundingClientRect();
-      const cellH = parseFloat(getComputedStyle(gridEl).getPropertyValue('--gs-cell-height')) || 0;
-      if (n && cellH > 0) {
-        normalRect = {
-          left: r.left,
-          right: r.right,
-          top: gridRect.top + (n.y || 0) * cellH,
-          bottom: gridRect.top + ((n.y || 0) + (n.h || 1)) * cellH
-        };
-      }
-    }
-  }
-
-  let triggerHeaderRect = null;
-  if (triggerHeaderEl && typeof triggerHeaderEl.getBoundingClientRect === 'function') {
-    const hr = triggerHeaderEl.getBoundingClientRect();
-    triggerHeaderRect = {
-      left: hr.left,
-      right: hr.right,
-      top: hr.top - 24,
-      bottom: hr.bottom + 24
-    };
-  }
-
-  hoverEffectState.settledRects = {
-    restoredSlotIndex: prevExpandedIndex !== null
-      ? prevExpandedIndex
-      : (hoverEffectState.settledRects ? hoverEffectState.settledRects.restoredSlotIndex : settledSlotIndex),
-    expRect,
-    normalRect,
-    triggerHeaderRect
-  };
-
-  if (prevExpandedIndex === null) {
+  if (hoverEffectState.expandedSlotIndex === null) {
     return;
   }
 
@@ -343,9 +286,8 @@ function restoreColumnHoverEffect(slots, { triggerHeaderEl = null, settledSlotIn
 function resetColumnHoverEffect(slots) {
   clearHoverTimers();
   hoverEffectState.expandedSlotIndex = null;
-  hoverEffectState.lastContentSlotIndex = null;
-  hoverEffectState.settledSlots.clear();
-  hoverEffectState.settledRects = null;
+  hoverEffectState.staySlotIndex = null;
+  hoverEffectState.pointerDownInfo = null;
   if (Array.isArray(slots)) {
     slots.forEach(s => restoreSlotVerticalGeometry(s));
   }
@@ -389,16 +331,14 @@ function expandSlotInColumn(targetSlot, slots, getGridDimensions) {
   if (colSlots.length <= 1) {
     clearHoverTimers();
     hoverEffectState.expandedSlotIndex = null;
-    hoverEffectState.lastContentSlotIndex = targetSlot.index;
+    hoverEffectState.staySlotIndex = null;
     restoreSlotVerticalGeometry(targetSlot);
     return;
   }
 
   clearHoverTimers();
   hoverEffectState.expandedSlotIndex = targetSlot.index;
-  hoverEffectState.lastContentSlotIndex = targetSlot.index;
-  hoverEffectState.settledSlots.clear();
-  hoverEffectState.settledRects = null;
+  hoverEffectState.staySlotIndex = targetSlot.index;
 
   // Compute new vertical positions per column covered by targetSlot
   const startCol = targetNode.x;
@@ -449,12 +389,7 @@ function expandSlotInColumn(targetSlot, slots, getGridDimensions) {
   }
 
   // Restore after staying in the same section for > 20s
-  hoverEffectState.stayTimer = setTimeout(() => {
-    hoverEffectState.stayTimer = null;
-    if (hoverEffectState.expandedSlotIndex === targetSlot.index) {
-      restoreColumnHoverEffect(slots, { settledSlotIndex: targetSlot.index });
-    }
-  }, SECTION_STAY_RESTORE_MS);
+  restartSectionStayTimer(slots);
 }
 
 function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimensions }) {
@@ -469,16 +404,84 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
   };
 
   gridContainer.addEventListener('mouseleave', () => {
-    if (hoverEffectState.contentTimer) {
-      clearTimeout(hoverEffectState.contentTimer);
-      hoverEffectState.contentTimer = null;
-      hoverEffectState.pendingContentSlotIndex = null;
-    }
     if (hoverEffectState.headerTimer) {
       clearTimeout(hoverEffectState.headerTimer);
       hoverEffectState.headerTimer = null;
       hoverEffectState.pendingHeaderSlotIndex = null;
     }
+  });
+
+  gridContainer.addEventListener('mousedown', (e) => {
+    if (e.button && e.button !== 0) {
+      hoverEffectState.pointerDownInfo = null;
+      return;
+    }
+    const target = e.target;
+    const inBubbleOrControl = Boolean(
+      target &&
+      typeof target.closest === 'function' &&
+      target.closest('.im-bubble, .im-date-pill, .slot-header, a, button, input, textarea, select, label')
+    );
+    hoverEffectState.pointerDownInfo = {
+      x: e.clientX,
+      y: e.clientY,
+      inBubbleOrControl
+    };
+  });
+
+  // Clicking on blank space (outside message bubbles) in a section triggers height expansion
+  gridContainer.addEventListener('click', (e) => {
+    const downInfo = hoverEffectState.pointerDownInfo;
+    hoverEffectState.pointerDownInfo = null;
+
+    if (hoverEffectState.isInteractingWithGrid || isAnyOverlayOpen()) {
+      return;
+    }
+    if (e.button && e.button !== 0) {
+      return;
+    }
+    if (downInfo) {
+      if (downInfo.inBubbleOrControl) return;
+      if (Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 6) return;
+    }
+    if (typeof window.getSelection === 'function') {
+      const sel = window.getSelection();
+      if (sel && String(sel).trim().length > 0) return;
+    }
+
+    const target = e.target;
+    if (!target || typeof target.closest !== 'function') return;
+
+    // Ignore clicks on message bubbles, date pills, headers, or interactive controls
+    if (target.closest('.im-bubble, .im-date-pill, .slot-header, .slot-size-menu, a, button, input, textarea, select, label')) {
+      return;
+    }
+
+    const contentEl = target.closest('.slot-content-container');
+    if (!contentEl) return;
+
+    // Ignore clicks on the scrollbar area of the content container
+    const contentRect = contentEl.getBoundingClientRect();
+    if (
+      e.clientX > contentRect.left + contentEl.clientWidth ||
+      e.clientY > contentRect.top + contentEl.clientHeight
+    ) {
+      return;
+    }
+
+    const itemEl = contentEl.closest('.grid-stack-item');
+    if (!itemEl || itemEl.parentElement !== gridContainer) return;
+
+    const slotIndex = parseInt(itemEl.getAttribute('data-slot-index'), 10);
+    if (!Number.isFinite(slotIndex) || !slots[slotIndex]) return;
+    const slot = slots[slotIndex];
+
+    if (hoverEffectState.expandedSlotIndex === slot.index) {
+      restoreColumnHoverEffect(slots);
+      return;
+    }
+
+    expandSlotInColumn(slot, slots, getGridDimensions);
   });
 
   gridContainer.addEventListener('mousemove', (e) => {
@@ -503,47 +506,32 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     if (!Number.isFinite(slotIndex) || !slots[slotIndex]) return;
     const slot = slots[slotIndex];
 
-    // Check if cursor is on the section's header (用户名那栏)
+    // Moving cursor onto a section's header (用户名那栏) restores column heights
     const headerEl = target.closest('.slot-header');
     if (headerEl) {
-      if (hoverEffectState.contentTimer) {
-        clearTimeout(hoverEffectState.contentTimer);
-        hoverEffectState.contentTimer = null;
-        hoverEffectState.pendingContentSlotIndex = null;
-      }
+      if (hoverEffectState.expandedSlotIndex !== null) {
+        const node = slot.element.gridstackNode;
+        const isTopRowHeader = Boolean(node && node.y === 0);
+        const isExpandedSectionHeader = slot.index === hoverEffectState.expandedSlotIndex;
 
-      const node = slot.element.gridstackNode;
-      const isTopRowHeader = Boolean(node && node.y === 0);
-      const isCurrentSectionHeader = (
-        slot.index === hoverEffectState.expandedSlotIndex ||
-        slot.index === hoverEffectState.lastContentSlotIndex ||
-        hoverEffectState.settledSlots.has(slot.index) ||
-        hoverEffectState.lastContentSlotIndex === null
-      );
-
-      if (isTopRowHeader || isCurrentSectionHeader) {
-        if (hoverEffectState.headerTimer) {
-          clearTimeout(hoverEffectState.headerTimer);
-          hoverEffectState.headerTimer = null;
-        }
-        hoverEffectState.pendingHeaderSlotIndex = null;
-        restoreColumnHoverEffect(slots, {
-          triggerHeaderEl: headerEl,
-          settledSlotIndex: slot.index
-        });
-      } else if (hoverEffectState.pendingHeaderSlotIndex !== slot.index) {
-        if (hoverEffectState.headerTimer) {
-          clearTimeout(hoverEffectState.headerTimer);
-        }
-        hoverEffectState.pendingHeaderSlotIndex = slot.index;
-        hoverEffectState.headerTimer = setTimeout(() => {
-          hoverEffectState.headerTimer = null;
+        if (isTopRowHeader || isExpandedSectionHeader) {
+          if (hoverEffectState.headerTimer) {
+            clearTimeout(hoverEffectState.headerTimer);
+            hoverEffectState.headerTimer = null;
+          }
           hoverEffectState.pendingHeaderSlotIndex = null;
-          restoreColumnHoverEffect(slots, {
-            triggerHeaderEl: headerEl,
-            settledSlotIndex: slot.index
-          });
-        }, HEADER_HOVER_DWELL_MS);
+          restoreColumnHoverEffect(slots);
+        } else if (hoverEffectState.pendingHeaderSlotIndex !== slot.index) {
+          if (hoverEffectState.headerTimer) {
+            clearTimeout(hoverEffectState.headerTimer);
+          }
+          hoverEffectState.pendingHeaderSlotIndex = slot.index;
+          hoverEffectState.headerTimer = setTimeout(() => {
+            hoverEffectState.headerTimer = null;
+            hoverEffectState.pendingHeaderSlotIndex = null;
+            restoreColumnHoverEffect(slots);
+          }, HEADER_HOVER_DWELL_MS);
+        }
       }
       return;
     }
@@ -555,87 +543,10 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
       hoverEffectState.pendingHeaderSlotIndex = null;
     }
 
-    const contentEl = target.closest('.slot-content-container');
-    if (!contentEl) return;
-
-    // Already expanded on this slot: keep current expansion & 20s timer running
-    if (hoverEffectState.expandedSlotIndex === slot.index) {
-      hoverEffectState.lastContentSlotIndex = slot.index;
-      if (hoverEffectState.contentTimer) {
-        clearTimeout(hoverEffectState.contentTimer);
-        hoverEffectState.contentTimer = null;
-        hoverEffectState.pendingContentSlotIndex = null;
-      }
-      return;
-    }
-
-    // If this section is settled (e.g. cursor moved from its header into its content,
-    // or stayed > 20s), keep its current height unchanged
-    if (hoverEffectState.settledSlots.has(slot.index)) {
-      hoverEffectState.lastContentSlotIndex = slot.index;
-      if (hoverEffectState.contentTimer) {
-        clearTimeout(hoverEffectState.contentTimer);
-        hoverEffectState.contentTimer = null;
-        hoverEffectState.pendingContentSlotIndex = null;
-      }
-      const rects = hoverEffectState.settledRects;
-      if (rects && (rects.expRect || rects.triggerHeaderRect) && slot.index === rects.restoredSlotIndex) {
-        const nr = rects.normalRect || slot.element.getBoundingClientRect();
-        if (
-          e.clientX >= nr.left &&
-          e.clientX <= nr.right &&
-          e.clientY >= nr.top &&
-          e.clientY <= nr.bottom
-        ) {
-          rects.expRect = null;
-          rects.triggerHeaderRect = null;
-        }
-      }
-      return;
-    }
-
-    // While a restored column is animating back to normal height, ignore transient
-    // mousemove events inside the previously expanded bounds or header buffer zone
-    const rects = hoverEffectState.settledRects;
-    if (rects) {
-      if (rects.triggerHeaderRect) {
-        const hr = rects.triggerHeaderRect;
-        if (
-          e.clientX >= hr.left &&
-          e.clientX <= hr.right &&
-          e.clientY >= hr.top &&
-          e.clientY <= hr.bottom
-        ) {
-          return;
-        }
-      }
-
-      if (rects.expRect) {
-        const r = rects.expRect;
-        if (
-          e.clientX >= r.left &&
-          e.clientX <= r.right &&
-          e.clientY >= r.top &&
-          e.clientY <= r.bottom
-        ) {
-          return;
-        }
-      }
-    }
-
-    // Schedule smooth expansion for a different section
-    if (hoverEffectState.pendingContentSlotIndex !== slot.index) {
-      if (hoverEffectState.contentTimer) {
-        clearTimeout(hoverEffectState.contentTimer);
-      }
-      hoverEffectState.pendingContentSlotIndex = slot.index;
-      hoverEffectState.contentTimer = setTimeout(() => {
-        hoverEffectState.contentTimer = null;
-        hoverEffectState.pendingContentSlotIndex = null;
-        if (!hoverEffectState.isInteractingWithGrid && !isAnyOverlayOpen()) {
-          expandSlotInColumn(slot, slots, getGridDimensions);
-        }
-      }, CONTENT_HOVER_DWELL_MS);
+    // Track 20s stay duration per section while a column is expanded
+    if (hoverEffectState.expandedSlotIndex !== null && hoverEffectState.staySlotIndex !== slot.index) {
+      hoverEffectState.staySlotIndex = slot.index;
+      restartSectionStayTimer(slots);
     }
   });
 

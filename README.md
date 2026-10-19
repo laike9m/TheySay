@@ -15,6 +15,7 @@ A dynamic, drag-and-drop parallel Twitter / X monitoring dashboard built with El
 - **Card Header with Avatar & Name, Per-Channel System Notification Mute Toggle (Default Muted)**: Header height slimmed to 34px, displays user avatar (with handle-targeted HD profile extraction to prevent sidebar recommendation contamination), name, and handle in a clean line. Click on the name anytime to switch to editing the handle and press <kbd>Enter</kbd> to fetch. Replaces the manual refresh button with a per-channel mute / notification toggle button (`🔔` / `🔕`, muted by default). Clicking the mute button toggles native OS system notifications for that specific Twitter account or Discord channel when new posts arrive, and clicking a system notification brings the app window to focus and highlights the corresponding card.
 - **Hidden Scrollbars by Default**: Card scrollbars remain invisible by default and gently fade in on hover, keeping the UI minimal and clean.
 - **Multi-Size Expansion Options (`rows × columns`: `1×1`, `2×1 vertical double`, `3×1 vertical triple`, `2×2 spotlight square`)**: Strictly follows the row-first, column-second convention.
+- **Smooth Column Hover Focus (Dynamic Height Expansion & Half-Height Squeeze)**: Moving the cursor from one section to another smoothly expands the hovered section's height while squeezing the other sections in the same column to half of their original height (`0.5×`). If the cursor stays in the same section for more than 20 seconds, or moves onto a section's header (the username bar), all sections in the column smoothly restore to their original heights, and moving from the header back into the current section keeps the height unchanged until moving to a different section.
 - **Surrounding Content Conflict Protection**: Prevents accidental displacement of active cards. Alerts you with visual red shaking and prompts when adjacent slots already contain monitored accounts.
 - **Smart Incremental Scraping**: Avoids redundant fetching! Remembers previously fetched tweets, stops scrolling immediately upon hitting known timeline boundaries, and completes in ~1s if there are no new tweets, minimizing network traffic and rate limit triggers.
 - **Input, Avatar, Mute State, Layout & Window Bounds Persistence**: Handles, avatars, per-channel mute preferences, cached tweets, and custom grid arrangements are saved in real time to `localStorage`, while the main window's size, position, and fullscreen/maximized state are automatically persisted to `window-state.json` in `userData` across restarts.
@@ -49,9 +50,10 @@ npm start
    - Compares incoming tweets with cached tweets on the fly.
    - Halts scrolling as soon as it hits the previously fetched boundary.
    - Gathers only brand-new tweets and prepends them, completing in ~1s if no new posts were published.
-4. **GridStack Drag-and-Drop & Multi-Size Options**:
+4. **GridStack Drag-and-Drop, Multi-Size Options & Smooth Column Hover Focus**:
    - Powered by GridStack.js: rearrange cards by dragging the header handle (`⠿`).
    - Size Options Menu: Choose between `1×1` (default), `2×1` (2 rows × 1 col, vertical double), `3×1` (3 rows × 1 col, vertical triple), and `2×2` (2 rows × 2 cols, spotlight square), or clear the card with one click.
+   - Smooth Column Hover Focus: Moving the cursor into a section smoothly increases its vertical height while squeezing the other sections in the same column to half their original height; staying in the same section for > 20s or moving the cursor to a section's header (the username bar) smoothly restores normal heights.
    - Collision Protection: Checks if target area is occupied by slots with active content. Displays a warning toast and shakes conflicting cards in red if occupied.
    - Layout Selector: Switch seamlessly between `2×2`, `2×3`, `3×2`, `3×3`, and `4×4` grid presets with strict slot synchronization.
 6. **Discord Channel Monitoring (Public & Private Channels)**:

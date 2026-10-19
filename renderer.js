@@ -37,7 +37,8 @@ const {
   calculateCellHeight,
   parsePreset,
   applyGridLayout,
-  requestSlotResize
+  requestSlotResize,
+  initColumnHoverEffect
 } = require('./src/grid');
 const {
   fetchSlot,
@@ -402,6 +403,14 @@ window.addEventListener('DOMContentLoaded', () => {
     cols,
     resetPositions: false,
     maxSlots: MAX_SLOTS
+  });
+
+  // Initialize smooth column section hover expand/squeeze effect
+  initColumnHoverEffect({
+    gridContainer,
+    slots,
+    getGrid: () => grid,
+    getGridDimensions
   });
 
   // Restore cached tweets

@@ -7,6 +7,9 @@ const TICKER_DATA_PATH = path.join(__dirname, 'data', 'ticker-data.json');
 const tickerData = require('./data/ticker-data.json');
 
 app.name = 'TheySay';
+if (process.env.THEYSAY_USER_DATA_DIR) {
+  app.setPath('userData', process.env.THEYSAY_USER_DATA_DIR);
+}
 if (typeof app.setAppUserModelId === 'function') {
   app.setAppUserModelId('com.laike9m.theysay');
 }
@@ -414,8 +417,12 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
 });
 
 // Export user profile (all settings + all followed accounts/channels) to a JSON file
-ipcMain.handle('export-profile', async (event, profileData = {}) => {
+ipcMain.handle('export-profile', async (event, payload = {}) => {
   try {
+    const profileData =
+      payload && payload.profileData && typeof payload.profileData === 'object'
+        ? payload.profileData
+        : payload;
     const dateStr = new Date().toISOString().slice(0, 10);
     const defaultPath = path.join(app.getPath('downloads'), `theysay-profile-${dateStr}.json`);
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
@@ -448,11 +455,15 @@ ipcMain.handle('import-profile', async () => {
     }
     const filePath = filePaths[0];
     const raw = fs.readFileSync(filePath, 'utf8');
-    const profile = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    const profile =
+      parsed && parsed.profileData && typeof parsed.profileData === 'object'
+        ? parsed.profileData
+        : parsed;
     if (!profile || typeof profile !== 'object') {
       return { ok: false, error: '无效的 Profile JSON 文件格式' };
     }
-    return { ok: true, profile, filePath };
+    return { ok: true, profile, profileData: profile, filePath };
   } catch (err) {
     return { ok: false, error: err.message };
   }

@@ -31,6 +31,12 @@ npm install
 npm start
 ```
 
+运行 Electron 端到端集成测试（基于 Playwright，同时在 GitHub Actions `windows-latest` 环境自动执行）：
+
+```bash
+npm test
+```
+
 ## 功能特点
 
 1. **Telegram 风格聊天气泡与日期分界条**：
@@ -98,6 +104,8 @@ npm start
 
 ```
 TheySay/
+├── .github/workflows/
+│   └── windows-integration.yml # GitHub Actions Windows 平台 Electron 集成测试工作流
 ├── assets/
 │   ├── icon.icns       # macOS 应用程序图标包
 │   ├── icon.png        # 1024x1024 高分辨率应用图标
@@ -127,9 +135,12 @@ TheySay/
 │   ├── tweet.js        # Snowflake ID 时间戳解析（支持 Twitter 与 Discord epoch）、去重与升序排序
 │   ├── utils.js        # 拟人随机延迟、时间格式化与 Toast 提示
 │   └── webview.js      # 离屏 Webview 进程池生命周期管理
+├── tests/
+│   └── integration.spec.js # Playwright Electron 端到端集成测试套件
 ├── index.html          # 主窗口 HTML 骨架
 ├── main.js             # Electron 主进程（多会话分区、登录窗口、系统原生通知与 NASDAQ 在线词库拉取）
 ├── package.json        # Project metadata and run scripts
+├── playwright.config.js# Playwright 集成测试配置
 ├── renderer.js         # 渲染进程主入口与模块协调器
 ├── styles.css          # 应用样式表（深浅主题、网格排版、Ticker 高亮徽章、推文与 Discord 气泡美化）
 └── README.md           # 英文说明文档

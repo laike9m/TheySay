@@ -8,13 +8,14 @@
   "scripts": {
     "start": "node scripts/brand-app.js && electron .",
     "postinstall": "node scripts/brand-app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@playwright/test": "^1.53.0",
     "electron": "^44.2.0"
   },
   "dependencies": {

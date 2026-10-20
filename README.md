@@ -31,6 +31,12 @@ npm install
 npm start
 ```
 
+Run Electron integration tests (Playwright; also executed automatically on `windows-latest` via GitHub Actions):
+
+```bash
+npm test
+```
+
 ## Features
 
 1. **Telegram-Style Chat Bubbles & Date Dividers**:
@@ -99,6 +105,8 @@ npm start
 
 ```
 TheySay/
+├── .github/workflows/
+│   └── windows-integration.yml # GitHub Actions CI workflow for Windows Electron integration tests
 ├── assets/
 │   ├── icon.icns       # macOS application icon bundle
 │   ├── icon.png        # High-resolution (1024x1024) application icon
@@ -128,9 +136,12 @@ TheySay/
 │   ├── tweet.js        # Snowflake timestamp parsing (Twitter & Discord epochs), deduplication & sorting
 │   ├── utils.js        # Jitter, delay, string escaping & toast notifications
 │   └── webview.js      # Offscreen webview pool lifecycle & navigation
+├── tests/
+│   └── integration.spec.js # Playwright Electron end-to-end integration test suite
 ├── index.html          # Main application window layout
 ├── main.js             # Electron main process (multi-partition sessions, login windows, notifications, NASDAQ API)
 ├── package.json        # Project metadata and run scripts
+├── playwright.config.js# Playwright test runner configuration
 ├── renderer.js         # Main renderer process orchestrator
 ├── styles.css          # App styling (themes, layout, animations, ticker badges, Discord chat bubbles)
 └── README.md           # English Documentation

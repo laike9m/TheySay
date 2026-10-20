@@ -244,7 +244,7 @@
       <div class="settings-modal-body">
         <!-- 常规与刷新设置 (2×2 紧凑网格) -->
         <div class="settings-section">
-          <div class="settings-section-title">刷新频率与常规偏好</div>
+          <div class="settings-section-title">通用</div>
           <div class="settings-compact-grid">
             <!-- Twitter 刷新频率 -->
             <div class="settings-card settings-card-compact" title="建议设为 5 ~ 15 分钟或以上，过频抓取可能触发 Twitter 频率限制">
@@ -362,28 +362,28 @@
 
         <!-- 外观配色与 Ticker 高亮 -->
         <div class="settings-section">
-          <div class="settings-section-title">外观配色与 Ticker 高亮</div>
+          <div class="settings-section-title">外观</div>
 
           <div class="settings-card">
             <div class="settings-card-content">
-              <!-- Part 1: Title 栏背景配色 -->
+              <!-- Part 1: Title 栏背景配色 (预设色块 + 自定义同行) -->
               <div class="settings-field-row ticker-presets-row">
-                <span class="settings-label">Title 栏预设:</span>
-                <div id="setting-header-presets" class="ticker-preset-list">
-                  <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#1e293b" style="color: #f8fafc; background-color: #1e293b;" title="A. 深邃暗夜蓝 (#1e293b)">深邃暗夜蓝</button>
-                  <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#2563eb" style="color: #ffffff; background-color: #2563eb;" title="B. 经典天青蓝 (#2563eb)">经典天青蓝</button>
-                  <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#f3ede2" style="color: #0f1419; background-color: #f3ede2;" title="C. 温暖亚麻米 (#f3ede2)">温暖亚麻米</button>
-                  <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#dff2ea" style="color: #0f1419; background-color: #dff2ea;" title="D. 清新薄荷绿 (#dff2ea)">清新薄荷绿</button>
-                  <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#eae6f9" style="color: #0f1419; background-color: #eae6f9;" title="E. 雾光薰衣草紫 (#eae6f9)">雾光薰衣草紫</button>
-                  <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#faeed4" style="color: #0f1419; background-color: #faeed4;" title="F. 暖阳奶油杏 (#faeed4)">暖阳奶油杏</button>
-                </div>
-              </div>
-
-              <div class="settings-field-row">
-                <label for="setting-header-bg-color" class="settings-label">Title 栏自定义:</label>
-                <div class="settings-input-group ticker-color-picker-group">
-                  <input type="color" id="setting-header-bg-color" class="ticker-color-input" value="#f3ede2" title="自定义 Title 栏背景颜色">
-                  <input type="text" id="setting-header-bg-hex" class="ticker-hex-input" value="#f3ede2" maxlength="7" spellcheck="false" aria-label="Title 栏背景色 Hex">
+                <span class="settings-label">Title 栏配色:</span>
+                <div class="settings-color-inline-group">
+                  <div id="setting-header-presets" class="ticker-preset-list">
+                    <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#1e293b" style="background-color: #1e293b;" title="#1e293b" aria-label="#1e293b"></button>
+                    <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#2563eb" style="background-color: #2563eb;" title="#2563eb" aria-label="#2563eb"></button>
+                    <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#f3ede2" style="background-color: #f3ede2;" title="#f3ede2" aria-label="#f3ede2"></button>
+                    <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#dff2ea" style="background-color: #dff2ea;" title="#dff2ea" aria-label="#dff2ea"></button>
+                    <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#eae6f9" style="background-color: #eae6f9;" title="#eae6f9" aria-label="#eae6f9"></button>
+                    <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#faeed4" style="background-color: #faeed4;" title="#faeed4" aria-label="#faeed4"></button>
+                  </div>
+                  <span class="color-inline-divider"></span>
+                  <div class="settings-input-group ticker-color-picker-group">
+                    <span class="color-sub-label">自定义</span>
+                    <input type="color" id="setting-header-bg-color" class="ticker-color-input" value="#f3ede2" title="自定义 Title 栏背景颜色">
+                    <input type="text" id="setting-header-bg-hex" class="ticker-hex-input" value="#f3ede2" maxlength="7" spellcheck="false" aria-label="Title 栏背景色 Hex">
+                  </div>
                 </div>
               </div>
 
@@ -404,12 +404,12 @@
                 <div class="settings-field-row ticker-presets-row">
                   <span class="settings-label">Ticker 预设:</span>
                   <div id="setting-ticker-presets" class="ticker-preset-list">
-                    <button type="button" class="ticker-preset-chip" data-fg="#fde047" data-bg="#422006" style="color: #fde047; background-color: #422006;" title="琥珀金 (默认)">琥珀金</button>
-                    <button type="button" class="ticker-preset-chip" data-fg="#0f172a" data-bg="#facc15" style="color: #0f172a; background-color: #facc15;" title="荧光黄">荧光黄</button>
-                    <button type="button" class="ticker-preset-chip" data-fg="#4ade80" data-bg="#063925" style="color: #4ade80; background-color: #063925;" title="看涨绿">看涨绿</button>
-                    <button type="button" class="ticker-preset-chip" data-fg="#38bdf8" data-bg="#0c2d48" style="color: #38bdf8; background-color: #0c2d48;" title="电光蓝">电光蓝</button>
-                    <button type="button" class="ticker-preset-chip" data-fg="#c084fc" data-bg="#2e1065" style="color: #c084fc; background-color: #2e1065;" title="霓虹紫">霓虹紫</button>
-                    <button type="button" class="ticker-preset-chip" data-fg="#fda4af" data-bg="#4c0519" style="color: #fda4af; background-color: #4c0519;" title="朱砂红">朱砂红</button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#fde047" data-bg="#422006" style="background-color: #422006;" title="#fde047 / #422006" aria-label="#fde047 / #422006"></button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#0f172a" data-bg="#facc15" style="background-color: #facc15;" title="#0f172a / #facc15" aria-label="#0f172a / #facc15"></button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#4ade80" data-bg="#063925" style="background-color: #063925;" title="#4ade80 / #063925" aria-label="#4ade80 / #063925"></button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#38bdf8" data-bg="#0c2d48" style="background-color: #0c2d48;" title="#38bdf8 / #0c2d48" aria-label="#38bdf8 / #0c2d48"></button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#c084fc" data-bg="#2e1065" style="background-color: #2e1065;" title="#c084fc / #2e1065" aria-label="#c084fc / #2e1065"></button>
+                    <button type="button" class="ticker-preset-chip" data-fg="#fda4af" data-bg="#4c0519" style="background-color: #4c0519;" title="#fda4af / #4c0519" aria-label="#fda4af / #4c0519"></button>
                   </div>
                 </div>
 
@@ -456,7 +456,7 @@
 
         <!-- Profile 配置导出与导入 -->
         <div class="settings-section">
-          <div class="settings-section-title">Profile 配置与关注列表备份</div>
+          <div class="settings-section-title">备份</div>
           <div class="settings-card settings-card-compact">
             <div class="settings-compact-row">
               <div class="settings-card-platform">

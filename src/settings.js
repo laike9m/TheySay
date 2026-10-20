@@ -655,7 +655,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
       const tickerText = tickerHighlightEnabled ? 'Ticker高亮开启' : 'Ticker高亮关闭';
       const soundText = discordSoundEnabled ? 'Discord 提示音开启' : 'Discord 已静音';
       showToast(
-        `设置已保存 (Title栏: ${headerPalette.name}, Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText}, ${tickerText}, ${soundText})`,
+        `设置已保存 (Title栏: ${headerPalette.bg}, Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText}, ${tickerText}, ${soundText})`,
         'success',
         2500
       );

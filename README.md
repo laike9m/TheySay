@@ -37,6 +37,22 @@ Run Electron integration tests (Playwright; also executed automatically on `wind
 npm test
 ```
 
+### Building Distributable Packages (macOS / Windows / Linux — All Directly on Mac)
+
+```bash
+# Build all 3 platforms (macOS arm64 + Windows x64 + Linux x64) with Apple notarization
+npm run dist:all
+
+# Build all 3 platforms quickly (macOS Developer ID signed, skips Apple notary wait)
+npm run dist:all:quick
+
+# Or build each platform individually on Mac:
+npm run dist:mac        # macOS arm64 (.dmg & .zip — Developer ID signed + notarized + stapled)
+npm run dist:mac:quick  # macOS arm64 (.dmg & .zip — Developer ID signed, skips notarization)
+npm run dist:win        # Windows x64 (NSIS installer .exe & portable .exe)
+npm run dist:linux      # Linux x64 (.AppImage & .deb)
+```
+
 ## Features
 
 1. **Telegram-Style Chat Bubbles & Date Dividers**:
@@ -111,12 +127,15 @@ TheySay/
 │   ├── icon.icns       # macOS application icon bundle
 │   ├── icon.png        # High-resolution (1024x1024) application icon
 │   └── icon.svg        # Master vector icon (macOS squircle dark theme & brand waves)
+├── build/
+│   └── entitlements.mac.plist # macOS Hardened Runtime entitlements for Developer ID signing & notarization
 ├── data/
 │   └── ticker-data.json# Permanently persisted US Stock & ETF symbol dictionary & word filter list
 ├── docs/
 │   └── README_zh.md    # Chinese Documentation (中文文档)
 ├── scripts/
-│   └── brand-app.js    # macOS app bundle branding (name, bundle ID, icon & path synchronization)
+│   ├── brand-app.js    # macOS app bundle branding (name, bundle ID, icon & path synchronization)
+│   └── notarize-mac.js # macOS DMG notarization & ticket stapling via 'notarize-app' keychain profile
 ├── src/
 │   ├── auth.js         # Twitter & Discord login status check & IPC dialogs
 │   ├── constants.js    # Layout limits, storage keys, partition names & polling intervals

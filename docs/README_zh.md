@@ -37,6 +37,30 @@ npm start
 npm test
 ```
 
+### 打包分发版本 (macOS / Windows / Linux)
+
+三个平台的安装包都可以直接在 macOS 上一键构建并输出到 `dist/` 目录：
+
+```bash
+# 一次性构建全部平台 (macOS arm64 + Windows x64 + Linux x64，含 Apple 公证)
+npm run dist:all
+
+# 一次性构建全部平台 (跳过 Apple 在线公证等待，适合快速打包)
+npm run dist:all:quick
+
+# 仅构建 macOS (arm64 .dmg 与 .zip — 自动使用 Developer ID 签名并通过 'notarize-app' keychain profile 公证与 staple)
+npm run dist:mac
+
+# 仅构建 macOS 快速签名版 (使用 Developer ID 签名，跳过 Apple 在线公证等待)
+npm run dist:mac:quick
+
+# 仅构建 Windows (x64 NSIS 安装包 .exe 与免安装单文件 .exe)
+npm run dist:win
+
+# 仅构建 Linux (x64 .AppImage 与 .deb)
+npm run dist:linux
+```
+
 ## 功能特点
 
 1. **Telegram 风格聊天气泡与日期分界条**：
@@ -110,12 +134,15 @@ TheySay/
 │   ├── icon.icns       # macOS 应用程序图标包
 │   ├── icon.png        # 1024x1024 高分辨率应用图标
 │   └── icon.svg        # 矢量源图标（macOS 拟物深色渐变底板与品牌声波）
+├── build/
+│   └── entitlements.mac.plist # macOS Hardened Runtime 签名与公证权限配置
 ├── data/
 │   └── ticker-data.json# 永久留存的 NASDAQ 美股与 ETF 代码库及英文常用词过滤表
 ├── docs/
 │   └── README_zh.md    # 中文文档
 ├── scripts/
-│   └── brand-app.js    # macOS 应用程序包品牌定制脚本（名称、Bundle ID、图标与路径同步）
+│   ├── brand-app.js    # macOS 应用程序包品牌定制脚本（名称、Bundle ID、图标与路径同步）
+│   └── notarize-mac.js # macOS DMG 自动公证与 ticket 钉合脚本（复用 'notarize-app' keychain profile）
 ├── src/
 │   ├── auth.js         # Twitter 与 Discord 登录状态检测与 IPC 授权弹窗管理
 │   ├── constants.js    # 槽位上限、存储键名、分区名与轮询间隔等常量

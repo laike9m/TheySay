@@ -3,7 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
 const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/tweet_embed');
-const TICKER_DATA_PATH = path.join(__dirname, 'data', 'ticker-data.json');
+const TICKER_DATA_PATH = path
+  .join(__dirname, 'data', 'ticker-data.json')
+  .replace('app.asar', 'app.asar.unpacked');
 const tickerData = require('./data/ticker-data.json');
 
 app.name = 'TheySay';

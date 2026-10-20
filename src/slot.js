@@ -38,6 +38,13 @@ const {
 } = require('./source');
 const { requestNotificationPermission } = require('./notification');
 const { formatTextWithTickers } = require('./ticker');
+const {
+  t,
+  translateAttachmentLabel,
+  isImageAttachmentLabel,
+  normalizeDiscordChannelFallback,
+  normalizeMediaOnlyText
+} = require('./i18n');
 
 const BELL_OFF_SVG = `
   <svg class="mute-icon bell-off" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -67,10 +74,10 @@ function createSlotWidget(index) {
       <div class="slot-card" id="slot-card-${index}">
         <!-- Compact Header (~34px) with User Avatar & Identity -->
         <div class="slot-header slot-drag-handle">
-          <span class="slot-drag-indicator" title="按住拖拽卡片">⠿</span>
+          <span class="slot-drag-indicator" title="${escapeHtml(t('slot.dragHandleTitle'))}">⠿</span>
 
           <!-- User Profile Avatar in Header -->
-          <div class="slot-avatar" id="slot-avatar-${index}" title="用户头像">
+          <div class="slot-avatar" id="slot-avatar-${index}" title="${escapeHtml(t('slot.avatarTitle'))}">
             <img class="slot-avatar-img" id="slot-avatar-img-${index}" alt="" style="display: none;">
             <span class="slot-avatar-placeholder" id="slot-avatar-placeholder-${index}">👤</span>
           </div>
@@ -78,25 +85,25 @@ function createSlotWidget(index) {
           <!-- Identity Area: Displays Author Name / Handle next to Avatar, or Input Field -->
           <div class="slot-identity-area" id="slot-identity-${index}">
             <!-- Author display badge next to avatar (shown when tweets loaded) -->
-            <div class="slot-author-header" id="slot-author-header-${index}" style="display: none;" title="点击修改账号">
+            <div class="slot-author-header" id="slot-author-header-${index}" style="display: none;" title="${escapeHtml(t('slot.clickEditAccount'))}">
               <span class="slot-author-name" id="author-name-${index}"></span>
               <span class="slot-author-handle" id="author-handle-${index}"></span>
-              <span class="slot-author-edit-hint" title="修改">✎</span>
+              <span class="slot-author-edit-hint" title="${escapeHtml(t('slot.editHint'))}">✎</span>
             </div>
             <span class="slot-unread-badge" id="slot-unread-badge-${index}" style="display: none;"></span>
 
             <!-- Handle input field (shown initially or when editing) -->
             <div class="slot-input-wrapper" id="slot-input-wrapper-${index}">
               <span class="slot-input-prefix" id="slot-input-prefix-${index}">@</span>
-              <input type="text" class="slot-handle-input" id="handle-input-${index}" placeholder="Twitter 用户名 或 Discord 频道链接" autocomplete="off" spellcheck="false">
-              <button class="slot-btn-clear" id="btn-clear-${index}" title="清空" style="display: none;">✕</button>
+              <input type="text" class="slot-handle-input" id="handle-input-${index}" placeholder="${escapeHtml(t('slot.inputPlaceholder'))}" autocomplete="off" spellcheck="false">
+              <button class="slot-btn-clear" id="btn-clear-${index}" title="${escapeHtml(t('slot.clearBtnTitle'))}" style="display: none;">✕</button>
             </div>
           </div>
 
-          <button class="slot-btn-mute is-muted" id="btn-mute-${index}" title="已静音系统通知 (点击开启此频道通知)" aria-label="切换系统通知静音" aria-pressed="false">
+          <button class="slot-btn-mute is-muted" id="btn-mute-${index}" title="${escapeHtml(t('slot.mutedTitle'))}" aria-label="${escapeHtml(t('slot.muteAriaLabel'))}" aria-pressed="false">
             <span class="mute-icon-wrap" id="mute-icon-${index}">${BELL_OFF_SVG}</span>
           </button>
-          <button class="slot-btn-expand" id="btn-expand-${index}" title="调整格子尺寸 (1×1, 2×1, 3×1, 2×2)">
+          <button class="slot-btn-expand" id="btn-expand-${index}" title="${escapeHtml(t('slot.expandBtnTitle'))}">
             <span class="expand-icon" id="expand-icon-${index}">
               <svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 3 21 3 21 9"></polyline>
@@ -113,11 +120,11 @@ function createSlotWidget(index) {
         <div class="slot-content-container" id="slot-content-${index}">
           <div class="slot-placeholder" id="slot-placeholder-${index}">
             <span class="slot-placeholder-icon">💬</span>
-            <p>输入 handle 或频道链接并按回车</p>
+            <p>${escapeHtml(t('slot.placeholderText'))}</p>
           </div>
           <div class="slot-loading" id="slot-loading-${index}" style="display: none;">
             <div class="spinner-small"></div>
-            <span class="slot-loading-text" id="slot-loading-text-${index}">后台抓取中...</span>
+            <span class="slot-loading-text" id="slot-loading-text-${index}">${escapeHtml(t('slot.loadingText'))}</span>
           </div>
           <div class="slot-error" id="slot-error-${index}" style="display: none;"></div>
           <div class="slot-tweets-list" id="slot-tweets-list-${index}" style="display: none;"></div>
@@ -155,12 +162,14 @@ function isDiscordSlot(slot) {
 }
 
 function getSlotDisplayLabel(slot) {
-  if (!slot) return '此频道';
+  if (!slot) return t('slot.defaultChannelName');
   if (isDiscordSlot(slot)) {
-    return (slot.sourceTitle || (slot.authorName && slot.authorName.innerText) || '#频道').trim();
+    return normalizeDiscordChannelFallback(
+      slot.sourceTitle || (slot.authorName && slot.authorName.innerText) || t('slot.defaultDiscordChannel')
+    ).trim();
   }
   const h = slot.monitoredHandle || (slot.handleInput ? normalizeTwitterHandle(slot.handleInput.value) : '');
-  return h ? `@${h}` : '此频道';
+  return h ? `@${h}` : t('slot.defaultChannelName');
 }
 
 function updateSlotMuteUI(slot) {
@@ -169,14 +178,13 @@ function updateSlotMuteUI(slot) {
   slot.btnMute.classList.toggle('is-muted', isMuted);
   slot.btnMute.classList.toggle('is-unmuted', !isMuted);
   slot.btnMute.setAttribute('aria-pressed', String(!isMuted));
+  slot.btnMute.setAttribute('aria-label', t('slot.muteAriaLabel'));
 
   if (slot.muteIcon) {
     slot.muteIcon.innerHTML = isMuted ? BELL_OFF_SVG : BELL_ON_SVG;
   }
 
-  slot.btnMute.title = isMuted
-    ? '已静音系统通知 (点击开启此频道通知)'
-    : '系统通知已开启 (点击静音此频道)';
+  slot.btnMute.title = isMuted ? t('slot.mutedTitle') : t('slot.unmutedTitle');
 }
 
 function toggleSlotMute(slot, slots = []) {
@@ -201,7 +209,7 @@ function toggleSlotMute(slot, slots = []) {
 
   const label = getSlotDisplayLabel(slot);
   showToast(
-    slot.isMuted ? `已静音 ${label} 的系统通知` : `已开启 ${label} 的系统通知`,
+    slot.isMuted ? t('slot.toastMuted', { label }) : t('slot.toastUnmuted', { label }),
     slot.isMuted ? 'info' : 'success',
     2000
   );
@@ -262,14 +270,16 @@ function updateSlotFetchTimeUI(slot, timestamp) {
   if (slot.authorHeader) {
     let name;
     if (isDiscord) {
-      const title = slot.sourceTitle || '#频道';
+      const title = normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel'));
       const subtitle = slot.sourceSubtitle || '';
       name = subtitle ? `${title} · ${subtitle}` : title;
     } else {
       name = `@${slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')}`;
     }
-    const editHint = isDiscord ? '点击修改频道' : '点击修改账号';
-    slot.authorHeader.title = timeStr ? `${name} · 上次抓取: ${timeStr} (${editHint})` : `${name} (${editHint})`;
+    const editHint = isDiscord ? t('slot.clickEditChannel') : t('slot.clickEditAccount');
+    slot.authorHeader.title = timeStr
+      ? t('slot.lastFetchedTitle', { name, timeStr, editHint })
+      : t('slot.noFetchedTitle', { name, editHint });
   }
 }
 
@@ -293,7 +303,7 @@ function updateSlotUnreadBadge(slot) {
   const count = getSlotUnreadCount(slot);
   if (!isEditing && count > 0) {
     slot.unreadBadge.innerText = count > 99 ? '99+' : String(count);
-    slot.unreadBadge.title = `${count} 条未读消息 (点击将本栏标记为已读)`;
+    slot.unreadBadge.title = t('slot.unreadBadgeTitle', { count });
     slot.unreadBadge.style.display = 'inline-flex';
   } else {
     slot.unreadBadge.innerText = '';
@@ -394,20 +404,20 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     const gridClass = images.length > 1 ? 'multi' : 'single';
     html += `<div class="im-media-grid ${gridClass}">`;
     images.forEach(imgUrl => {
-      html += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="图片" loading="lazy" referrerpolicy="no-referrer">`;
+      html += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(t('slot.imageAlt'))}" loading="lazy" referrerpolicy="no-referrer">`;
     });
     html += '</div>';
   }
 
   const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
   const visibleAttachments = images.length > 0
-    ? rawAttachments.filter(a => a !== '图片')
+    ? rawAttachments.filter(a => !isImageAttachmentLabel(a))
     : rawAttachments;
 
   if (visibleAttachments.length > 0) {
     html += '<span class="im-attachments">';
     visibleAttachments.forEach(a => {
-      html += `<span class="im-attachment-chip">${escapeHtml(a)}</span>`;
+      html += `<span class="im-attachment-chip">${escapeHtml(translateAttachmentLabel(a))}</span>`;
     });
     html += '</span>';
   }
@@ -416,16 +426,16 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 }
 
 function buildTweetBubbleHtml(tweet) {
-  const rawText = (tweet.text || '').trim();
+  const rawText = normalizeMediaOnlyText((tweet.text || '').trim());
   const chars = Array.from(rawText);
   const isLong = chars.length > 100;
   const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
 
   let tagHtml = '';
-  if (tweet.isPinned) tagHtml += '<span class="tweet-tag">置顶</span>';
-  if (tweet.isRetweet) tagHtml += '<span class="tweet-tag repost">转推</span>';
-  if (isTweetWithQuote(tweet)) tagHtml += '<span class="tweet-tag quote">引用</span>';
-  if (isMemberOnlyTweet(tweet)) tagHtml += '<span class="tweet-tag member" title="仅会员 / 订阅者可见">仅会员</span>';
+  if (tweet.isPinned) tagHtml += `<span class="tweet-tag">${escapeHtml(t('slot.tagPinned'))}</span>`;
+  if (tweet.isRetweet) tagHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
+  if (isTweetWithQuote(tweet)) tagHtml += `<span class="tweet-tag quote">${escapeHtml(t('slot.tagQuote'))}</span>`;
+  if (isMemberOnlyTweet(tweet)) tagHtml += `<span class="tweet-tag member" title="${escapeHtml(t('slot.tagMemberOnlyTitle'))}">${escapeHtml(t('slot.tagMemberOnly'))}</span>`;
 
   const textHtml = isLong
     ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
@@ -459,7 +469,10 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   let userHandle;
 
   if (isDiscord) {
-    let rawTitle = meta && meta.title ? meta.title : (slot.sourceTitle || '#频道');
+    let rawTitle = meta && meta.title ? meta.title : (slot.sourceTitle || t('slot.defaultDiscordChannel'));
+    if (rawTitle === '#频道' || rawTitle === '#channel') {
+      rawTitle = '';
+    }
     let rawSubtitle = meta && meta.subtitle !== undefined ? meta.subtitle : (slot.sourceSubtitle || '');
 
     let cleanChan = '';
@@ -502,7 +515,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       }
     }
 
-    displayName = cleanChan ? `#${cleanChan}` : '#频道';
+    displayName = cleanChan ? `#${cleanChan}` : t('slot.defaultDiscordChannel');
     userHandle = cleanGuild;
 
     slot.sourceTitle = displayName;
@@ -650,7 +663,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     }
 
     const timeDisplay = formatTelegramTime(tweet);
-    const linkTitle = isDiscord ? '在浏览器 / Discord 中打开原消息' : '在浏览器中打开原推文';
+    const linkTitle = isDiscord ? t('slot.openOriginalDiscord') : t('slot.openOriginalTweet');
 
     let bodyHtml;
     if (isDiscord) {
@@ -665,7 +678,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       bodyHtml = buildTweetBubbleHtml(tweet);
     }
 
-    bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="${linkTitle}">↗</a>` : ''}`;
+    bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="${escapeHtml(linkTitle)}">↗</a>` : ''}`;
 
     // Handle inline image load (keep bottom scroll alignment) and error fallback
     const mediaImgs = bubble.querySelectorAll('.im-media-img');
@@ -743,7 +756,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   if (displayTweets.length === 0 && tweets.length > 0 && !isDiscord) {
     const emptyNotice = document.createElement('div');
     emptyNotice.className = 'im-filtered-empty-notice';
-    emptyNotice.innerText = `已隐藏 ${tweets.length} 条仅会员可见的帖子 (可在设置中开启)`;
+    emptyNotice.innerText = t('slot.hiddenMemberTweets', { count: tweets.length });
     slot.tweetsList.appendChild(emptyNotice);
   }
 
@@ -899,7 +912,7 @@ function clearSlot(slot, { slots } = {}) {
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
   updateSlotUnreadBadge(slot);
   updateSlotSourceUI(slot);
-  showToast('已清空此栏显示 (历史抓取数据已保留在缓存中)', 'success', 2000);
+  showToast(t('slot.toastCleared'), 'success', 2000);
 }
 
 function slotHasContent(slot) {
@@ -924,12 +937,12 @@ function updateSlotSizeUI(slot, w, h) {
     } else {
       slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`;
     }
-    slot.btnExpand.title = `当前尺寸: ${r}×${c} (点击切换或还原)`;
+    slot.btnExpand.title = t('slot.currentSizeTitle', { r, c });
   } else {
     slot.card.classList.remove('is-priority');
     slot.btnExpand.classList.remove('expanded');
     slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="3" y2="21"></line></svg>`;
-    slot.btnExpand.title = '调整卡片尺寸 (1×1, 2×1, 3×1, 2×2)';
+    slot.btnExpand.title = t('slot.resizeCardTitle');
   }
 }
 
@@ -953,27 +966,27 @@ function toggleSlotSizeMenu(slot, { slots, getGridDimensions, onResize }) {
 
   // 1×1, 2×1, 3×1, 2×2：行在前，列在后
   const options = [
-    { r: 1, c: 1, label: '1 × 1', desc: '单格默认' },
-    { r: 2, c: 1, label: '2 × 1', desc: '纵向双行' },
-    { r: 3, c: 1, label: '3 × 1', desc: '纵向三行' },
-    { r: 2, c: 2, label: '2 × 2', desc: '双行双列' }
+    { r: 1, c: 1, label: '1 × 1', desc: t('slot.size1x1Desc') },
+    { r: 2, c: 1, label: '2 × 1', desc: t('slot.size2x1Desc') },
+    { r: 3, c: 1, label: '3 × 1', desc: t('slot.size3x1Desc') },
+    { r: 2, c: 2, label: '2 × 2', desc: t('slot.size2x2Desc') }
   ];
 
-  let menuHtml = `<div class="size-menu-title">调整卡片尺寸 (行 × 列)</div>`;
+  let menuHtml = `<div class="size-menu-title">${escapeHtml(t('slot.sizeMenuTitle'))}</div>`;
 
   options.forEach(opt => {
     const key = `${opt.r}x${opt.c}`;
     const isActive = (curKey === key);
     const disabled = (opt.r > currentRows || opt.c > currentCols);
     let hint = opt.desc;
-    if (opt.r > currentRows) hint = `(需≥${opt.r}行)`;
-    else if (opt.c > currentCols) hint = `(需≥${opt.c}列)`;
+    if (opt.r > currentRows) hint = t('slot.needRows', { r: opt.r });
+    else if (opt.c > currentCols) hint = t('slot.needCols', { c: opt.c });
 
     menuHtml += `
       <button class="size-menu-item ${isActive ? 'active' : ''}" data-r="${opt.r}" data-c="${opt.c}" ${disabled ? 'style="opacity: 0.45;"' : ''}>
         <div>
           <span class="size-label">${opt.label}</span>
-          <span class="size-desc">${hint}</span>
+          <span class="size-desc">${escapeHtml(hint)}</span>
         </div>
         ${isActive ? '<span class="size-check">✓</span>' : ''}
       </button>
@@ -984,8 +997,8 @@ function toggleSlotSizeMenu(slot, { slots, getGridDimensions, onResize }) {
     <div class="size-menu-divider"></div>
     <button class="size-menu-item danger" data-action="clear">
       <div>
-        <span class="size-label">清空本栏</span>
-        <span class="size-desc">清除 Handle 与推文</span>
+        <span class="size-label">${escapeHtml(t('slot.clearSlotLabel'))}</span>
+        <span class="size-desc">${escapeHtml(t('slot.clearSlotDesc'))}</span>
       </div>
       <span>🗑️</span>
     </button>
@@ -1413,7 +1426,7 @@ function refreshSlotsContent(slots) {
       const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || null;
       const isDiscord = slot.source === SOURCE_DISCORD;
       const meta = isDiscord
-        ? { source: SOURCE_DISCORD, title: slot.sourceTitle || '#频道', subtitle: slot.sourceSubtitle || '' }
+        ? { source: SOURCE_DISCORD, title: normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel')), subtitle: slot.sourceSubtitle || '' }
         : {
             source: 'twitter',
             displayName: slot.authorName ? slot.authorName.innerText : '',
@@ -1421,6 +1434,37 @@ function refreshSlotsContent(slots) {
           };
       renderSlotTweets(slot, slot.loadedTweets, handle, avatarUrl, slots, meta);
     }
+  });
+}
+
+function localizeSlotsUI(slots) {
+  if (!Array.isArray(slots)) return;
+  closeAllSizeMenus(slots);
+  slots.forEach((slot) => {
+    if (!slot || !slot.element) return;
+    const dragIndicator = slot.element.querySelector('.slot-drag-indicator');
+    if (dragIndicator) dragIndicator.title = t('slot.dragHandleTitle');
+    if (slot.avatarContainer) slot.avatarContainer.title = t('slot.avatarTitle');
+    if (slot.authorHeader) {
+      const editHint = slot.authorHeader.querySelector('.slot-author-edit-hint');
+      if (editHint) editHint.title = t('slot.editHint');
+    }
+    if (slot.handleInput) slot.handleInput.placeholder = t('slot.inputPlaceholder');
+    if (slot.btnClear) slot.btnClear.title = t('slot.clearBtnTitle');
+    if (slot.placeholder) {
+      const p = slot.placeholder.querySelector('p');
+      if (p) p.textContent = t('slot.placeholderText');
+    }
+    if (slot.loadingText && !slot.isFetching) {
+      slot.loadingText.textContent = t('slot.loadingText');
+    }
+    updateSlotMuteUI(slot);
+    updateSlotUnreadBadge(slot);
+    updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
+    const node = slot.element.gridstackNode;
+    const w = node ? (node.w || 1) : 1;
+    const h = node ? (node.h || 1) : 1;
+    updateSlotSizeUI(slot, w, h);
   });
 }
 
@@ -1449,6 +1493,7 @@ module.exports = {
   initSlotsRegistry,
   loadSlotCache,
   markAllTweetsAsRead,
-  refreshSlotsContent
+  refreshSlotsContent,
+  localizeSlotsUI
 };
 

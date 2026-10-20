@@ -3,6 +3,12 @@ const { getTweetId, isMemberOnlyTweet } = require('./tweet');
 const { escapeHtml, stripDiscordEditedText } = require('./utils');
 const { formatTextWithTickers } = require('./ticker');
 const { installRendererEmbedHooks } = require('./tweet_embed');
+const {
+  t,
+  translateAttachmentLabel,
+  isImageAttachmentLabel,
+  normalizeMediaOnlyText
+} = require('./i18n');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
 // Each embed is a real iframe, so this is a memory/latency trade-off.
@@ -167,7 +173,7 @@ function renderFallbackInto(entry) {
   const tweet = entry.tweet;
   if (!entry.el || !tweet) return;
 
-  const rawText = (tweet.text || '').trim();
+  const rawText = normalizeMediaOnlyText((tweet.text || '').trim());
   const timeDisplay = tweet.time || (tweet.datetime ? new Date(tweet.datetime).toLocaleString() : '');
   const displayName = tweet.displayName || tweet.userHandle || '';
   const userHandle = tweet.userHandle || '';
@@ -180,8 +186,8 @@ function renderFallbackInto(entry) {
   if (isMemberOnlyTweet(tweet)) {
     memberInfoHtml = `
       <div class="tweet-popup-fallback-member">
-        <span class="tweet-tag member">仅会员可见</span>
-        <span class="tweet-member-notice">此推文为创作者会员 / 订阅专享内容</span>
+        <span class="tweet-tag member">${escapeHtml(t('popup.memberOnlyTag'))}</span>
+        <span class="tweet-member-notice">${escapeHtml(t('popup.memberOnlyNotice'))}</span>
       </div>
     `;
   }
@@ -190,8 +196,8 @@ function renderFallbackInto(entry) {
   if (tweet.hasQuote || tweet.quoteUrl) {
     quoteInfoHtml = `
       <div class="tweet-popup-fallback-quote">
-        <span class="tweet-tag quote">引用推文</span>
-        ${tweet.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(tweet.quoteUrl)}">查看被引用推文 ↗</a>` : ''}
+        <span class="tweet-tag quote">${escapeHtml(t('popup.quoteTag'))}</span>
+        ${tweet.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(tweet.quoteUrl)}">${escapeHtml(t('popup.viewQuotedTweet'))}</a>` : ''}
       </div>
     `;
   }
@@ -209,7 +215,7 @@ function renderFallbackInto(entry) {
     ${quoteInfoHtml}
     <div class="tweet-popup-fallback-footer">
       <span class="tweet-popup-fallback-time">${escapeHtml(timeDisplay)}</span>
-      ${tweet.url ? `<button class="tweet-popup-fallback-btn" data-url="${escapeHtml(tweet.url)}">在 Twitter / X 上打开 ↗</button>` : ''}
+      ${tweet.url ? `<button class="tweet-popup-fallback-btn" data-url="${escapeHtml(tweet.url)}">${escapeHtml(t('popup.openOnTwitter'))}</button>` : ''}
     </div>
   `;
 
@@ -297,7 +303,7 @@ function renderDiscordCardInto(el, msg) {
       <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
         ${images.map(url => `
           <div class="discord-popup-image-wrap">
-            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="图片" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="点击在浏览器中查看原图">
+            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="${escapeHtml(t('slot.imageAlt'))}" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="${escapeHtml(t('popup.viewOriginalImageTitle'))}">
           </div>
         `).join('')}
       </div>
@@ -306,14 +312,14 @@ function renderDiscordCardInto(el, msg) {
 
   const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
   const visibleAttachments = images.length > 0
-    ? rawAttachments.filter(a => a !== '图片')
+    ? rawAttachments.filter(a => !isImageAttachmentLabel(a))
     : rawAttachments;
 
   let attachmentsHtml = '';
   if (visibleAttachments.length > 0) {
     attachmentsHtml = `
       <div class="discord-popup-attachments">
-        ${visibleAttachments.map(a => `<span class="im-attachment-chip">${escapeHtml(a)}</span>`).join('')}
+        ${visibleAttachments.map(a => `<span class="im-attachment-chip">${escapeHtml(translateAttachmentLabel(a))}</span>`).join('')}
       </div>
     `;
   }
@@ -335,7 +341,7 @@ function renderDiscordCardInto(el, msg) {
       ${attachmentsHtml}
       <div class="discord-popup-footer">
         <span class="discord-popup-time">${escapeHtml(timeDisplay)}</span>
-        ${msg.url ? '<button class="tweet-popup-fallback-btn" data-url="' + escapeHtml(msg.url) + '">在 Discord 中打开 ↗</button>' : ''}
+        ${msg.url ? '<button class="tweet-popup-fallback-btn" data-url="' + escapeHtml(msg.url) + '">' + escapeHtml(t('popup.openInDiscord')) + '</button>' : ''}
       </div>
     </div>
   `;

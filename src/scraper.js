@@ -38,9 +38,17 @@ const {
 const { SOURCE_DISCORD, SOURCE_TWITTER, detectSourceType, normalizeTwitterHandle } = require('./source');
 const { fetchDiscordSlot } = require('./discord');
 const { notifySlotNewMessages } = require('./notification');
+const { t } = require('./i18n');
 
 function buildExtractionScript(handle) {
   const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
+  const errRateLimit = JSON.stringify(t('scraper.rateLimit'));
+  const errCaptcha = JSON.stringify(t('scraper.captchaRequired'));
+  const errNotExist = JSON.stringify(t('scraper.accountNotExist'));
+  const errSuspended = JSON.stringify(t('scraper.accountSuspended'));
+  const errProtected = JSON.stringify(t('scraper.accountProtected'));
+  const errNotLoggedIn = JSON.stringify(t('scraper.notLoggedIn'));
+  const mediaOnlyFallback = JSON.stringify(t('scraper.mediaOnlyFallback'));
   return `
   (() => {
     try {
@@ -48,23 +56,23 @@ function buildExtractionScript(handle) {
       const bodyText = document.body ? document.body.innerText : '';
       
       if (bodyText.includes("Rate limit exceeded") || bodyText.includes("超出频率限制")) {
-        return { error: '已触碰 Twitter 频率限制 (Rate limit exceeded)，请稍候 10~15 分钟再试' };
+        return { error: ${errRateLimit} };
       }
       if (document.querySelector('iframe[src*="arkose"]') || document.querySelector('iframe[src*="challenge"]') || bodyText.includes("Confirm you’re human") || bodyText.includes("请确认您是真人")) {
-        return { error: 'Twitter 要求进行人机验证，请点击右上角【登录 X】在弹出窗口中手动完成验证' };
+        return { error: ${errCaptcha} };
       }
 
       if (bodyText.includes("This account doesn’t exist") || bodyText.includes("此账号不存在")) {
-        return { error: '该账号不存在 (Account does not exist)' };
+        return { error: ${errNotExist} };
       }
       if (bodyText.includes("Account suspended") || bodyText.includes("账号已被冻结")) {
-        return { error: '该账号已被冻结 (Account suspended)' };
+        return { error: ${errSuspended} };
       }
       if (bodyText.includes("These posts are protected") || bodyText.includes("这些帖子已受保护") || bodyText.includes("此账号已设置私密")) {
-        return { error: '该账号为私密账号，推文已受保护' };
+        return { error: ${errProtected} };
       }
       if (location.pathname.includes('/login') || location.pathname.includes('/i/flow/login')) {
-        return { error: '尚未登录 X 账号，请先点击右上角登录' };
+        return { error: ${errNotLoggedIn} };
       }
 
       const allArticles = Array.from(document.querySelectorAll('article[data-testid="tweet"], article'));
@@ -179,7 +187,7 @@ function buildExtractionScript(handle) {
           }
         }
 
-        const text = textEl ? textEl.innerText.trim() : '(该推文为纯媒体/卡片内容，无文本)';
+        const text = textEl ? textEl.innerText.trim() : ${mediaOnlyFallback};
         const displayTime = timeEl ? timeEl.innerText.trim() : (statusLink ? statusLink.innerText.trim() : '');
         const datetime = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
 
@@ -305,7 +313,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
   if (!handle) {
     if (!isBackground) {
-      showSlotError(slot, '请输入 Twitter handle 或 Discord 频道链接');
+      showSlotError(slot, t('scraper.emptyInputError'));
       if (slot.authorHeader) slot.authorHeader.style.display = 'none';
       if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
       slot.handleInput.focus();
@@ -353,9 +361,9 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
   if (!(await canReachHost('x.com'))) {
     if (!isBackground) {
       if (!hasExisting) {
-        showSlotError(slot, '当前网络已断开，无法抓取推文');
+        showSlotError(slot, t('scraper.offlineError'));
       }
-      showToast('当前网络已断开，已暂停抓取', 'warning', 2500);
+      showToast(t('scraper.offlinePausedToast'), 'warning', 2500);
     }
     return { ok: false, offline: true };
   }
@@ -365,7 +373,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
   // Whenever existing tweets are present, keep them visible on screen while fetching
   if (!hasExisting) {
-    showSlotLoading(slot, `正在后台抓取 @${handle}...`);
+    showSlotLoading(slot, t('scraper.fetchingHandle', { handle }));
   }
 
   const targetUrl = `https://x.com/${handle}`;
@@ -383,7 +391,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     if (loadRes && loadRes.offline) {
       slotOffline = true;
       if (!isBackground && !hasExisting) {
-        showSlotError(slot, '当前网络已断开，无法抓取推文');
+        showSlotError(slot, t('scraper.offlineError'));
       }
       return { ok: false, offline: true };
     }
@@ -488,7 +496,10 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
           if (foundNewOnThisScroll > 0) {
             consecutiveEmptyScrolls = 0;
             if (!hasExisting) {
-              slot.loadingText.innerText = `已获取 (${collectedNewTweets.length}/${INITIAL_TARGET_COUNT})...`;
+              slot.loadingText.innerText = t('scraper.fetchedProgress', {
+                count: collectedNewTweets.length,
+                target: INITIAL_TARGET_COUNT
+              });
             }
           } else {
             consecutiveEmptyScrolls++;
@@ -513,7 +524,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
     if (slotOffline && collectedNewTweets.length === 0) {
       if (!isBackground && !hasExisting) {
-        showSlotError(slot, '当前网络已断开，无法抓取推文');
+        showSlotError(slot, t('scraper.offlineError'));
       }
       return { ok: false, offline: true };
     }
@@ -553,7 +564,7 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     if (hasExisting) {
       if (collectedNewTweets.length === 0) {
         if (!isBackground) {
-          showToast(`@${handle} 已是最新，暂无新推文`, 'info', 2000);
+          showToast(t('scraper.upToDateToast', { handle }), 'info', 2000);
         }
         if (slot.tweetsList && slot.tweetsList.children.length > 0 && liveExistingTweets.length > 0) {
           persistSlot(slot, {
@@ -581,10 +592,10 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
         recordSlotReadTweets(slot, finalTweets);
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
         if (unreadNewTweets.length > 0) {
-          showToast(`@${handle} 抓取到 ${unreadNewTweets.length} 条新推文`, 'success', 2500);
+          showToast(t('scraper.newTweetsToast', { handle, count: unreadNewTweets.length }), 'success', 2500);
           notifySlotNewMessages(slot, unreadNewTweets);
         } else if (!isBackground) {
-          showToast(`@${handle} 已是最新，暂无新推文`, 'info', 2000);
+          showToast(t('scraper.upToDateToast', { handle }), 'info', 2000);
         }
       }
     } else {
@@ -594,14 +605,14 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
         recordSlotReadTweets(slot, finalTweets);
         renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
       } else {
-        showSlotError(slot, '抓取超时：未检测到推文。请确认右上角已登录，或该用户近期是否发过推文。');
+        showSlotError(slot, t('scraper.fetchTimeoutError'));
       }
     }
   } catch (err) {
     if (!hasExisting) {
-      showSlotError(slot, `发生异常: ${err.message}`);
+      showSlotError(slot, t('scraper.exceptionError', { message: err.message }));
     } else if (!isBackground) {
-      showToast(`@${handle} 抓取异常: ${err.message}`, 'warning', 3000);
+      showToast(t('scraper.exceptionToast', { handle, message: err.message }), 'warning', 3000);
     } else {
       console.warn(`[Background Fetch] Exception for @${handle}:`, err);
     }

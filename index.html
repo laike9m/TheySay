@@ -44,17 +44,17 @@
 
       <div class="nav-controls">
         <!-- 全部已读按钮 -->
-        <button id="btn-mark-all-read" class="btn-tool" title="将所有推文标记为已读">
+        <button id="btn-mark-all-read" class="btn-tool" data-i18n-title="nav.markAllReadTitle" title="将所有推文标记为已读">
           <svg class="icon-check-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M18 6 7 17l-5-5"></path>
             <path d="m22 10-7.5 7.5L13 16"></path>
           </svg>
-          <span>全部已读</span>
+          <span data-i18n="nav.markAllRead">全部已读</span>
         </button>
 
         <!-- 布局切换选择器 -->
         <div class="layout-control-group">
-          <label for="layout-select" class="control-label">网格布局:</label>
+          <label for="layout-select" class="control-label" data-i18n="nav.gridLayout">网格布局:</label>
           <select id="layout-select" class="layout-select">
             <option value="2x2" selected>2 × 2</option>
             <option value="2x3">2 × 3</option>
@@ -95,7 +95,7 @@
         <div class="nav-divider"></div>
 
         <!-- 设置按钮 (齿轮) -->
-        <button id="btn-settings" class="btn-tool btn-settings" title="设置" aria-label="设置">
+        <button id="btn-settings" class="btn-tool btn-settings" data-i18n-title="nav.settings" data-i18n-aria-label="nav.settings" title="设置" aria-label="设置">
           <svg class="settings-gear-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -104,13 +104,13 @@
 
         <!-- 登录账号下拉菜单 -->
         <div class="login-dropdown-wrapper" id="login-dropdown-wrapper">
-          <button id="btn-login-menu" class="btn-tool login-dropdown-btn" title="管理登录账号">
+          <button id="btn-login-menu" class="btn-tool login-dropdown-btn" data-i18n-title="nav.loginMenuTitle" title="管理登录账号">
             <span class="login-menu-status-dot" id="login-menu-status-dot"></span>
             <svg class="login-menu-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            <span>登录账号</span>
+            <span data-i18n="nav.loginMenu">登录账号</span>
             <svg class="dropdown-chevron" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
@@ -118,7 +118,7 @@
 
           <!-- 下拉菜单 Popover -->
           <div class="login-dropdown-menu" id="login-dropdown-menu" style="display: none;">
-            <div class="login-menu-header">登录账号管理</div>
+            <div class="login-menu-header" data-i18n="auth.accountManagement">登录账号管理</div>
             <div class="login-menu-list">
               <!-- Twitter / X -->
               <button class="login-menu-item" id="item-login-twitter" title="点击登录或切换 Twitter / X 账号">
@@ -129,7 +129,7 @@
                 <div class="login-item-right">
                   <span class="platform-status-badge checking" id="twitter-status-badge">
                     <span class="status-indicator-dot"></span>
-                    <span class="status-label" id="twitter-status-label">检测中...</span>
+                    <span class="status-label" id="twitter-status-label" data-i18n="auth.checking">检测中...</span>
                   </span>
                 </div>
               </button>
@@ -147,17 +147,17 @@
                 <div class="login-item-right">
                   <span class="platform-status-badge logged-out" id="discord-status-badge">
                     <span class="status-indicator-dot"></span>
-                    <span class="status-label" id="discord-status-label">未登录</span>
+                    <span class="status-label" id="discord-status-label" data-i18n="auth.loggedOut">未登录</span>
                   </span>
                 </div>
               </button>
             </div>
 
             <div class="login-menu-divider"></div>
-            <div class="login-menu-header">Profile 配置与关注列表</div>
+            <div class="login-menu-header" data-i18n="auth.profileSectionHeader">Profile 配置与关注列表</div>
             <div class="login-menu-list">
               <!-- 导出 Profile -->
-              <button class="login-menu-item" id="item-export-profile" title="导出全部设置与所有关注账号为 JSON 文件">
+              <button class="login-menu-item" id="item-export-profile" data-i18n-title="auth.exportProfileTitle" title="导出全部设置与所有关注账号为 JSON 文件">
                 <div class="login-item-left">
                   <span class="platform-icon profile-export">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -166,7 +166,7 @@
                       <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
                   </span>
-                  <span class="platform-name">导出 Profile</span>
+                  <span class="platform-name" data-i18n="auth.exportProfile">导出 Profile</span>
                 </div>
                 <div class="login-item-right">
                   <span class="profile-action-hint">JSON</span>
@@ -174,7 +174,7 @@
               </button>
 
               <!-- 导入 Profile -->
-              <button class="login-menu-item" id="item-import-profile" title="从 JSON 文件导入 Profile 配置（保留已抓取数据）">
+              <button class="login-menu-item" id="item-import-profile" data-i18n-title="auth.importProfileTitle" title="从 JSON 文件导入 Profile 配置（保留已抓取数据）">
                 <div class="login-item-left">
                   <span class="platform-icon profile-import">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -183,10 +183,10 @@
                       <line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                   </span>
-                  <span class="platform-name">导入 Profile</span>
+                  <span class="platform-name" data-i18n="auth.importProfile">导入 Profile</span>
                 </div>
                 <div class="login-item-right">
-                  <span class="profile-action-hint">恢复</span>
+                  <span class="profile-action-hint" data-i18n="auth.importProfileHint">恢复</span>
                 </div>
               </button>
             </div>
@@ -211,10 +211,10 @@
   <!-- 注意: 关闭态使用 .is-closed 而非 display:none —— 隐藏元素宽度为 0，
        会导致 Twitter 无法在后台预渲染嵌入卡片 -->
   <div id="tweet-popup-overlay" class="tweet-popup-overlay is-closed" tabindex="-1" aria-hidden="true">
-    <div class="tweet-popup-dialog" role="dialog" aria-modal="true" aria-label="推文详情">
+    <div class="tweet-popup-dialog" role="dialog" aria-modal="true" data-i18n-aria-label="popup.dialogAriaLabel" aria-label="推文详情">
       <div class="tweet-popup-loading" id="tweet-popup-loading">
         <div class="spinner-small"></div>
-        <span>正在加载嵌入推文...</span>
+        <span data-i18n="popup.loadingEmbed">正在加载嵌入推文...</span>
       </div>
       <div class="tweet-popup-embed-container" id="tweet-popup-embed-container"></div>
     </div>
@@ -230,9 +230,9 @@
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
-          <h2 id="settings-dialog-title" class="settings-modal-title">偏好设置</h2>
+          <h2 id="settings-dialog-title" class="settings-modal-title" data-i18n="settings.title">偏好设置</h2>
         </div>
-        <button id="btn-settings-close" class="settings-modal-close" title="关闭设置 (Esc)" aria-label="关闭设置">
+        <button id="btn-settings-close" class="settings-modal-close" data-i18n-title="settings.closeTitle" data-i18n-aria-label="settings.closeAria" title="关闭设置 (Esc)" aria-label="关闭设置">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -242,41 +242,66 @@
 
       <!-- 弹窗 Body -->
       <div class="settings-modal-body">
-        <!-- 常规与刷新设置 (2×2 紧凑网格) -->
+        <!-- 常规与刷新设置 (紧凑网格) -->
         <div class="settings-section">
-          <div class="settings-section-title">通用</div>
+          <div class="settings-section-title" data-i18n="settings.sectionGeneral">通用</div>
           <div class="settings-compact-grid">
+            <!-- 界面语言 -->
+            <div class="settings-card settings-card-compact settings-card-full" data-i18n-title="settings.languageTip" title="默认根据系统语言设置（中文系统为中文，其余默认为英文）">
+              <div class="settings-compact-row">
+                <div class="settings-card-platform">
+                  <span class="platform-icon language">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                  </span>
+                  <div>
+                    <div class="settings-card-title" data-i18n="settings.languageTitle">界面语言</div>
+                    <div class="settings-card-subtitle" data-i18n="settings.languageSubtitle">显示语言设置</div>
+                  </div>
+                </div>
+                <div class="settings-input-group">
+                  <select id="setting-language" class="settings-select">
+                    <option value="en">English</option>
+                    <option value="zh">中文</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <!-- Twitter 刷新频率 -->
-            <div class="settings-card settings-card-compact" title="建议设为 5 ~ 15 分钟或以上，过频抓取可能触发 Twitter 频率限制">
+            <div class="settings-card settings-card-compact" data-i18n-title="settings.twitterRefreshTip" title="建议设为 5 ~ 15 分钟或以上，过频抓取可能触发 Twitter 频率限制">
               <div class="settings-compact-row">
                 <div class="settings-card-platform">
                   <span class="platform-icon twitter">𝕏</span>
                   <div>
-                    <div class="settings-card-title">Twitter 刷新</div>
-                    <div class="settings-card-subtitle">后台轮询周期</div>
+                    <div class="settings-card-title" data-i18n="settings.twitterRefreshTitle">Twitter 刷新</div>
+                    <div class="settings-card-subtitle" data-i18n="settings.twitterRefreshSubtitle">后台轮询周期</div>
                   </div>
                 </div>
                 <div class="settings-input-group">
                   <select id="setting-twitter-interval" class="settings-select">
-                    <option value="2">2 分钟</option>
-                    <option value="3">3 分钟</option>
-                    <option value="5">5 分钟</option>
-                    <option value="10">10 分钟 (默认)</option>
-                    <option value="15">15 分钟</option>
-                    <option value="30">30 分钟</option>
-                    <option value="60">60 分钟</option>
-                    <option value="custom">自定义...</option>
+                    <option value="2" data-i18n="settings.interval2m">2 分钟</option>
+                    <option value="3" data-i18n="settings.interval3m">3 分钟</option>
+                    <option value="5" data-i18n="settings.interval5m">5 分钟</option>
+                    <option value="10" data-i18n="settings.interval10mDefault">10 分钟 (默认)</option>
+                    <option value="15" data-i18n="settings.interval15m">15 分钟</option>
+                    <option value="30" data-i18n="settings.interval30m">30 分钟</option>
+                    <option value="60" data-i18n="settings.interval60m">60 分钟</option>
+                    <option value="custom" data-i18n="settings.intervalCustom">自定义...</option>
                   </select>
                   <div id="setting-twitter-custom-wrap" class="settings-custom-wrap" style="display: none;">
                     <input type="number" id="setting-twitter-custom" class="settings-input-number" min="1" max="1440" step="1" value="10">
-                    <span class="settings-unit">分</span>
+                    <span class="settings-unit" data-i18n="settings.unitMinutes">分</span>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Discord 刷新频率 -->
-            <div class="settings-card settings-card-compact" title="Discord 频道消息更新通常较频繁，可设为 1 ~ 5 分钟">
+            <div class="settings-card settings-card-compact" data-i18n-title="settings.discordRefreshTip" title="Discord 频道消息更新通常较频繁，可设为 1 ~ 5 分钟">
               <div class="settings-compact-row">
                 <div class="settings-card-platform">
                   <span class="platform-icon discord">
@@ -285,33 +310,33 @@
                     </svg>
                   </span>
                   <div>
-                    <div class="settings-card-title">Discord 刷新</div>
-                    <div class="settings-card-subtitle">频道轮询周期</div>
+                    <div class="settings-card-title" data-i18n="settings.discordRefreshTitle">Discord 刷新</div>
+                    <div class="settings-card-subtitle" data-i18n="settings.discordRefreshSubtitle">频道轮询周期</div>
                   </div>
                 </div>
                 <div class="settings-input-group">
                   <select id="setting-discord-interval" class="settings-select">
-                    <option value="0.5">30 秒</option>
-                    <option value="1">1 分钟</option>
-                    <option value="2">2 分钟</option>
-                    <option value="3">3 分钟</option>
-                    <option value="5">5 分钟</option>
-                    <option value="10">10 分钟 (默认)</option>
-                    <option value="15">15 分钟</option>
-                    <option value="30">30 分钟</option>
-                    <option value="60">60 分钟</option>
-                    <option value="custom">自定义...</option>
+                    <option value="0.5" data-i18n="settings.interval30s">30 秒</option>
+                    <option value="1" data-i18n="settings.interval1m">1 分钟</option>
+                    <option value="2" data-i18n="settings.interval2m">2 分钟</option>
+                    <option value="3" data-i18n="settings.interval3m">3 分钟</option>
+                    <option value="5" data-i18n="settings.interval5m">5 分钟</option>
+                    <option value="10" data-i18n="settings.interval10mDefault">10 分钟 (默认)</option>
+                    <option value="15" data-i18n="settings.interval15m">15 分钟</option>
+                    <option value="30" data-i18n="settings.interval30m">30 分钟</option>
+                    <option value="60" data-i18n="settings.interval60m">60 分钟</option>
+                    <option value="custom" data-i18n="settings.intervalCustom">自定义...</option>
                   </select>
                   <div id="setting-discord-custom-wrap" class="settings-custom-wrap" style="display: none;">
                     <input type="number" id="setting-discord-custom" class="settings-input-number" min="0.5" max="1440" step="0.5" value="10">
-                    <span class="settings-unit">分</span>
+                    <span class="settings-unit" data-i18n="settings.unitMinutes">分</span>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- 仅会员可见帖子 -->
-            <div class="settings-card settings-card-compact" title="控制是否在时间线中显示 Twitter 创作者订阅专享推文 (Super Follows)">
+            <div class="settings-card settings-card-compact" data-i18n-title="settings.memberOnlyTip" title="控制是否在时间线中显示 Twitter 创作者订阅专享推文 (Super Follows)">
               <div class="settings-compact-row">
                 <div class="settings-card-platform">
                   <span class="platform-icon member">
@@ -320,21 +345,21 @@
                     </svg>
                   </span>
                   <div>
-                    <div class="settings-card-title">仅会员推文</div>
+                    <div class="settings-card-title" data-i18n="settings.memberOnlyTitle">仅会员推文</div>
                     <div class="settings-card-subtitle">Super Follows</div>
                   </div>
                 </div>
                 <div class="settings-input-group">
                   <select id="setting-show-member-only" class="settings-select">
-                    <option value="true" selected>显示 (标【仅会员】)</option>
-                    <option value="false">不显示 (过滤)</option>
+                    <option value="true" selected data-i18n="settings.memberOnlyShow">显示 (标【仅会员】)</option>
+                    <option value="false" data-i18n="settings.memberOnlyHide">不显示 (过滤)</option>
                   </select>
                 </div>
               </div>
             </div>
 
             <!-- Discord 通知声音 -->
-            <div class="settings-card settings-card-compact" title="关闭后后台 Discord 客户端全部静音，不影响消息抓取">
+            <div class="settings-card settings-card-compact" data-i18n-title="settings.discordSoundTip" title="关闭后后台 Discord 客户端全部静音，不影响消息抓取">
               <div class="settings-compact-row">
                 <div class="settings-card-platform">
                   <span class="platform-icon discord">
@@ -345,14 +370,14 @@
                     </svg>
                   </span>
                   <div>
-                    <div class="settings-card-title">Discord 声音</div>
-                    <div class="settings-card-subtitle">后台消息提示音</div>
+                    <div class="settings-card-title" data-i18n="settings.discordSoundTitle">Discord 声音</div>
+                    <div class="settings-card-subtitle" data-i18n="settings.discordSoundSubtitle">后台消息提示音</div>
                   </div>
                 </div>
                 <div class="settings-input-group">
                   <select id="setting-discord-sound" class="settings-select">
-                    <option value="true" selected>开启 (默认)</option>
-                    <option value="false">关闭 (静音)</option>
+                    <option value="true" selected data-i18n="settings.optionOnDefault">开启 (默认)</option>
+                    <option value="false" data-i18n="settings.optionOffMuted">关闭 (静音)</option>
                   </select>
                 </div>
               </div>
@@ -362,13 +387,13 @@
 
         <!-- 外观配色与 Ticker 高亮 -->
         <div class="settings-section">
-          <div class="settings-section-title">外观</div>
+          <div class="settings-section-title" data-i18n="settings.sectionAppearance">外观</div>
 
           <div class="settings-card">
             <div class="settings-card-content">
               <!-- Part 1: Title 栏背景配色 (预设色块 + 自定义同行) -->
               <div class="settings-field-row ticker-presets-row">
-                <span class="settings-label">Title 栏配色:</span>
+                <span class="settings-label" data-i18n="settings.headerColorLabel">Title 栏配色:</span>
                 <div class="settings-color-inline-group">
                   <div id="setting-header-presets" class="ticker-preset-list">
                     <button type="button" class="ticker-preset-chip header-preset-chip" data-bg="#1e293b" style="background-color: #1e293b;" title="#1e293b" aria-label="#1e293b"></button>
@@ -380,9 +405,9 @@
                   </div>
                   <span class="color-inline-divider"></span>
                   <div class="settings-input-group ticker-color-picker-group">
-                    <span class="color-sub-label">自定义</span>
-                    <input type="color" id="setting-header-bg-color" class="ticker-color-input" value="#f3ede2" title="自定义 Title 栏背景颜色">
-                    <input type="text" id="setting-header-bg-hex" class="ticker-hex-input" value="#f3ede2" maxlength="7" spellcheck="false" aria-label="Title 栏背景色 Hex">
+                    <span class="color-sub-label" data-i18n="settings.customColor">自定义</span>
+                    <input type="color" id="setting-header-bg-color" class="ticker-color-input" value="#f3ede2" data-i18n-title="settings.headerColorInputTitle" title="自定义 Title 栏背景颜色">
+                    <input type="text" id="setting-header-bg-hex" class="ticker-hex-input" value="#f3ede2" maxlength="7" spellcheck="false" data-i18n-aria-label="settings.headerColorHexAria" aria-label="Title 栏背景色 Hex">
                   </div>
                 </div>
               </div>
@@ -391,18 +416,18 @@
 
               <!-- Part 2: Ticker 高亮与配色 -->
               <div class="settings-field-row">
-                <label for="setting-ticker-enabled" class="settings-label">高亮显示 Ticker:</label>
+                <label for="setting-ticker-enabled" class="settings-label" data-i18n="settings.tickerHighlightLabel">高亮显示 Ticker:</label>
                 <div class="settings-input-group">
                   <select id="setting-ticker-enabled" class="settings-select">
-                    <option value="true" selected>开启 (默认)</option>
-                    <option value="false">关闭</option>
+                    <option value="true" selected data-i18n="settings.optionOnDefault">开启 (默认)</option>
+                    <option value="false" data-i18n="settings.optionOff">关闭</option>
                   </select>
                 </div>
               </div>
 
               <div id="setting-ticker-colors-wrap" class="ticker-settings-colors-wrap">
                 <div class="settings-field-row ticker-presets-row">
-                  <span class="settings-label">Ticker 预设:</span>
+                  <span class="settings-label" data-i18n="settings.tickerPresetsLabel">Ticker 预设:</span>
                   <div id="setting-ticker-presets" class="ticker-preset-list">
                     <button type="button" class="ticker-preset-chip" data-fg="#fde047" data-bg="#422006" style="background-color: #422006;" title="#fde047 / #422006" aria-label="#fde047 / #422006"></button>
                     <button type="button" class="ticker-preset-chip" data-fg="#0f172a" data-bg="#facc15" style="background-color: #facc15;" title="#0f172a / #facc15" aria-label="#0f172a / #facc15"></button>
@@ -414,14 +439,14 @@
                 </div>
 
                 <div class="settings-field-row">
-                  <span class="settings-label">Ticker 自定义:</span>
+                  <span class="settings-label" data-i18n="settings.tickerCustomLabel">Ticker 自定义:</span>
                   <div class="settings-input-group ticker-dual-color-group">
-                    <span class="color-sub-label">文字</span>
-                    <input type="color" id="setting-ticker-fg-color" class="ticker-color-input" value="#fde047" title="选择 Ticker 文字颜色">
-                    <input type="text" id="setting-ticker-fg-hex" class="ticker-hex-input" value="#fde047" maxlength="7" spellcheck="false" aria-label="Ticker 前景色 Hex">
-                    <span class="color-sub-label">底色</span>
-                    <input type="color" id="setting-ticker-bg-color" class="ticker-color-input" value="#422006" title="选择 Ticker 背景颜色">
-                    <input type="text" id="setting-ticker-bg-hex" class="ticker-hex-input" value="#422006" maxlength="7" spellcheck="false" aria-label="Ticker 背景色 Hex">
+                    <span class="color-sub-label" data-i18n="settings.tickerFgLabel">文字</span>
+                    <input type="color" id="setting-ticker-fg-color" class="ticker-color-input" value="#fde047" data-i18n-title="settings.tickerFgInputTitle" title="选择 Ticker 文字颜色">
+                    <input type="text" id="setting-ticker-fg-hex" class="ticker-hex-input" value="#fde047" maxlength="7" spellcheck="false" data-i18n-aria-label="settings.tickerFgHexAria" aria-label="Ticker 前景色 Hex">
+                    <span class="color-sub-label" data-i18n="settings.tickerBgLabel">底色</span>
+                    <input type="color" id="setting-ticker-bg-color" class="ticker-color-input" value="#422006" data-i18n-title="settings.tickerBgInputTitle" title="选择 Ticker 背景颜色">
+                    <input type="text" id="setting-ticker-bg-hex" class="ticker-hex-input" value="#422006" maxlength="7" spellcheck="false" data-i18n-aria-label="settings.tickerBgHexAria" aria-label="Ticker 背景色 Hex">
                   </div>
                 </div>
               </div>
@@ -430,14 +455,14 @@
               <div class="header-preview-card" id="setting-header-preview">
                 <div class="header-preview-bar" id="setting-header-preview-bar">
                   <span class="header-preview-drag" id="setting-header-preview-drag">⠿</span>
-                  <span class="header-preview-avatar">示</span>
-                  <span class="header-preview-name" id="setting-header-preview-name">示例账号</span>
+                  <span class="header-preview-avatar" data-i18n="settings.previewAvatar">示</span>
+                  <span class="header-preview-name" id="setting-header-preview-name" data-i18n="settings.previewName">示例账号</span>
                   <span class="header-preview-handle" id="setting-header-preview-handle">@example_user</span>
                   <span class="header-preview-icon" id="setting-header-preview-icon">⤢</span>
                 </div>
                 <div class="header-preview-body" id="setting-ticker-preview">
                   <div class="header-preview-bubble read">
-                    <span>示例推文：关注 <span class="ticker-highlight ticker-preview-chip">$NVDA</span> 与 <span class="ticker-highlight ticker-preview-chip">AAPL</span> 财报表现 · 留意 <span class="ticker-highlight ticker-preview-chip">qqq</span> / <span class="ticker-highlight ticker-preview-chip">tsla</span> 走势</span>
+                    <span id="setting-ticker-preview-text" data-i18n-html="settings.previewTweetHtml">示例推文：关注 <span class="ticker-highlight ticker-preview-chip">$NVDA</span> 与 <span class="ticker-highlight ticker-preview-chip">AAPL</span> 财报表现 · 留意 <span class="ticker-highlight ticker-preview-chip">qqq</span> / <span class="ticker-highlight ticker-preview-chip">tsla</span> 走势</span>
                     <span class="header-preview-time">10:30 AM</span>
                   </div>
                 </div>
@@ -447,7 +472,7 @@
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                 <div class="ticker-sync-tip-body">
                   <span id="setting-ticker-stats-text">支持 $ 符号识别及 NASDAQ 美股与 ETF 代码库自动匹配。</span>
-                  <button type="button" id="btn-sync-tickers" class="btn-tool btn-sync-tickers" title="从 NASDAQ 官方接口同步最新美股与 ETF 列表">同步在线词库</button>
+                  <button type="button" id="btn-sync-tickers" class="btn-tool btn-sync-tickers" data-i18n="settings.syncTickersBtn" data-i18n-title="settings.syncTickersTitle" title="从 NASDAQ 官方接口同步最新美股与 ETF 列表">同步在线词库</button>
                 </div>
               </div>
             </div>
@@ -456,7 +481,7 @@
 
         <!-- Profile 配置导出与导入 -->
         <div class="settings-section">
-          <div class="settings-section-title">备份</div>
+          <div class="settings-section-title" data-i18n="settings.sectionBackup">备份</div>
           <div class="settings-card settings-card-compact">
             <div class="settings-compact-row">
               <div class="settings-card-platform">
@@ -469,13 +494,13 @@
                   </svg>
                 </span>
                 <div>
-                  <div class="settings-card-title">个人 Profile 档案</div>
-                  <div class="settings-card-subtitle">包含全部偏好设置、网格布局与 follow 的所有账号/频道</div>
+                  <div class="settings-card-title" data-i18n="settings.profileCardTitle">个人 Profile 档案</div>
+                  <div class="settings-card-subtitle" data-i18n="settings.profileCardSubtitle">包含全部偏好设置、网格布局与 follow 的所有账号/频道</div>
                 </div>
               </div>
               <div class="settings-input-group">
-                <button type="button" id="btn-import-profile" class="btn-tool" title="从 JSON 文件导入 Profile 配置（保留已抓取数据）">导入 Profile</button>
-                <button type="button" id="btn-export-profile" class="btn-tool btn-export-profile" title="导出全部设置与 follow 的所有人到 JSON 文件">导出 Profile</button>
+                <button type="button" id="btn-import-profile" class="btn-tool" data-i18n="auth.importProfile" data-i18n-title="auth.importProfileTitle" title="从 JSON 文件导入 Profile 配置（保留已抓取数据）">导入 Profile</button>
+                <button type="button" id="btn-export-profile" class="btn-tool btn-export-profile" data-i18n="auth.exportProfile" data-i18n-title="auth.exportProfileTitle" title="导出全部设置与 follow 的所有人到 JSON 文件">导出 Profile</button>
               </div>
             </div>
           </div>
@@ -484,11 +509,7 @@
 
       <!-- 弹窗 Footer -->
       <div class="settings-modal-footer">
-        <button id="btn-settings-reset" class="btn-tool btn-settings-reset" title="恢复默认设置">恢复默认</button>
-        <div class="settings-modal-actions">
-          <button id="btn-settings-cancel" class="btn-tool">取消</button>
-          <button id="btn-settings-save" class="btn-tool btn-primary">保存设置</button>
-        </div>
+        <button id="btn-settings-reset" class="btn-tool btn-settings-reset" data-i18n="settings.resetBtn" data-i18n-title="settings.resetTitle" title="恢复默认设置">恢复默认</button>
       </div>
     </div>
   </div>

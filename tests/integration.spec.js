@@ -8,8 +8,10 @@ const {
   STORAGE_PRESET_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_MUTED_SLOTS_KEY,
-  STORAGE_HEADER_BG_COLOR_KEY
+  STORAGE_HEADER_BG_COLOR_KEY,
+  STORAGE_LANGUAGE_KEY
 } = require('../src/constants');
+const { isChineseLocale, resolveLanguageCode } = require('../src/i18n');
 
 test.describe.serial('TheySay Electron Integration Tests', () => {
   let electronApp;
@@ -144,13 +146,13 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.keyboard.press('Escape');
     await expect(settingsOverlay).toHaveClass(/is-closed/);
 
-    // Reopen Settings Modal, modify settings, and save
+    // Reopen Settings Modal, modify settings (auto-saved immediately), and close
     await page.locator('#btn-settings').click();
     await expect(settingsOverlay).not.toHaveClass(/is-closed/);
 
     await page.selectOption('#setting-twitter-interval', '15');
     await page.locator('#setting-header-presets .header-preset-chip[data-bg="#2563eb"]').click();
-    await page.locator('#btn-settings-save').click();
+    await page.locator('#btn-settings-close').click();
     await expect(settingsOverlay).toHaveClass(/is-closed/);
 
     const savedSettings = await page.evaluate(
@@ -298,5 +300,112 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       path: path.join(__dirname, '..', 'test-results', `dashboard-${process.platform}.png`)
     });
   });
+
+  test('7. Localization: system language detection (English default vs Chinese variants) & live switching', async () => {
+    // Unit-level verification of locale detection rules:
+    // Default to English unless system language is Chinese (Simplified, Traditional, HK, TW, Hans, Hant, etc.)
+    expect(isChineseLocale('en-US')).toBe(false);
+    expect(isChineseLocale('en-GB')).toBe(false);
+    expect(isChineseLocale('ja-JP')).toBe(false);
+    expect(isChineseLocale('fr-FR')).toBe(false);
+    expect(resolveLanguageCode('en-US')).toBe('en');
+    expect(resolveLanguageCode('ja-JP')).toBe('en');
+
+    expect(isChineseLocale('zh')).toBe(true);
+    expect(isChineseLocale('zh-CN')).toBe(true);
+    expect(isChineseLocale('zh-TW')).toBe(true);
+    expect(isChineseLocale('zh-HK')).toBe(true);
+    expect(isChineseLocale('zh-Hant-HK')).toBe(true);
+    expect(isChineseLocale('zh-Hans-CN')).toBe(true);
+    expect(resolveLanguageCode('zh-CN')).toBe('zh');
+    expect(resolveLanguageCode('zh-TW')).toBe('zh');
+    expect(resolveLanguageCode('zh-Hant')).toBe('zh');
+
+    // Verify detectSystemLanguage() inside the renderer with simulated system locales
+    const detectedLocales = await page.evaluate(() => {
+      const { detectSystemLanguage } = require('./src/i18n');
+      const prev = window.__THEYSAY_SYSTEM_LOCALE;
+      const results = {};
+      for (const loc of ['en-US', 'fr-FR', 'ja-JP', 'zh-CN', 'zh-TW', 'zh-HK', 'zh-Hant']) {
+        window.__THEYSAY_SYSTEM_LOCALE = loc;
+        results[loc] = detectSystemLanguage();
+      }
+      if (prev === undefined) {
+        delete window.__THEYSAY_SYSTEM_LOCALE;
+      } else {
+        window.__THEYSAY_SYSTEM_LOCALE = prev;
+      }
+      return results;
+    });
+    expect(detectedLocales['en-US']).toBe('en');
+    expect(detectedLocales['fr-FR']).toBe('en');
+    expect(detectedLocales['ja-JP']).toBe('en');
+    expect(detectedLocales['zh-CN']).toBe('zh');
+    expect(detectedLocales['zh-TW']).toBe('zh');
+    expect(detectedLocales['zh-HK']).toBe('zh');
+    expect(detectedLocales['zh-Hant']).toBe('zh');
+
+    // Open Settings and switch to English ('en')
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#settings-modal-overlay')).not.toHaveClass(/is-closed/);
+    await page.selectOption('#setting-language', 'en');
+
+    // Live preview updates UI to English immediately
+    await expect(page.locator('#btn-mark-all-read span')).toHaveText('Mark All Read');
+    await expect(page.locator('#settings-dialog-title')).toHaveText('Preferences');
+    await expect(page.locator('#handle-input-1')).toHaveAttribute(
+      'placeholder',
+      'Twitter handle or Discord channel URL'
+    );
+
+    // Ensure no settings card title or subtitle is clipped/overflowing in English
+    const overflowCount = await page.evaluate(() => {
+      const els = document.querySelectorAll(
+        '#settings-modal-overlay .settings-card-title, #settings-modal-overlay .settings-card-subtitle'
+      );
+      let clipped = 0;
+      els.forEach((el) => {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          clipped++;
+        }
+      });
+      return clipped;
+    });
+    expect(overflowCount).toBe(0);
+
+    // Verify English setting auto-saved immediately
+    await page.locator('#btn-settings-close').click();
+    await expect(page.locator('#settings-modal-overlay')).toHaveClass(/is-closed/);
+    const savedLangEn = await page.evaluate(
+      (key) => localStorage.getItem(key),
+      STORAGE_LANGUAGE_KEY
+    );
+    expect(savedLangEn).toBe('en');
+    await expect(page).toHaveTitle('TheySay - Twitter / X & Discord Grid Dashboard');
+
+    // Switch to Chinese ('zh') and verify UI updates to Chinese & persists to disk immediately
+    const prefFilePath = path.join(userDataDir, 'preferences.json');
+    await page.locator('#btn-settings').click();
+    await page.selectOption('#setting-language', 'zh');
+    await expect(page.locator('#btn-mark-all-read span')).toHaveText('全部已读');
+    await expect(page.locator('#settings-dialog-title')).toHaveText('偏好设置');
+    await expect(page.locator('#handle-input-1')).toHaveAttribute(
+      'placeholder',
+      'Twitter 用户名 或 Discord 频道链接'
+    );
+    await expect.poll(() => {
+      if (!fs.existsSync(prefFilePath)) return null;
+      return JSON.parse(fs.readFileSync(prefFilePath, 'utf8')).language;
+    }, { timeout: 3000 }).toBe('zh');
+
+    await page.locator('#btn-settings-close').click();
+    const savedLangZh = await page.evaluate(
+      (key) => localStorage.getItem(key),
+      STORAGE_LANGUAGE_KEY
+    );
+    expect(savedLangZh).toBe('zh');
+    await expect(page).toHaveTitle('TheySay - Twitter / X 动态网格看板');
+  });
 });
+
 

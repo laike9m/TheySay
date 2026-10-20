@@ -1,6 +1,7 @@
 const { DEFAULT_HEADER_BG_COLOR, HEADER_COLOR_PRESETS } = require('./constants');
 const { getStoredTheme, saveStoredTheme, getHeaderBgColor } = require('./storage');
 const { clearTweetWidgetCache } = require('./popup');
+const { t } = require('./i18n');
 
 function normalizeHex(val, fallback = DEFAULT_HEADER_BG_COLOR) {
   const str = String(val || '').trim();
@@ -19,7 +20,7 @@ function resolveHeaderPalette(bgHex) {
   const bg = normalizeHex(bgHex, DEFAULT_HEADER_BG_COLOR);
   const preset = HEADER_COLOR_PRESETS.find((p) => p.bg.toLowerCase() === bg);
   if (preset) {
-    return { ...preset };
+    return { ...preset, name: t(`settings.colorPreset.${preset.id}`) };
   }
 
   const r = parseInt(bg.slice(1, 3), 16);
@@ -31,7 +32,7 @@ function resolveHeaderPalette(bgHex) {
   if (isDark) {
     return {
       id: 'custom',
-      name: '自定义',
+      name: t('settings.customColor'),
       bg,
       text: '#f8fafc',
       subtext: 'rgba(248, 250, 252, 0.72)',
@@ -45,7 +46,7 @@ function resolveHeaderPalette(bgHex) {
 
   return {
     id: 'custom',
-    name: '自定义',
+    name: t('settings.customColor'),
     bg,
     text: '#0f1419',
     subtext: '#536471',
@@ -80,7 +81,7 @@ function applyTheme(theme, btnThemeToggle) {
   const toggleEl = btnThemeToggle || document.getElementById('btn-theme-toggle');
   if (toggleEl) {
     toggleEl.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
-    toggleEl.title = theme === 'light' ? '切换深色模式' : '切换浅色模式';
+    toggleEl.title = theme === 'light' ? t('nav.switchToDark') : t('nav.switchToLight');
   }
 }
 

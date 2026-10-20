@@ -2,6 +2,12 @@ const { ipcRenderer } = require('electron');
 const { processAndSortTweets, isMemberOnlyTweet, isTweetWithQuote } = require('./tweet');
 const { getShowMemberOnlyTweets } = require('./storage');
 const { SOURCE_DISCORD } = require('./source');
+const {
+  t,
+  translateAttachmentLabel,
+  normalizeDiscordChannelFallback,
+  normalizeMediaOnlyText
+} = require('./i18n');
 
 let isNotificationListenerBound = false;
 
@@ -71,21 +77,25 @@ function notifySlotNewMessages(slot, newItems) {
   const count = visibleItems.length;
 
   if (isDiscord) {
-    const channelTitle = (slot.sourceTitle || (slot.authorName && slot.authorName.innerText) || '#频道').trim();
+    const channelTitle = normalizeDiscordChannelFallback(
+      slot.sourceTitle || (slot.authorName && slot.authorName.innerText) || t('slot.defaultDiscordChannel')
+    ).trim();
     const serverSubtitle = (slot.sourceSubtitle || (slot.authorHandle && slot.authorHandle.innerText) || '').trim();
     const title = serverSubtitle ? `${channelTitle} · ${serverSubtitle}` : channelTitle;
-    const subtitle = count > 1 ? `收到 ${count} 条新消息` : '';
+    const subtitle = count > 1 ? t('notification.discordNewMessagesCount', { count }) : '';
 
     let contentText = compactSingleLine(latest.text || '');
     if (!contentText) {
       if (Array.isArray(latest.images) && latest.images.length > 0) {
-        contentText = `[图片${latest.images.length > 1 ? ` ×${latest.images.length}` : ''}]`;
+        contentText = latest.images.length > 1
+          ? t('notification.imagePlural', { count: latest.images.length })
+          : t('notification.imageSingle');
       } else if (Array.isArray(latest.attachments) && latest.attachments.length > 0) {
-        contentText = `[${latest.attachments.join(' / ')}]`;
+        contentText = `[${latest.attachments.map(translateAttachmentLabel).join(' / ')}]`;
       } else if (latest.replyText) {
-        contentText = `[回复] ${compactSingleLine(latest.replyText, 80)}`;
+        contentText = `${t('notification.replyPrefix')} ${compactSingleLine(latest.replyText, 80)}`;
       } else {
-        contentText = '[新消息]';
+        contentText = t('notification.newMessagePlaceholder');
       }
     }
 
@@ -116,13 +126,13 @@ function notifySlotNewMessages(slot, newItems) {
       ? `${rawAuthorName} (${rawAuthorHandle})`
       : (rawAuthorName || rawAuthorHandle || 'Twitter / X');
 
-    let tagDesc = '新推文';
-    if (latest.isRetweet) tagDesc = '转推';
-    else if (isTweetWithQuote(latest)) tagDesc = '引用推文';
-    else if (isMemberOnlyTweet(latest)) tagDesc = '会员专享推文';
+    let tagDesc = t('notification.newTweet');
+    if (latest.isRetweet) tagDesc = t('notification.repost');
+    else if (isTweetWithQuote(latest)) tagDesc = t('notification.quoteTweet');
+    else if (isMemberOnlyTweet(latest)) tagDesc = t('notification.memberOnlyTweet');
 
-    const subtitle = count > 1 ? `发布 ${count} 条新推文` : tagDesc;
-    const body = compactSingleLine(latest.text || '[媒体内容]');
+    const subtitle = count > 1 ? t('notification.newTweetsCount', { count }) : tagDesc;
+    const body = compactSingleLine(normalizeMediaOnlyText(latest.text || t('notification.mediaContentPlaceholder')));
 
     sendSystemNotification({
       title,

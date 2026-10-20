@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DISCORD_PARTITION } = require('./src/constants');
 const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/tweet_embed');
+const { t, setActiveLanguageOverride } = require('./src/i18n');
 const TICKER_DATA_PATH = path
   .join(__dirname, 'data', 'ticker-data.json')
   .replace('app.asar', 'app.asar.unpacked');
@@ -24,6 +25,45 @@ const MIN_WINDOW_HEIGHT = 650;
 
 function getWindowStatePath() {
   return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function getPreferencesPath() {
+  return path.join(app.getPath('userData'), 'preferences.json');
+}
+
+function loadSavedLanguagePreference() {
+  try {
+    const prefPath = getPreferencesPath();
+    if (!fs.existsSync(prefPath)) return null;
+    const saved = JSON.parse(fs.readFileSync(prefPath, 'utf8'));
+    if (saved && (saved.language === 'en' || saved.language === 'zh')) {
+      return saved.language;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function saveLanguagePreference(lang) {
+  try {
+    const prefPath = getPreferencesPath();
+    let current = {};
+    if (fs.existsSync(prefPath)) {
+      try {
+        current = JSON.parse(fs.readFileSync(prefPath, 'utf8')) || {};
+      } catch (_) {
+        current = {};
+      }
+    }
+    if (lang === 'en' || lang === 'zh') {
+      current.language = lang;
+    } else {
+      delete current.language;
+    }
+    fs.mkdirSync(path.dirname(prefPath), { recursive: true });
+    fs.writeFileSync(prefPath, JSON.stringify(current, null, 2) + '\n', 'utf8');
+  } catch (err) {
+    console.warn('[Preferences] Failed to save language preference:', err.message);
+  }
 }
 
 function loadWindowState() {
@@ -112,7 +152,7 @@ function createWindow() {
     height: windowState.height,
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
-    title: 'TheySay - Twitter / X 动态网格看板 (GridStack)',
+    title: t('app.mainWindowTitle'),
     icon: ICON_PATH,
     webPreferences: {
       webviewTag: true,
@@ -289,7 +329,7 @@ ipcMain.on('open-login-window', async () => {
   loginWindow = new BrowserWindow({
     width: 620,
     height: 750,
-    title: initialAuthToken ? '切换或重新登录 Twitter / X 账号' : '登录 Twitter / X',
+    title: initialAuthToken ? t('app.twitterReloginTitle') : t('app.twitterLoginTitle'),
     icon: ICON_PATH,
     parent: mainWindow,
     modal: false,
@@ -375,7 +415,7 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   discordLoginWindow = new BrowserWindow({
     width: 900,
     height: 760,
-    title: payload && payload.wasLoggedIn ? '切换或重新登录 Discord 账号' : '登录 Discord',
+    title: payload && payload.wasLoggedIn ? t('app.discordReloginTitle') : t('app.discordLoginTitle'),
     icon: ICON_PATH,
     parent: mainWindow,
     modal: false,
@@ -418,6 +458,30 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   });
 });
 
+// Sync active language from renderer process
+ipcMain.on('set-language', (event, payload) => {
+  const isObj = typeof payload === 'object' && payload !== null;
+  const lang = isObj ? payload.lang : payload;
+  const persist = isObj ? Boolean(payload.persist) : true;
+
+  if (persist) {
+    saveLanguagePreference(lang);
+    if (lang === 'en' || lang === 'zh') {
+      process.env.THEYSAY_SAVED_LANGUAGE = lang;
+    } else {
+      delete process.env.THEYSAY_SAVED_LANGUAGE;
+    }
+    try {
+      session.defaultSession.flushStorageData();
+    } catch (_) {}
+  }
+
+  setActiveLanguageOverride(lang || null);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setTitle(t('app.windowTitle'));
+  }
+});
+
 // Export user profile (all settings + all followed accounts/channels) to a JSON file
 ipcMain.handle('export-profile', async (event, payload = {}) => {
   try {
@@ -428,9 +492,9 @@ ipcMain.handle('export-profile', async (event, payload = {}) => {
     const dateStr = new Date().toISOString().slice(0, 10);
     const defaultPath = path.join(app.getPath('downloads'), `theysay-profile-${dateStr}.json`);
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      title: '导出 TheySay Profile 配置',
+      title: t('app.exportDialogTitle'),
       defaultPath,
-      buttonLabel: '导出 Profile',
+      buttonLabel: t('app.exportDialogButton'),
       filters: [{ name: 'JSON Profile', extensions: ['json'] }]
     });
     if (canceled || !filePath) {
@@ -447,8 +511,8 @@ ipcMain.handle('export-profile', async (event, payload = {}) => {
 ipcMain.handle('import-profile', async () => {
   try {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-      title: '导入 TheySay Profile 配置',
-      buttonLabel: '导入 Profile',
+      title: t('app.importDialogTitle'),
+      buttonLabel: t('app.importDialogButton'),
       properties: ['openFile'],
       filters: [{ name: 'JSON Profile', extensions: ['json'] }]
     });
@@ -463,7 +527,7 @@ ipcMain.handle('import-profile', async () => {
         ? parsed.profileData
         : parsed;
     if (!profile || typeof profile !== 'object') {
-      return { ok: false, error: '无效的 Profile JSON 文件格式' };
+      return { ok: false, error: t('app.invalidProfileJson') };
     }
     return { ok: true, profile, profileData: profile, filePath };
   } catch (err) {
@@ -643,6 +707,28 @@ app.whenReady().then(() => {
     app.dock.setIcon(ICON_PATH);
   }
 
+  if (!process.env.THEYSAY_SYSTEM_LOCALE) {
+    try {
+      const preferred =
+        typeof app.getPreferredSystemLanguages === 'function'
+          ? app.getPreferredSystemLanguages()
+          : [];
+      const osLocale =
+        (Array.isArray(preferred) && preferred[0]) ||
+        (typeof app.getSystemLocale === 'function' ? app.getSystemLocale() : '') ||
+        (typeof app.getLocale === 'function' ? app.getLocale() : '');
+      if (osLocale) {
+        process.env.THEYSAY_SYSTEM_LOCALE = osLocale;
+      }
+    } catch (_) {}
+  }
+
+  const savedLangPref = loadSavedLanguagePreference();
+  if (savedLangPref === 'en' || savedLangPref === 'zh') {
+    process.env.THEYSAY_SAVED_LANGUAGE = savedLangPref;
+    setActiveLanguageOverride(savedLangPref);
+  }
+
   createWindow();
 
   app.on('activate', () => {
@@ -650,6 +736,12 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on('before-quit', () => {
+  try {
+    session.defaultSession.flushStorageData();
+  } catch (_) {}
 });
 
 app.on('window-all-closed', () => {

@@ -21,6 +21,7 @@ const {
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
+  STORAGE_LANGUAGE_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
@@ -33,6 +34,7 @@ const {
 } = require('./constants');
 const { detectSourceType, getCanonicalTargetKey } = require('./source');
 const { getTweetKey, getTweetTimestamp } = require('./tweet');
+const { getCurrentLanguage, setActiveLanguageOverride } = require('./i18n');
 
 const MAX_CACHE_TRACKED_KEYS = 500;
 
@@ -550,6 +552,44 @@ function saveHeaderBgColor(color) {
   } catch (e) {}
 }
 
+function getLanguage() {
+  return getCurrentLanguage();
+}
+
+function saveLanguage(lang) {
+  try {
+    if (lang === 'en' || lang === 'zh') {
+      localStorage.setItem(STORAGE_LANGUAGE_KEY, lang);
+      if (typeof process !== 'undefined' && process && process.env) {
+        process.env.THEYSAY_SAVED_LANGUAGE = lang;
+      }
+      setActiveLanguageOverride(lang);
+      try {
+        const { ipcRenderer } = require('electron');
+        if (ipcRenderer) {
+          ipcRenderer.send('set-language', { lang, persist: true });
+        }
+      } catch (_) {}
+    }
+  } catch (e) {}
+}
+
+function clearStoredLanguage() {
+  try {
+    localStorage.removeItem(STORAGE_LANGUAGE_KEY);
+    if (typeof process !== 'undefined' && process && process.env) {
+      delete process.env.THEYSAY_SAVED_LANGUAGE;
+    }
+    setActiveLanguageOverride(null);
+    try {
+      const { ipcRenderer } = require('electron');
+      if (ipcRenderer) {
+        ipcRenderer.send('set-language', { lang: null, persist: true });
+      }
+    } catch (_) {}
+  } catch (e) {}
+}
+
 function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = {}) {
   if (grid) {
     saveGridLayout(grid);
@@ -633,6 +673,7 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
   }
 
   const settings = {
+    language: settingsOverrides.language !== undefined ? settingsOverrides.language : getLanguage(),
     theme: settingsOverrides.theme !== undefined ? settingsOverrides.theme : getStoredTheme(),
     gridPreset: settingsOverrides.gridPreset !== undefined ? settingsOverrides.gridPreset : getStoredPreset(),
     gridLayout,
@@ -722,5 +763,8 @@ module.exports = {
   saveTickerRemoteCache,
   getHeaderBgColor,
   saveHeaderBgColor,
+  getLanguage,
+  saveLanguage,
+  clearStoredLanguage,
   buildProfileData
 };

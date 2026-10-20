@@ -3,6 +3,7 @@ const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./src/constants');
 const {
   getStoredPreset,
   saveStoredPreset,
+  getStoredTheme,
   saveGridLayout,
   saveRawGridLayout,
   saveHandlesArray,
@@ -17,10 +18,12 @@ const {
   saveTickerBgColor,
   getTickerFgColor,
   getTickerBgColor,
+  getLanguage,
+  saveLanguage,
   buildProfileData
 } = require('./src/storage');
 const { initTheme, applyTheme, applyHeaderColor } = require('./src/theme');
-const { initAuth } = require('./src/auth');
+const { initAuth, refreshAuthLocaleUI } = require('./src/auth');
 const { initBackgroundWebviews } = require('./src/webview');
 const {
   initSlotsRegistry,
@@ -30,6 +33,7 @@ const {
   updateSlotMuteUI,
   markAllTweetsAsRead,
   refreshSlotsContent,
+  localizeSlotsUI,
   archiveSlotScrapedData,
   resetSlotForNewTarget
 } = require('./src/slot');
@@ -51,13 +55,15 @@ const {
   initSettings,
   isSettingsModalOpen,
   loadCurrentSettings,
-  getFormSettingsOverrides
+  getFormSettingsOverrides,
+  refreshTickerStatsLabel
 } = require('./src/settings');
 const { applyDiscordSoundSetting } = require('./src/discord');
 const { initNotifications } = require('./src/notification');
 const { initTickers, applyTickerColors } = require('./src/ticker');
 const { getCanonicalTargetKey } = require('./src/source');
 const { showToast } = require('./src/utils');
+const { t, applyPageLocalization } = require('./src/i18n');
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
@@ -70,6 +76,15 @@ let grid = null;
 let currentRows = 2;
 let currentCols = 2;
 let slots = [];
+
+function refreshLocalizedAppUI(lang) {
+  applyPageLocalization(lang);
+  applyTheme(getStoredTheme(), btnThemeToggle);
+  refreshAuthLocaleUI();
+  refreshTickerStatsLabel();
+  localizeSlotsUI(slots);
+  refreshSlotsContent(slots);
+}
 
 function handleFetchSlot(slotIndex) {
   fetchSlot(slotIndex, { isBackground: false }, { slots, bgWebviewsContainer });
@@ -111,12 +126,16 @@ async function handleExportProfile(settingsOverrides = null) {
     if (!res || res.canceled) return;
     if (res.ok) {
       const count = Array.isArray(profileData.following) ? profileData.following.length : 0;
-      showToast(`Profile 导出成功 (含全部设置与 ${count} 个关注项)`, 'success', 3000);
+      showToast(t('profile.exportSuccess', { count }), 'success', 3000);
     } else {
-      showToast(`导出 Profile 失败: ${res.error || '未知错误'}`, 'error', 3000);
+      showToast(
+        t('profile.exportError', { error: res.error || t('profile.unknownError') }),
+        'error',
+        3000
+      );
     }
   } catch (err) {
-    showToast(`导出 Profile 失败: ${err.message || err}`, 'error', 3000);
+    showToast(t('profile.exportError', { error: err.message || err }), 'error', 3000);
   }
 }
 
@@ -125,7 +144,11 @@ async function handleImportProfile() {
     const res = await ipcRenderer.invoke('import-profile');
     if (!res || res.canceled) return;
     if (!res.ok || !res.profileData || typeof res.profileData !== 'object') {
-      showToast(`导入 Profile 失败: ${(res && res.error) || '文件格式无效'}`, 'error', 3000);
+      showToast(
+        t('profile.importError', { error: (res && res.error) || t('profile.invalidFormat') }),
+        'error',
+        3000
+      );
       return;
     }
 
@@ -137,6 +160,13 @@ async function handleImportProfile() {
     slots.forEach(s => archiveSlotScrapedData(s));
 
     // 2. Apply settings
+    if (settings.language === 'en' || settings.language === 'zh') {
+      saveLanguage(settings.language);
+      if (ipcRenderer) {
+        ipcRenderer.send('set-language', settings.language);
+      }
+      refreshLocalizedAppUI(settings.language);
+    }
     if (settings.theme === 'dark' || settings.theme === 'light') {
       applyTheme(settings.theme, btnThemeToggle);
     }
@@ -321,12 +351,12 @@ async function handleImportProfile() {
 
     const followedCount = nextHandles.filter(Boolean).length;
     showToast(
-      `Profile 导入成功 (已恢复 ${followedCount} 个关注项与全部设置，已抓取数据完整保留)`,
+      t('profile.importSuccess', { count: followedCount }),
       'success',
       3200
     );
   } catch (err) {
-    showToast(`导入 Profile 失败: ${err.message || err}`, 'error', 3000);
+    showToast(t('profile.importError', { error: err.message || err }), 'error', 3000);
   }
 }
 
@@ -334,6 +364,12 @@ async function handleImportProfile() {
 // Lifecycle Initialization & Window Resize
 // ----------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
+  const initialLang = getLanguage();
+  applyPageLocalization(initialLang);
+  if (ipcRenderer) {
+    ipcRenderer.send('set-language', { lang: initialLang, persist: false });
+  }
+
   initTheme(btnThemeToggle);
   initTweetPopup();
   initBackgroundWebviews(bgWebviewsContainer, slots, MAX_SLOTS);
@@ -357,6 +393,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initSettings({
     onExportProfile: (overrides) => handleExportProfile(overrides),
     onImportProfile: () => handleImportProfile(),
+    onLanguageChange: (lang) => refreshLocalizedAppUI(lang),
     onSave: (opts = {}) => {
       if (opts && opts.syncedTickersOnly) {
         refreshSlotsContent(slots);

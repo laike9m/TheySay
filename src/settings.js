@@ -25,7 +25,10 @@ const {
   getTickerBgColor,
   saveTickerBgColor,
   getHeaderBgColor,
-  saveHeaderBgColor
+  saveHeaderBgColor,
+  getLanguage,
+  saveLanguage,
+  clearStoredLanguage
 } = require('./storage');
 const {
   applyTickerColors,
@@ -37,8 +40,14 @@ const {
   resolveHeaderPalette
 } = require('./theme');
 const { showToast } = require('./utils');
+const {
+  t,
+  detectSystemLanguage,
+  setActiveLanguageOverride
+} = require('./i18n');
 
 let isInitialized = false;
+let onLanguageChangeCallback = null;
 
 function getOverlay() {
   return document.getElementById('settings-modal-overlay');
@@ -181,10 +190,15 @@ function refreshTickerStatsLabel() {
   if (!statsEl) return;
   const stats = getTickerStats();
   const countStr = stats && stats.totalCount ? stats.totalCount.toLocaleString() : '9,600+';
-  statsEl.textContent = `已加载 ${countStr} 个 NASDAQ 美股与 ETF 代码（支持 $ 符号与大小写自动匹配）`;
+  statsEl.textContent = t('settings.tickerStats', { count: countStr });
 }
 
 function loadCurrentSettings() {
+  const languageSelect = document.getElementById('setting-language');
+  if (languageSelect) {
+    languageSelect.value = getLanguage();
+  }
+
   const twitterSelect = document.getElementById('setting-twitter-interval');
   const twitterCustomWrap = document.getElementById('setting-twitter-custom-wrap');
   const twitterCustomInput = document.getElementById('setting-twitter-custom');
@@ -229,19 +243,17 @@ function openSettingsModal() {
   const overlay = getOverlay();
   if (!overlay) return;
 
+  setActiveLanguageOverride(null);
   loadCurrentSettings();
   overlay.classList.remove('is-closed');
   const btnSettings = document.getElementById('btn-settings');
   if (btnSettings) btnSettings.classList.add('active');
 }
 
-function closeSettingsModal({ revert = true } = {}) {
+function closeSettingsModal() {
   const overlay = getOverlay();
   if (!overlay) return;
 
-  if (revert) {
-    applyHeaderColor(getHeaderBgColor());
-  }
   overlay.classList.add('is-closed');
   const btnSettings = document.getElementById('btn-settings');
   if (btnSettings) btnSettings.classList.remove('active');
@@ -250,6 +262,7 @@ function closeSettingsModal({ revert = true } = {}) {
 function getFormSettingsOverrides() {
   if (!isSettingsModalOpen()) return {};
 
+  const languageSelect = document.getElementById('setting-language');
   const twitterSelect = document.getElementById('setting-twitter-interval');
   const twitterCustomInput = document.getElementById('setting-twitter-custom');
   const discordSelect = document.getElementById('setting-discord-interval');
@@ -263,6 +276,11 @@ function getFormSettingsOverrides() {
   const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
   const tickerBgInput = document.getElementById('setting-ticker-bg-color');
   const tickerBgHex = document.getElementById('setting-ticker-bg-hex');
+
+  const language =
+    languageSelect && (languageSelect.value === 'zh' || languageSelect.value === 'en')
+      ? languageSelect.value
+      : getLanguage();
 
   let twitterIntervalMinutes = getTwitterIntervalMinutes();
   if (twitterSelect) {
@@ -309,6 +327,7 @@ function getFormSettingsOverrides() {
   );
 
   return {
+    language,
     twitterIntervalMinutes,
     discordIntervalMinutes,
     showMemberOnlyTweets,
@@ -320,16 +339,19 @@ function getFormSettingsOverrides() {
   };
 }
 
-function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
+function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChange } = {}) {
+  if (typeof onLanguageChange === 'function') {
+    onLanguageChangeCallback = onLanguageChange;
+  }
   if (isInitialized) return;
   isInitialized = true;
 
   const btnSettings = document.getElementById('btn-settings');
   const overlay = getOverlay();
   const btnClose = document.getElementById('btn-settings-close');
-  const btnCancel = document.getElementById('btn-settings-cancel');
-  const btnSave = document.getElementById('btn-settings-save');
   const btnReset = document.getElementById('btn-settings-reset');
+
+  const languageSelect = document.getElementById('setting-language');
 
   const twitterSelect = document.getElementById('setting-twitter-interval');
   const twitterCustomWrap = document.getElementById('setting-twitter-custom-wrap');
@@ -338,6 +360,9 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
   const discordSelect = document.getElementById('setting-discord-interval');
   const discordCustomWrap = document.getElementById('setting-discord-custom-wrap');
   const discordCustomInput = document.getElementById('setting-discord-custom');
+
+  const memberOnlySelect = document.getElementById('setting-show-member-only');
+  const discordSoundSelect = document.getElementById('setting-discord-sound');
 
   const headerBgInput = document.getElementById('setting-header-bg-color');
   const headerBgHex = document.getElementById('setting-header-bg-hex');
@@ -350,6 +375,33 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
   const btnSyncTickers = document.getElementById('btn-sync-tickers');
   const btnExportProfile = document.getElementById('btn-export-profile');
   const btnImportProfile = document.getElementById('btn-import-profile');
+
+  const notifySaved = () => {
+    if (typeof onSave === 'function') {
+      onSave({
+        language: getLanguage(),
+        twitterMinutes: getTwitterIntervalMinutes(),
+        discordMinutes: getDiscordIntervalMinutes(),
+        showMemberOnly: getShowMemberOnlyTweets(),
+        discordSoundEnabled: getDiscordSoundEnabled(),
+        headerBgColor: getHeaderBgColor(),
+        tickerHighlightEnabled: getTickerHighlightEnabled(),
+        tickerFgColor: getTickerFgColor(),
+        tickerBgColor: getTickerBgColor()
+      });
+    }
+  };
+
+  if (languageSelect) {
+    languageSelect.addEventListener('change', () => {
+      const nextLang = languageSelect.value === 'zh' ? 'zh' : 'en';
+      saveLanguage(nextLang);
+      refreshTickerStatsLabel();
+      if (typeof onLanguageChangeCallback === 'function') {
+        onLanguageChangeCallback(nextLang);
+      }
+    });
+  }
 
   if (btnExportProfile) {
     btnExportProfile.addEventListener('click', () => {
@@ -371,7 +423,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
     btnSettings.addEventListener('click', (e) => {
       e.stopPropagation();
       if (isSettingsModalOpen()) {
-        closeSettingsModal({ revert: true });
+        closeSettingsModal();
       } else {
         openSettingsModal();
       }
@@ -379,17 +431,13 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
   }
 
   if (btnClose) {
-    btnClose.addEventListener('click', () => closeSettingsModal({ revert: true }));
-  }
-
-  if (btnCancel) {
-    btnCancel.addEventListener('click', () => closeSettingsModal({ revert: true }));
+    btnClose.addEventListener('click', () => closeSettingsModal());
   }
 
   if (overlay) {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        closeSettingsModal({ revert: true });
+        closeSettingsModal();
       }
     });
   }
@@ -400,8 +448,37 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
       if (twitterSelect.value === 'custom') {
         twitterCustomInput.focus();
         twitterCustomInput.select();
+        const val = parseFloat(twitterCustomInput.value);
+        if (!isNaN(val) && val > 0) {
+          saveTwitterIntervalMinutes(Math.max(1, Math.round(val)));
+          notifySaved();
+        }
+      } else {
+        const mins = parseFloat(twitterSelect.value);
+        if (!isNaN(mins) && mins > 0) {
+          saveTwitterIntervalMinutes(mins);
+          notifySaved();
+        }
       }
     });
+
+    const commitTwitterCustom = ({ showErr = false } = {}) => {
+      const val = parseFloat(twitterCustomInput.value);
+      if (isNaN(val) || val <= 0) {
+        if (showErr) {
+          showToast(t('settings.toastInvalidTwitterInterval'), 'error', 2500);
+          twitterCustomInput.value = getTwitterIntervalMinutes();
+        }
+        return;
+      }
+      const mins = Math.max(1, Math.round(val));
+      if (showErr) twitterCustomInput.value = mins;
+      saveTwitterIntervalMinutes(mins);
+      notifySaved();
+    };
+
+    twitterCustomInput.addEventListener('change', () => commitTwitterCustom({ showErr: true }));
+    twitterCustomInput.addEventListener('blur', () => commitTwitterCustom({ showErr: true }));
   }
 
   if (discordSelect && discordCustomWrap && discordCustomInput) {
@@ -410,7 +487,52 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
       if (discordSelect.value === 'custom') {
         discordCustomInput.focus();
         discordCustomInput.select();
+        const val = parseFloat(discordCustomInput.value);
+        if (!isNaN(val) && val > 0) {
+          saveDiscordIntervalMinutes(Math.max(0.5, Math.round(val * 10) / 10));
+          notifySaved();
+        }
+      } else {
+        const mins = parseFloat(discordSelect.value);
+        if (!isNaN(mins) && mins > 0) {
+          saveDiscordIntervalMinutes(mins);
+          notifySaved();
+        }
       }
+    });
+
+    const commitDiscordCustom = ({ showErr = false } = {}) => {
+      const val = parseFloat(discordCustomInput.value);
+      if (isNaN(val) || val <= 0) {
+        if (showErr) {
+          showToast(t('settings.toastInvalidDiscordInterval'), 'error', 2500);
+          discordCustomInput.value = getDiscordIntervalMinutes();
+        }
+        return;
+      }
+      const mins = Math.max(0.5, Math.round(val * 10) / 10);
+      if (showErr) discordCustomInput.value = mins;
+      saveDiscordIntervalMinutes(mins);
+      notifySaved();
+    };
+
+    discordCustomInput.addEventListener('change', () => commitDiscordCustom({ showErr: true }));
+    discordCustomInput.addEventListener('blur', () => commitDiscordCustom({ showErr: true }));
+  }
+
+  if (memberOnlySelect) {
+    memberOnlySelect.addEventListener('change', () => {
+      const showMemberOnly = memberOnlySelect.value === 'true';
+      saveShowMemberOnlyTweets(showMemberOnly);
+      notifySaved();
+    });
+  }
+
+  if (discordSoundSelect) {
+    discordSoundSelect.addEventListener('change', () => {
+      const discordSoundEnabled = discordSoundSelect.value === 'true';
+      saveDiscordSoundEnabled(discordSoundEnabled);
+      notifySaved();
     });
   }
 
@@ -420,16 +542,22 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
       DEFAULT_HEADER_BG_COLOR
     );
 
+  const commitHeaderBg = (bg) => {
+    const norm = normalizeHexColor(bg, DEFAULT_HEADER_BG_COLOR);
+    saveHeaderBgColor(norm);
+    updateHeaderPreviewUI(norm, { liveApply: true });
+  };
+
   if (headerBgInput && headerBgHex) {
     headerBgInput.addEventListener('input', () => {
       headerBgHex.value = headerBgInput.value.toLowerCase();
-      updateHeaderPreviewUI(getCurrentFormHeaderBg(), { liveApply: true });
+      commitHeaderBg(getCurrentFormHeaderBg());
     });
     headerBgHex.addEventListener('input', () => {
       const val = headerBgHex.value.trim();
       if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
         headerBgInput.value = val.toLowerCase();
-        updateHeaderPreviewUI(val.toLowerCase(), { liveApply: true });
+        commitHeaderBg(val.toLowerCase());
       }
     });
     headerBgHex.addEventListener('blur', () => {
@@ -439,7 +567,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
       );
       headerBgHex.value = norm;
       headerBgInput.value = norm;
-      updateHeaderPreviewUI(norm, { liveApply: true });
+      commitHeaderBg(norm);
     });
   }
 
@@ -447,6 +575,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
     btn.addEventListener('click', () => {
       const bg = btn.getAttribute('data-bg') || DEFAULT_HEADER_BG_COLOR;
       setHeaderColorInputs(bg, { liveApply: true });
+      saveHeaderBgColor(normalizeHexColor(bg, DEFAULT_HEADER_BG_COLOR));
     });
   });
 
@@ -456,52 +585,61 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
     bg: normalizeHexColor(tickerBgHex ? tickerBgHex.value : (tickerBgInput && tickerBgInput.value), DEFAULT_TICKER_BG_COLOR)
   });
 
+  const commitTickerState = ({ refreshFeed = false } = {}) => {
+    const { enabled, fg, bg } = getCurrentFormTickerState();
+    saveTickerHighlightEnabled(enabled);
+    saveTickerFgColor(fg);
+    saveTickerBgColor(bg);
+    applyTickerColors(fg, bg);
+    updateTickerPreviewUI(fg, bg, enabled);
+    if (refreshFeed) {
+      notifySaved();
+    }
+  };
+
   if (tickerEnabledSelect) {
     tickerEnabledSelect.addEventListener('change', () => {
-      const { enabled, fg, bg } = getCurrentFormTickerState();
-      updateTickerPreviewUI(fg, bg, enabled);
+      commitTickerState({ refreshFeed: true });
     });
   }
 
   if (tickerFgInput && tickerFgHex) {
     tickerFgInput.addEventListener('input', () => {
       tickerFgHex.value = tickerFgInput.value.toLowerCase();
-      const { enabled, fg, bg } = getCurrentFormTickerState();
-      updateTickerPreviewUI(fg, bg, enabled);
+      commitTickerState();
     });
     tickerFgHex.addEventListener('input', () => {
       const val = tickerFgHex.value.trim();
       if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
         tickerFgInput.value = val.toLowerCase();
-        const { enabled, fg, bg } = getCurrentFormTickerState();
-        updateTickerPreviewUI(fg, bg, enabled);
+        commitTickerState();
       }
     });
     tickerFgHex.addEventListener('blur', () => {
       const norm = normalizeHexColor(tickerFgHex.value, tickerFgInput.value || DEFAULT_TICKER_FG_COLOR);
       tickerFgHex.value = norm;
       tickerFgInput.value = norm;
+      commitTickerState();
     });
   }
 
   if (tickerBgInput && tickerBgHex) {
     tickerBgInput.addEventListener('input', () => {
       tickerBgHex.value = tickerBgInput.value.toLowerCase();
-      const { enabled, fg, bg } = getCurrentFormTickerState();
-      updateTickerPreviewUI(fg, bg, enabled);
+      commitTickerState();
     });
     tickerBgHex.addEventListener('input', () => {
       const val = tickerBgHex.value.trim();
       if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
         tickerBgInput.value = val.toLowerCase();
-        const { enabled, fg, bg } = getCurrentFormTickerState();
-        updateTickerPreviewUI(fg, bg, enabled);
+        commitTickerState();
       }
     });
     tickerBgHex.addEventListener('blur', () => {
       const norm = normalizeHexColor(tickerBgHex.value, tickerBgInput.value || DEFAULT_TICKER_BG_COLOR);
       tickerBgHex.value = norm;
       tickerBgInput.value = norm;
+      commitTickerState();
     });
   }
 
@@ -511,21 +649,21 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
       const bg = btn.getAttribute('data-bg') || DEFAULT_TICKER_BG_COLOR;
       const enabled = !tickerEnabledSelect || tickerEnabledSelect.value === 'true';
       setTickerColorInputs(fg, bg, enabled);
+      commitTickerState();
     });
   });
 
   if (btnSyncTickers) {
     btnSyncTickers.addEventListener('click', async () => {
       if (btnSyncTickers.disabled) return;
-      const origText = btnSyncTickers.textContent;
       btnSyncTickers.disabled = true;
-      btnSyncTickers.textContent = '同步中...';
+      btnSyncTickers.textContent = t('settings.syncing');
       try {
         const res = await syncOnlineTickers({ force: true });
         refreshTickerStatsLabel();
         if (res && res.ok) {
           showToast(
-            `NASDAQ 词库同步完成，当前共收录 ${(res.totalCount || 0).toLocaleString()} 个股票/ETF 代码`,
+            t('settings.toastSyncSuccess', { count: (res.totalCount || 0).toLocaleString() }),
             'success',
             2500
           );
@@ -533,17 +671,38 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
             onSave({ syncedTickersOnly: true });
           }
         } else {
-          showToast(`在线同步失败，已使用内置词库 (${(res && res.error) || '网络异常'})`, 'warning', 2500);
+          showToast(
+            t('settings.toastSyncError', { error: (res && res.error) || t('settings.networkErrorFallback') }),
+            'warning',
+            2500
+          );
         }
       } finally {
         btnSyncTickers.disabled = false;
-        btnSyncTickers.textContent = origText;
+        btnSyncTickers.textContent = t('settings.syncOnlineBtn');
       }
     });
   }
 
   if (btnReset) {
     btnReset.addEventListener('click', () => {
+      clearStoredLanguage();
+      const sysLang = detectSystemLanguage();
+      if (languageSelect) {
+        languageSelect.value = sysLang;
+      }
+
+      saveTwitterIntervalMinutes(DEFAULT_TWITTER_INTERVAL_MINUTES);
+      saveDiscordIntervalMinutes(DEFAULT_DISCORD_INTERVAL_MINUTES);
+      saveShowMemberOnlyTweets(DEFAULT_SHOW_MEMBER_ONLY);
+      saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
+      saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
+      applyHeaderColor(DEFAULT_HEADER_BG_COLOR);
+      saveTickerHighlightEnabled(DEFAULT_TICKER_HIGHLIGHT_ENABLED);
+      saveTickerFgColor(DEFAULT_TICKER_FG_COLOR);
+      saveTickerBgColor(DEFAULT_TICKER_BG_COLOR);
+      applyTickerColors(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
+
       if (twitterSelect && twitterCustomWrap && twitterCustomInput) {
         populateSelectAndInput(
           twitterSelect,
@@ -560,11 +719,9 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
           DEFAULT_DISCORD_INTERVAL_MINUTES
         );
       }
-      const memberOnlySelect = document.getElementById('setting-show-member-only');
       if (memberOnlySelect) {
         memberOnlySelect.value = DEFAULT_SHOW_MEMBER_ONLY ? 'true' : 'false';
       }
-      const discordSoundSelect = document.getElementById('setting-discord-sound');
       if (discordSoundSelect) {
         discordSoundSelect.value = DEFAULT_DISCORD_SOUND_ENABLED ? 'true' : 'false';
       }
@@ -577,89 +734,13 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
         DEFAULT_TICKER_BG_COLOR,
         DEFAULT_TICKER_HIGHLIGHT_ENABLED
       );
-      showToast('已恢复默认参数，点击“保存设置”生效', 'info', 2000);
-    });
-  }
 
-  if (btnSave) {
-    btnSave.addEventListener('click', () => {
-      let twitterMinutes = DEFAULT_TWITTER_INTERVAL_MINUTES;
-      if (twitterSelect.value === 'custom') {
-        const val = parseFloat(twitterCustomInput.value);
-        if (isNaN(val) || val <= 0) {
-          showToast('请输入有效的 Twitter 刷新频率 (>= 1 分钟)', 'error', 2500);
-          twitterCustomInput.focus();
-          return;
-        }
-        twitterMinutes = Math.max(1, Math.round(val));
-      } else {
-        twitterMinutes = parseFloat(twitterSelect.value);
+      if (typeof onLanguageChangeCallback === 'function') {
+        onLanguageChangeCallback(sysLang);
       }
-
-      let discordMinutes = DEFAULT_DISCORD_INTERVAL_MINUTES;
-      if (discordSelect.value === 'custom') {
-        const val = parseFloat(discordCustomInput.value);
-        if (isNaN(val) || val <= 0) {
-          showToast('请输入有效的 Discord 刷新频率 (>= 0.5 分钟)', 'error', 2500);
-          discordCustomInput.focus();
-          return;
-        }
-        discordMinutes = Math.max(0.5, Math.round(val * 10) / 10);
-      } else {
-        discordMinutes = parseFloat(discordSelect.value);
-      }
-
-      const memberOnlySelect = document.getElementById('setting-show-member-only');
-      let showMemberOnly = DEFAULT_SHOW_MEMBER_ONLY;
-      if (memberOnlySelect) {
-        showMemberOnly = memberOnlySelect.value === 'true';
-      }
-
-      const discordSoundSelect = document.getElementById('setting-discord-sound');
-      let discordSoundEnabled = DEFAULT_DISCORD_SOUND_ENABLED;
-      if (discordSoundSelect) {
-        discordSoundEnabled = discordSoundSelect.value === 'true';
-      }
-
-      const headerBgColor = getCurrentFormHeaderBg();
-      const headerPalette = resolveHeaderPalette(headerBgColor);
-      const { enabled: tickerHighlightEnabled, fg: tickerFgColor, bg: tickerBgColor } =
-        getCurrentFormTickerState();
-
-      saveTwitterIntervalMinutes(twitterMinutes);
-      saveDiscordIntervalMinutes(discordMinutes);
-      saveShowMemberOnlyTweets(showMemberOnly);
-      saveDiscordSoundEnabled(discordSoundEnabled);
-      saveHeaderBgColor(headerBgColor);
-      applyHeaderColor(headerBgColor);
-      saveTickerHighlightEnabled(tickerHighlightEnabled);
-      saveTickerFgColor(tickerFgColor);
-      saveTickerBgColor(tickerBgColor);
-      applyTickerColors(tickerFgColor, tickerBgColor);
-
-      if (typeof onSave === 'function') {
-        onSave({
-          twitterMinutes,
-          discordMinutes,
-          showMemberOnly,
-          discordSoundEnabled,
-          headerBgColor,
-          tickerHighlightEnabled,
-          tickerFgColor,
-          tickerBgColor
-        });
-      }
-
-      const formatInterval = (m) => (m === 0.5 ? '30秒' : `${m}分钟`);
-      const memberText = showMemberOnly ? '显示会员推文' : '隐藏会员推文';
-      const tickerText = tickerHighlightEnabled ? 'Ticker高亮开启' : 'Ticker高亮关闭';
-      const soundText = discordSoundEnabled ? 'Discord 提示音开启' : 'Discord 已静音';
-      showToast(
-        `设置已保存 (Title栏: ${headerPalette.bg}, Twitter: ${formatInterval(twitterMinutes)}, Discord: ${formatInterval(discordMinutes)}, ${memberText}, ${tickerText}, ${soundText})`,
-        'success',
-        2500
-      );
-      closeSettingsModal({ revert: false });
+      refreshTickerStatsLabel();
+      notifySaved();
+      showToast(t('settings.toastResetDefaults'), 'success', 2000);
     });
   }
 
@@ -667,7 +748,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
     if (e.key === 'Escape' && isSettingsModalOpen()) {
       e.preventDefault();
       e.stopPropagation();
-      closeSettingsModal({ revert: true });
+      closeSettingsModal();
     }
   };
 
@@ -676,7 +757,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile } = {}) {
 
   if (ipcRenderer) {
     ipcRenderer.on('global-escape', () => {
-      if (isSettingsModalOpen()) closeSettingsModal({ revert: true });
+      if (isSettingsModalOpen()) closeSettingsModal();
     });
   }
 }
@@ -687,5 +768,6 @@ module.exports = {
   closeSettingsModal,
   isSettingsModalOpen,
   loadCurrentSettings,
-  getFormSettingsOverrides
+  getFormSettingsOverrides,
+  refreshTickerStatsLabel
 };

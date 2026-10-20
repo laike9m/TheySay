@@ -19,3 +19,6 @@
 
 - **Custom Auto-Refresh & Profile Backup**: Set independent background refresh intervals for Twitter and Discord, and export or import your entire layout, settings, and followed list as a `.json` profile anytime.  
   **独立自动刷新与 Profile 备份**：支持分别为 Twitter 与 Discord 设置后台刷新频率，并可将全部排版、设置与关注列表一键导出/导入为 `.json` 备份文件。
+
+- **Bilingual Interface (English & Chinese)**: Automatically adapts to your system language (defaults to English unless your system is set to Simplified or Traditional Chinese), with instant language switching in Settings.  
+  **中英双语界面**：自动根据系统语言切换界面语言（系统为简/繁体中文时默认显示中文，其他语言环境默认显示英文），并支持在设置中随时手动切换。

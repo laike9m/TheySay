@@ -2161,7 +2161,7 @@ body {
 .settings-modal-dialog {
   position: relative;
   width: 100%;
-  max-width: 640px;
+  max-width: 680px;
   max-height: 92vh;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -2264,11 +2264,15 @@ body {
   padding: 10px 12px;
 }
 
+.settings-card.settings-card-full {
+  grid-column: 1 / -1;
+}
+
 .settings-compact-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
 }
 
 .settings-card:hover {
@@ -2287,6 +2291,12 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
+}
+
+.settings-card-platform > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .settings-card-platform .platform-icon {
@@ -2299,6 +2309,16 @@ body {
   font-size: 13px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+.settings-card-platform .platform-icon.language {
+  background-color: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+}
+
+[data-theme="light"] .settings-card-platform .platform-icon.language {
+  background-color: rgba(5, 150, 105, 0.12);
+  color: #059669;
 }
 
 .settings-card-platform .platform-icon.twitter {
@@ -2331,13 +2351,16 @@ body {
   color: var(--text-main);
   line-height: 1.25;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings-card-subtitle {
   font-size: 10.5px;
   color: var(--text-muted);
-  line-height: 1.2;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .settings-card-content {
@@ -2374,6 +2397,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .settings-select {

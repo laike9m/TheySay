@@ -1,7 +1,9 @@
 const { ipcRenderer } = require('electron');
 const { getDiscordLoggedIn, saveDiscordLoggedIn } = require('./storage');
+const { t } = require('./i18n');
 
 let isTwitterLoggedIn = false;
+let lastTwitterStatus = 'checking';
 let isDiscordLoggedIn = false;
 
 function updateMenuStatusDot() {
@@ -18,24 +20,25 @@ function updateMenuStatusDot() {
 
 function updateTwitterStatusUI(status) {
   // status: boolean | 'checking'
+  lastTwitterStatus = status;
   const badge = document.getElementById('twitter-status-badge');
   const label = document.getElementById('twitter-status-label');
   const item = document.getElementById('item-login-twitter');
 
   if (status === 'checking') {
     if (badge) badge.className = 'platform-status-badge checking';
-    if (label) label.innerText = '检测中...';
-    if (item) item.title = 'Twitter / X: 正在检测登录状态';
+    if (label) label.innerText = t('auth.checking');
+    if (item) item.title = t('auth.twitterCheckingTitle');
   } else if (status === true) {
     isTwitterLoggedIn = true;
     if (badge) badge.className = 'platform-status-badge logged-in';
-    if (label) label.innerText = '已登录';
-    if (item) item.title = 'Twitter / X: 已登录 (点击重新登录或切换账号)';
+    if (label) label.innerText = t('auth.loggedIn');
+    if (item) item.title = t('auth.twitterLoggedInTitle');
   } else {
     isTwitterLoggedIn = false;
     if (badge) badge.className = 'platform-status-badge logged-out';
-    if (label) label.innerText = '未登录';
-    if (item) item.title = 'Twitter / X: 未登录 (点击弹出窗口登录)';
+    if (label) label.innerText = t('auth.loggedOut');
+    if (item) item.title = t('auth.twitterLoggedOutTitle');
   }
   updateMenuStatusDot();
 }
@@ -48,14 +51,19 @@ function updateDiscordStatusUI(isLoggedIn) {
 
   if (isLoggedIn) {
     if (badge) badge.className = 'platform-status-badge logged-in';
-    if (label) label.innerText = '已登录';
-    if (item) item.title = 'Discord: 已登录 (点击重新登录或切换账号)';
+    if (label) label.innerText = t('auth.loggedIn');
+    if (item) item.title = t('auth.discordLoggedInTitle');
   } else {
     if (badge) badge.className = 'platform-status-badge logged-out';
-    if (label) label.innerText = '未登录';
-    if (item) item.title = 'Discord: 未登录 (点击弹出窗口登录以监控私有频道)';
+    if (label) label.innerText = t('auth.loggedOut');
+    if (item) item.title = t('auth.discordLoggedOutTitle');
   }
   updateMenuStatusDot();
+}
+
+function refreshAuthLocaleUI() {
+  updateTwitterStatusUI(lastTwitterStatus);
+  updateDiscordStatusUI(isDiscordLoggedIn);
 }
 
 async function checkTwitterLoginStatus() {
@@ -174,5 +182,6 @@ module.exports = {
   updateLoginUI: updateTwitterStatusUI,
   updateDiscordLoginUI: updateDiscordStatusUI,
   checkLoginStatus: checkTwitterLoginStatus,
+  refreshAuthLocaleUI,
   initAuth
 };

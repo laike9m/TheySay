@@ -2,6 +2,7 @@ const { MAX_SLOTS } = require('./constants');
 const { showToast } = require('./utils');
 const { getSavedGridLayout, saveGridLayout } = require('./storage');
 const { updateSlotSizeUI, slotHasContent } = require('./slot');
+const { t } = require('./i18n');
 
 function calculateCellHeight(rows) {
   const availableHeight = window.innerHeight - 62; // top nav (50px) + bottom padding
@@ -127,11 +128,11 @@ function requestSlotResize({ grid, slot, targetW, targetH, currentRows, currentC
 
   // Check if grid capacity is sufficient (targetH is rows, targetW is cols)
   if (targetW > currentCols) {
-    showToast(`当前网格仅有 ${currentCols} 列，无法容纳 ${targetW} 列宽度的卡片。请先在顶部切换更大列数的网格布局。`, 'warning', 4500);
+    showToast(t('grid.notEnoughCols', { currentCols, targetW }), 'warning', 4500);
     return;
   }
   if (targetH > currentRows) {
-    showToast(`当前网格仅有 ${currentRows} 行，无法容纳 ${targetH} 行高度的卡片。请先在顶部切换更多行的网格布局。`, 'warning', 4500);
+    showToast(t('grid.notEnoughRows', { currentRows, targetH }), 'warning', 4500);
     return;
   }
 
@@ -181,10 +182,10 @@ function requestSlotResize({ grid, slot, targetW, targetH, currentRows, currentC
 
     const conflictNames = conflicts.map(c => {
       const h = c.handleInput.value.trim();
-      return h ? `@${h}` : `卡片`;
-    }).join('、');
+      return h ? `@${h}` : t('grid.cardFallbackName');
+    }).join(', ');
 
-    showToast(`⚠️ 无法放大为 ${targetH}×${targetW}：周边格子 (${conflictNames}) 已有内容。请先将周边的格子移开，或把它们清除掉后再试。`, 'warning', 5000);
+    showToast(t('grid.conflictResize', { targetH, targetW, conflictNames }), 'warning', 5000);
     return;
   }
 

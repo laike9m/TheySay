@@ -39,6 +39,7 @@ const {
   restoreSlotFromTargetCache
 } = require('./slot');
 const { notifySlotNewMessages } = require('./notification');
+const { t, normalizeDiscordChannelFallback } = require('./i18n');
 
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
@@ -882,7 +883,7 @@ async function runScript(wv, script) {
  */
 async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
   if (!(await canReachHost('discord.com'))) {
-    return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+    return { ok: false, offline: true, error: t('discord.offlineConnectError') };
   }
 
   await waitForWebviewReady(wv);
@@ -898,11 +899,11 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
   let timeout = SWITCH_TIMEOUT_MS;
 
   if (!isOnDiscord) {
-    if (onProgress) onProgress('正在启动 Discord 客户端...');
+    if (onProgress) onProgress(t('discord.bootingClient'));
     timeout = BOOT_TIMEOUT_MS;
     const loadRes = await loadWebviewTarget(wv, targetUrl);
     if (loadRes && loadRes.offline) {
-      return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+      return { ok: false, offline: true, error: t('discord.offlineConnectError') };
     }
   } else {
     // Check if the webview is already showing this EXACT channel and is ready
@@ -914,13 +915,13 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     let inAppSwitched = false;
     const sameGuild = currentUrl.indexOf(`/channels/${guildId}/`) >= 0;
     if (sameGuild) {
-      if (onProgress) onProgress('正在切换频道...');
+      if (onProgress) onProgress(t('discord.switchingChannel'));
       const clickRes = await runScript(wv, buildInAppChannelClickScript(guildId, channelId));
       if (clickRes && clickRes.clicked) {
         const quickDeadline = Date.now() + 3000;
         while (Date.now() < quickDeadline) {
           if (!isNetworkOnline()) {
-            return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+            return { ok: false, offline: true, error: t('discord.offlineConnectError') };
           }
           const quickProbe = await runScript(wv, buildReadinessScript(channelId));
           if (quickProbe && quickProbe.state === 'ready') {
@@ -933,11 +934,11 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     }
 
     if (!inAppSwitched) {
-      if (onProgress) onProgress('正在加载频道...');
+      if (onProgress) onProgress(t('discord.loadingChannel'));
       timeout = BOOT_TIMEOUT_MS;
       const loadRes = await loadWebviewTarget(wv, targetUrl);
       if (loadRes && loadRes.offline) {
-        return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+        return { ok: false, offline: true, error: t('discord.offlineConnectError') };
       }
     }
   }
@@ -947,7 +948,7 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
 
   while (Date.now() < deadline) {
     if (!isNetworkOnline()) {
-      return { ok: false, offline: true, error: '当前网络已断开，无法连接 Discord' };
+      return { ok: false, offline: true, error: t('discord.offlineConnectError') };
     }
     const probe = await runScript(wv, buildReadinessScript(channelId));
     if (probe) {
@@ -955,16 +956,16 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
       if (probe.state === 'ready') return { ok: true };
       if (probe.state === 'login') {
         saveDiscordLoggedIn(false);
-        return { ok: false, error: '尚未登录 Discord，请点击右上角【登录 Discord】完成登录' };
+        return { ok: false, error: t('discord.notLoggedInError') };
       }
     }
     await sleep(500);
   }
 
   if (lastState === 'switching' || lastState === 'booting') {
-    return { ok: false, error: '切换频道超时，请确认该频道仍然存在且账号有访问权限' };
+    return { ok: false, error: t('discord.switchTimeoutError') };
   }
-  return { ok: false, error: '加载频道消息超时，可能没有该频道的访问权限，或网络较慢' };
+  return { ok: false, error: t('discord.loadTimeoutError') };
 }
 
 /** Scrolls to the newest message, skipping any unread backlog. */
@@ -998,7 +999,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   const rawInput = slot.handleInput.value.trim();
   const parsed = parseDiscordChannelUrl(rawInput);
   if (!parsed) {
-    if (!isBackground) showSlotError(slot, '无法解析 Discord 频道链接');
+    if (!isBackground) showSlotError(slot, t('discord.invalidUrlError'));
     return { ok: false };
   }
 
@@ -1036,9 +1037,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   if (!(await canReachHost('discord.com'))) {
     if (!isBackground) {
       if (!hasExisting) {
-        showSlotError(slot, '当前网络已断开，无法读取 Discord 频道');
+        showSlotError(slot, t('discord.offlineReadError'));
       }
-      showToast('当前网络已断开，已暂停抓取', 'warning', 2500);
+      showToast(t('discord.offlinePausedToast'), 'warning', 2500);
     }
     return { ok: false, offline: true };
   }
@@ -1047,7 +1048,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   if (slot.card) slot.card.classList.add('is-fetching');
 
   if (!hasExisting) {
-    showSlotLoading(slot, '正在读取 Discord 频道...');
+    showSlotLoading(slot, t('discord.readingChannel'));
   }
 
   const setProgress = (text) => {
@@ -1062,7 +1063,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       if (!(await canReachHost('discord.com'))) {
         slotOffline = true;
         if (!isBackground && !hasExisting) {
-          showSlotError(slot, '当前网络已断开，无法读取 Discord 频道');
+          showSlotError(slot, t('discord.offlineReadError'));
         }
         return;
       }
@@ -1089,7 +1090,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       }
 
       saveDiscordLoggedIn(true);
-      setProgress('正在定位最新消息...');
+      setProgress(t('discord.locatingLatest'));
       await jumpToPresent(wv);
       await sleep(400);
 
@@ -1118,7 +1119,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
         if (result && result.error === 'NOT_LOGGED_IN') {
           saveDiscordLoggedIn(false);
-          const loginErrMsg = '尚未登录 Discord，请点击右上角【登录 Discord】完成登录';
+          const loginErrMsg = t('discord.notLoggedInError');
           if (!hasExisting) {
             showSlotError(slot, loginErrMsg);
           } else if (!isBackground) {
@@ -1127,10 +1128,11 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           return;
         }
         if (result && result.error) {
+          const failMsg = t('discord.scrapeFailedError', { error: result.error });
           if (!hasExisting) {
-            showSlotError(slot, `Discord 抓取失败: ${result.error}`);
+            showSlotError(slot, failMsg);
           } else if (!isBackground) {
-            showToast(`Discord 抓取失败: ${result.error}`, 'warning', 3000);
+            showToast(failMsg, 'warning', 3000);
           }
           return;
         }
@@ -1169,7 +1171,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         if (reachedBoundary || !hasExisting) break;
         if (collected.length >= MAX_DISCORD_MESSAGES) break;
 
-        setProgress(`正在向上翻阅历史 (${collected.length})...`);
+        setProgress(t('discord.scrollingHistory', { count: collected.length }));
         const up = await runScript(wv, SCROLL_UP_SCRIPT);
         if (!up || !up.ok || up.atTop) break;
         await sleep(600);
@@ -1237,7 +1239,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         .split(/[,，(（]/)[0]
         .replace(/[:：\s]+$/, '')
         .trim();
-      const channelLabel = cleanChan ? `#${cleanChan}` : (slot.sourceTitle || '#频道');
+      const channelLabel = cleanChan
+        ? `#${cleanChan}`
+        : normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel'));
 
       let guildLabel = String(meta.guildName || '')
         .split(/[\r\n]+/)[0]
@@ -1257,7 +1261,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       };
 
       if (collected.length === 0 && hasExisting) {
-        if (!isBackground) showToast(`${channelLabel} 已是最新，暂无新消息`, 'info', 2000);
+        if (!isBackground) showToast(t('discord.upToDateToast', { channelLabel }), 'info', 2000);
         if (backfillChanged) {
           renderSlotTweets(
             slot,
@@ -1276,13 +1280,13 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       }
 
       if (collected.length === 0) {
-        showSlotError(slot, '未读取到消息。请确认该频道有历史消息，且账号拥有查看权限。');
+        showSlotError(slot, t('discord.noMessagesError'));
         return;
       }
 
       const newUnreadItems = collected.filter(m => m.isUnread !== false);
       if (hasExisting && newUnreadItems.length > 0) {
-        showToast(`${channelLabel} 抓取到 ${newUnreadItems.length} 条新消息`, 'success', 2500);
+        showToast(t('discord.newMessagesToast', { channelLabel, count: newUnreadItems.length }), 'success', 2500);
       }
 
       const merged = processAndSortTweets([...liveExistingMessages, ...collected]);
@@ -1301,9 +1305,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     });
   } catch (err) {
     if (!hasExisting) {
-      showSlotError(slot, `发生异常: ${err.message}`);
+      showSlotError(slot, t('discord.exceptionError', { message: err.message }));
     } else if (!isBackground) {
-      showToast(`Discord 抓取异常: ${err.message}`, 'warning', 3000);
+      showToast(t('discord.exceptionToast', { message: err.message }), 'warning', 3000);
     } else {
       console.warn(`[Discord] Exception for ${rawInput}:`, err);
     }

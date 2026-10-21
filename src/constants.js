@@ -22,7 +22,6 @@ const STORAGE_DISCORD_INTERVAL_KEY = 'theysay_discord_interval_minutes';
 const STORAGE_SHOW_MEMBER_ONLY_KEY = 'theysay_show_member_only';
 const STORAGE_DISCORD_SOUND_KEY = 'theysay_discord_sound_enabled';
 const STORAGE_MUTED_SLOTS_KEY = 'theysay_slot_muted';
-const STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY = 'theysay_ticker_highlight_enabled';
 const STORAGE_TICKER_FG_COLOR_KEY = 'theysay_ticker_fg_color';
 const STORAGE_TICKER_BG_COLOR_KEY = 'theysay_ticker_bg_color';
 const STORAGE_TICKER_REMOTE_CACHE_KEY = 'theysay_ticker_remote_cache';
@@ -38,7 +37,6 @@ const DEFAULT_DISCORD_SOUND_ENABLED = true;
 // Per-slot system notifications default to muted (true) so users only get OS
 // notifications for channels they explicitly unmute.
 const DEFAULT_SLOT_MUTED = true;
-const DEFAULT_TICKER_HIGHLIGHT_ENABLED = true;
 const DEFAULT_TICKER_FG_COLOR = '#fde047';
 const DEFAULT_TICKER_BG_COLOR = '#422006';
 const DEFAULT_HEADER_BG_COLOR = '#f3ede2';
@@ -159,7 +157,6 @@ module.exports = {
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
   STORAGE_MUTED_SLOTS_KEY,
-  STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY,
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
@@ -170,7 +167,6 @@ module.exports = {
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_SLOT_MUTED,
-  DEFAULT_TICKER_HIGHLIGHT_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR,

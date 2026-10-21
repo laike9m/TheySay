@@ -1,7 +1,6 @@
 const { ipcRenderer } = require('electron');
 const { escapeHtml } = require('./utils');
 const {
-  getTickerHighlightEnabled,
   getTickerFgColor,
   getTickerBgColor,
   getTickerRemoteCache,
@@ -92,13 +91,9 @@ function formatTextWithTickers(rawText, contextText, options = {}) {
   const str = String(rawText || '');
   if (!str) return '';
   const linkifyUrls = !!(options && options.linkifyUrls);
-  const highlightTickers = getTickerHighlightEnabled();
-  if (!highlightTickers && !linkifyUrls) {
-    return escapeHtml(str);
-  }
 
   const fullContext = contextText ? String(contextText) : str;
-  const hasTradingContext = highlightTickers ? TRADING_CONTEXT_RE.test(fullContext) : false;
+  const hasTradingContext = TRADING_CONTEXT_RE.test(fullContext);
   let result = '';
   let lastIndex = 0;
 
@@ -128,9 +123,9 @@ function formatTextWithTickers(rawText, contextText, options = {}) {
       } else {
         result += escapeHtml(fullMatch);
       }
-    } else if (highlightTickers && cashtag) {
+    } else if (cashtag) {
       result += `<span class="ticker-highlight">${escapeHtml(cashtag)}</span>`;
-    } else if (highlightTickers && word && isWordTicker(word, str, matchIndex, hasTradingContext)) {
+    } else if (word && isWordTicker(word, str, matchIndex, hasTradingContext)) {
       result += `<span class="ticker-highlight">${escapeHtml(word)}</span>`;
     } else {
       result += escapeHtml(fullMatch);

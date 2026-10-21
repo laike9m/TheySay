@@ -361,7 +361,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     // Ensure no settings card title or subtitle is clipped/overflowing in English
     const overflowCount = await page.evaluate(() => {
       const els = document.querySelectorAll(
-        '#settings-modal-overlay .settings-card-title, #settings-modal-overlay .settings-card-subtitle'
+        '#settings-modal-overlay .settings-row-title, #settings-modal-overlay .settings-row-subtitle'
       );
       let clipped = 0;
       els.forEach((el) => {

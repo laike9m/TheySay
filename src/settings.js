@@ -4,7 +4,6 @@ const {
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
-  DEFAULT_TICKER_HIGHLIGHT_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR
@@ -18,8 +17,6 @@ const {
   saveShowMemberOnlyTweets,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
-  getTickerHighlightEnabled,
-  saveTickerHighlightEnabled,
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,
@@ -132,32 +129,14 @@ function setHeaderColorInputs(bgColor, { liveApply = false } = {}) {
   updateHeaderPreviewUI(bg, { liveApply });
 }
 
-function updateTickerPreviewUI(fgColor, bgColor, enabled = true) {
+function updateTickerPreviewUI(fgColor, bgColor) {
   const fg = normalizeHexColor(fgColor, DEFAULT_TICKER_FG_COLOR);
   const bg = normalizeHexColor(bgColor, DEFAULT_TICKER_BG_COLOR);
 
-  const colorsWrap = document.getElementById('setting-ticker-colors-wrap');
-  if (colorsWrap) {
-    colorsWrap.classList.toggle('is-disabled', !enabled);
-  }
-  const dualColorGroup = document.querySelector('.ticker-dual-color-group');
-  if (dualColorGroup) {
-    dualColorGroup.classList.toggle('is-disabled', !enabled);
-  }
-
   const previewChips = document.querySelectorAll('#setting-ticker-preview .ticker-preview-chip');
   previewChips.forEach(chip => {
-    if (enabled) {
-      chip.style.color = fg;
-      chip.style.backgroundColor = bg;
-      chip.style.fontWeight = '700';
-      chip.style.padding = '1px 5px';
-    } else {
-      chip.style.color = 'inherit';
-      chip.style.backgroundColor = 'transparent';
-      chip.style.fontWeight = '400';
-      chip.style.padding = '0';
-    }
+    chip.style.color = fg;
+    chip.style.backgroundColor = bg;
   });
 
   const presetChips = document.querySelectorAll('#setting-ticker-presets .ticker-preset-chip');
@@ -168,7 +147,7 @@ function updateTickerPreviewUI(fgColor, bgColor, enabled = true) {
   });
 }
 
-function setTickerColorInputs(fgColor, bgColor, enabled = true) {
+function setTickerColorInputs(fgColor, bgColor) {
   const fg = normalizeHexColor(fgColor, DEFAULT_TICKER_FG_COLOR);
   const bg = normalizeHexColor(bgColor, DEFAULT_TICKER_BG_COLOR);
 
@@ -182,7 +161,7 @@ function setTickerColorInputs(fgColor, bgColor, enabled = true) {
   if (bgInput) bgInput.value = bg;
   if (bgHex) bgHex.value = bg;
 
-  updateTickerPreviewUI(fg, bg, enabled);
+  updateTickerPreviewUI(fg, bg);
 }
 
 function refreshTickerStatsLabel() {
@@ -228,14 +207,8 @@ function loadCurrentSettings() {
     discordSoundSelect.value = getDiscordSoundEnabled() ? 'true' : 'false';
   }
 
-  const tickerEnabledSelect = document.getElementById('setting-ticker-enabled');
-  const tickerEnabled = getTickerHighlightEnabled();
-  if (tickerEnabledSelect) {
-    tickerEnabledSelect.value = tickerEnabled ? 'true' : 'false';
-  }
-
   setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
-  setTickerColorInputs(getTickerFgColor(), getTickerBgColor(), tickerEnabled);
+  setTickerColorInputs(getTickerFgColor(), getTickerBgColor());
   refreshTickerStatsLabel();
 }
 
@@ -271,7 +244,6 @@ function getFormSettingsOverrides() {
   const discordSoundSelect = document.getElementById('setting-discord-sound');
   const headerBgInput = document.getElementById('setting-header-bg-color');
   const headerBgHex = document.getElementById('setting-header-bg-hex');
-  const tickerEnabledSelect = document.getElementById('setting-ticker-enabled');
   const tickerFgInput = document.getElementById('setting-ticker-fg-color');
   const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
   const tickerBgInput = document.getElementById('setting-ticker-bg-color');
@@ -314,9 +286,6 @@ function getFormSettingsOverrides() {
     headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
     getHeaderBgColor()
   );
-  const tickerHighlightEnabled = tickerEnabledSelect
-    ? tickerEnabledSelect.value === 'true'
-    : getTickerHighlightEnabled();
   const tickerFgColor = normalizeHexColor(
     tickerFgHex ? tickerFgHex.value : (tickerFgInput && tickerFgInput.value),
     getTickerFgColor()
@@ -333,7 +302,6 @@ function getFormSettingsOverrides() {
     showMemberOnlyTweets,
     discordSoundEnabled,
     headerBgColor,
-    tickerHighlightEnabled,
     tickerFgColor,
     tickerBgColor
   };
@@ -367,7 +335,6 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   const headerBgInput = document.getElementById('setting-header-bg-color');
   const headerBgHex = document.getElementById('setting-header-bg-hex');
 
-  const tickerEnabledSelect = document.getElementById('setting-ticker-enabled');
   const tickerFgInput = document.getElementById('setting-ticker-fg-color');
   const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
   const tickerBgInput = document.getElementById('setting-ticker-bg-color');
@@ -385,7 +352,6 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         showMemberOnly: getShowMemberOnlyTweets(),
         discordSoundEnabled: getDiscordSoundEnabled(),
         headerBgColor: getHeaderBgColor(),
-        tickerHighlightEnabled: getTickerHighlightEnabled(),
         tickerFgColor: getTickerFgColor(),
         tickerBgColor: getTickerBgColor()
       });
@@ -579,29 +545,18 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     });
   });
 
-  const getCurrentFormTickerState = () => ({
-    enabled: !tickerEnabledSelect || tickerEnabledSelect.value === 'true',
+  const getCurrentFormTickerColors = () => ({
     fg: normalizeHexColor(tickerFgHex ? tickerFgHex.value : (tickerFgInput && tickerFgInput.value), DEFAULT_TICKER_FG_COLOR),
     bg: normalizeHexColor(tickerBgHex ? tickerBgHex.value : (tickerBgInput && tickerBgInput.value), DEFAULT_TICKER_BG_COLOR)
   });
 
-  const commitTickerState = ({ refreshFeed = false } = {}) => {
-    const { enabled, fg, bg } = getCurrentFormTickerState();
-    saveTickerHighlightEnabled(enabled);
+  const commitTickerState = () => {
+    const { fg, bg } = getCurrentFormTickerColors();
     saveTickerFgColor(fg);
     saveTickerBgColor(bg);
     applyTickerColors(fg, bg);
-    updateTickerPreviewUI(fg, bg, enabled);
-    if (refreshFeed) {
-      notifySaved();
-    }
+    updateTickerPreviewUI(fg, bg);
   };
-
-  if (tickerEnabledSelect) {
-    tickerEnabledSelect.addEventListener('change', () => {
-      commitTickerState({ refreshFeed: true });
-    });
-  }
 
   if (tickerFgInput && tickerFgHex) {
     tickerFgInput.addEventListener('input', () => {
@@ -647,8 +602,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     btn.addEventListener('click', () => {
       const fg = btn.getAttribute('data-fg') || DEFAULT_TICKER_FG_COLOR;
       const bg = btn.getAttribute('data-bg') || DEFAULT_TICKER_BG_COLOR;
-      const enabled = !tickerEnabledSelect || tickerEnabledSelect.value === 'true';
-      setTickerColorInputs(fg, bg, enabled);
+      setTickerColorInputs(fg, bg);
       commitTickerState();
     });
   });
@@ -698,7 +652,6 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
       saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
       applyHeaderColor(DEFAULT_HEADER_BG_COLOR);
-      saveTickerHighlightEnabled(DEFAULT_TICKER_HIGHLIGHT_ENABLED);
       saveTickerFgColor(DEFAULT_TICKER_FG_COLOR);
       saveTickerBgColor(DEFAULT_TICKER_BG_COLOR);
       applyTickerColors(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
@@ -725,15 +678,8 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       if (discordSoundSelect) {
         discordSoundSelect.value = DEFAULT_DISCORD_SOUND_ENABLED ? 'true' : 'false';
       }
-      if (tickerEnabledSelect) {
-        tickerEnabledSelect.value = DEFAULT_TICKER_HIGHLIGHT_ENABLED ? 'true' : 'false';
-      }
       setHeaderColorInputs(DEFAULT_HEADER_BG_COLOR, { liveApply: true });
-      setTickerColorInputs(
-        DEFAULT_TICKER_FG_COLOR,
-        DEFAULT_TICKER_BG_COLOR,
-        DEFAULT_TICKER_HIGHLIGHT_ENABLED
-      );
+      setTickerColorInputs(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 
       if (typeof onLanguageChangeCallback === 'function') {
         onLanguageChangeCallback(sysLang);

@@ -2161,7 +2161,7 @@ body {
 .settings-modal-dialog {
   position: relative;
   width: 100%;
-  max-width: 680px;
+  max-width: 600px;
   max-height: 92vh;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -2223,11 +2223,11 @@ body {
 
 /* Body */
 .settings-modal-body {
-  padding: 14px 18px;
+  padding: 16px 18px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .settings-section-title {
@@ -2236,73 +2236,79 @@ body {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  margin-bottom: 6px;
+  margin-bottom: 7px;
+  padding-left: 2px;
 }
 
-.settings-section-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-}
-
-.settings-compact-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.settings-card {
+/* 分组列表: 每个 section 一个圆角容器, 内部以细分割线分行 (macOS 系统设置风格) */
+.settings-group {
+  /* 容器边框到内容 (图标 / 控件) 的水平留白 */
+  --settings-row-inset: 20px;
   background-color: var(--bg-tweet-card);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 0;
-  transition: border-color 0.15s;
+  overflow: hidden;
 }
 
-.settings-card.settings-card-compact {
-  padding: 10px 12px;
-}
-
-.settings-card.settings-card-full {
-  grid-column: 1 / -1;
-}
-
-.settings-compact-row {
+.settings-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  padding: 10px var(--settings-row-inset);
+  min-height: 52px;
+  transition: background-color 0.15s;
 }
 
-.settings-card:hover {
-  border-color: var(--border-card-hover);
+/* 行间分割线: 从图标右侧的文字处开始 (左侧缩进 = inset + icon 28 + gap 10) */
+.settings-group > * + .settings-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(var(--settings-row-inset) + 38px);
+  right: 0;
+  height: 1px;
+  background-color: var(--border-subtle);
 }
 
-.settings-card-header {
+.settings-row:not(.settings-row-block):hover {
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+[data-theme="light"] .settings-row:not(.settings-row-block):hover {
+  background-color: rgba(15, 23, 42, 0.025);
+}
+
+/* 整块内容行 (预览卡片等): 纵向堆叠, 紧贴上方内容, 不画分割线 */
+.settings-row-block {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 4px var(--settings-row-inset) 12px;
+}
+
+.settings-group > * + .settings-row-block::before {
+  display: none;
+}
+
+.settings-row-main {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.settings-card-platform {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   flex: 1;
 }
 
-.settings-card-platform > div {
+.settings-row-text {
   min-width: 0;
   flex: 1;
 }
 
-.settings-card-platform .platform-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+.settings-row-main .platform-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2311,42 +2317,42 @@ body {
   flex-shrink: 0;
 }
 
-.settings-card-platform .platform-icon.language {
+.settings-row-main .platform-icon.language {
   background-color: rgba(16, 185, 129, 0.14);
   color: #10b981;
 }
 
-[data-theme="light"] .settings-card-platform .platform-icon.language {
+[data-theme="light"] .settings-row-main .platform-icon.language {
   background-color: rgba(5, 150, 105, 0.12);
   color: #059669;
 }
 
-.settings-card-platform .platform-icon.twitter {
+.settings-row-main .platform-icon.twitter {
   background-color: rgba(255, 255, 255, 0.08);
   color: var(--text-main);
 }
 
-[data-theme="light"] .settings-card-platform .platform-icon.twitter {
+[data-theme="light"] .settings-row-main .platform-icon.twitter {
   background-color: rgba(0, 0, 0, 0.06);
 }
 
-.settings-card-platform .platform-icon.discord {
+.settings-row-main .platform-icon.discord {
   background-color: rgba(88, 101, 242, 0.15);
   color: #5865f2;
 }
 
-.settings-card-platform .platform-icon.member {
+.settings-row-main .platform-icon.member {
   background-color: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
 }
 
-[data-theme="light"] .settings-card-platform .platform-icon.member {
+[data-theme="light"] .settings-row-main .platform-icon.member {
   background-color: rgba(217, 119, 6, 0.12);
   color: #d97706;
 }
 
-.settings-card-title {
-  font-size: 12.5px;
+.settings-row-title {
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-main);
   line-height: 1.25;
@@ -2355,43 +2361,15 @@ body {
   text-overflow: ellipsis;
 }
 
-.settings-card-subtitle {
-  font-size: 10.5px;
+.settings-row-subtitle {
+  font-size: 11px;
   color: var(--text-muted);
-  line-height: 1.25;
+  line-height: 1.3;
+  margin-top: 1px;
   white-space: normal;
   overflow-wrap: break-word;
 }
 
-.settings-card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-}
-
-.settings-field-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.settings-inline-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-
-.settings-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 
 .settings-input-group {
   display: flex;
@@ -2417,6 +2395,11 @@ body {
 .settings-select:focus {
   border-color: var(--accent-blue);
   background-color: var(--bg-input-focus);
+}
+
+/* 行内下拉框统一最小宽度, 使右侧控件纵向对齐 */
+.settings-row > .settings-input-group > .settings-select {
+  min-width: 150px;
 }
 
 .settings-custom-wrap {
@@ -2467,6 +2450,12 @@ body {
   background-color: rgba(0, 0, 0, 0.02);
 }
 
+/* 位于分组行内的提示: 去掉底色, 避免"框中框" */
+.settings-row-block .settings-tip {
+  background-color: transparent;
+  padding: 0 2px;
+}
+
 .settings-tip svg {
   flex-shrink: 0;
   color: var(--text-secondary);
@@ -2512,34 +2501,16 @@ body {
   letter-spacing: 0.15px;
 }
 
-.settings-card-platform .platform-icon.ticker {
+.settings-row-main .platform-icon.ticker {
   background-color: rgba(250, 204, 21, 0.16);
   color: #facc15;
   font-weight: 800;
   font-size: 15px;
 }
 
-[data-theme="light"] .settings-card-platform .platform-icon.ticker {
+[data-theme="light"] .settings-row-main .platform-icon.ticker {
   background-color: rgba(202, 138, 4, 0.14);
   color: #ca8a04;
-}
-
-.ticker-settings-colors-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  padding-top: 2px;
-  transition: opacity 0.15s ease;
-}
-
-.ticker-settings-colors-wrap.is-disabled,
-.ticker-dual-color-group.is-disabled {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-.ticker-presets-row {
-  align-items: center;
 }
 
 .settings-color-inline-group {
@@ -2551,11 +2522,12 @@ body {
   min-width: 0;
 }
 
+/* 预设色块与自定义取色之间的竖线: 随簇高度伸展 (Ticker 行为两行高) */
 .color-inline-divider {
   width: 1px;
-  height: 16px;
+  align-self: stretch;
   background-color: var(--border-subtle);
-  margin: 0 2px;
+  margin: 4px 2px;
   flex-shrink: 0;
 }
 
@@ -2593,12 +2565,25 @@ body {
   box-shadow: 0 0 0 2px rgba(29, 155, 240, 0.35);
 }
 
-.ticker-color-picker-group {
-  display: inline-flex;
+/* 自定义取色列: 可堆叠多行 (Ticker: 文字 / 底色). 标签定宽, 使两行配色簇等宽 → 预设色块左右对齐 */
+.settings-color-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.settings-color-field {
+  display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: nowrap;
-  flex-shrink: 0;
+}
+
+.settings-color-field .color-sub-label {
+  width: 46px;
+  text-align: right;
+  margin-left: 0;
 }
 
 .ticker-color-input {
@@ -2675,45 +2660,29 @@ body {
 /* ====================================================
    Card Header Color Presets & Mini Preview in Settings
    ==================================================== */
-.settings-card-platform .platform-icon.header-theme {
+.settings-row-main .platform-icon.header-theme {
   background-color: rgba(29, 155, 240, 0.15);
   color: #1d9bf0;
-}
-
-.settings-card-divider {
-  height: 1px;
-  background-color: var(--border-subtle);
-  margin: 3px 0;
-}
-
-.ticker-dual-color-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
-  transition: opacity 0.15s ease;
 }
 
 .color-sub-label {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted);
-  margin-left: 4px;
   white-space: nowrap;
-}
-
-.color-sub-label:first-child {
-  margin-left: 0;
+  flex-shrink: 0;
 }
 
 .header-preview-card {
+  /* 宽度贴合内容并右对齐 (与上方控件共用右边线); 卡片内气泡仍靠左 */
+  align-self: flex-end;
+  width: fit-content;
+  max-width: 100%;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
   background-color: var(--bg-card);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  margin-top: 2px;
 }
 
 .header-preview-bar {
@@ -2765,7 +2734,7 @@ body {
 }
 
 .header-preview-body {
-  padding: 8px 10px;
+  padding: 7px 10px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -2774,14 +2743,14 @@ body {
 
 .header-preview-bubble {
   align-self: flex-start;
-  padding: 4px 10px;
-  border-radius: 9px;
-  font-size: 11.5px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
   line-height: 1.4;
   color: var(--text-body);
   display: inline-flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
 }
 
 .header-preview-bubble.read {
@@ -2798,4 +2767,6 @@ body {
 .header-preview-time {
   font-size: 10px;
   color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }

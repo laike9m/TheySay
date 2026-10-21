@@ -13,7 +13,6 @@ const {
   saveShowMemberOnlyTweets,
   saveDiscordSoundEnabled,
   saveHeaderBgColor,
-  saveTickerHighlightEnabled,
   saveTickerFgColor,
   saveTickerBgColor,
   getTickerFgColor,
@@ -187,9 +186,7 @@ async function handleImportProfile() {
       saveHeaderBgColor(settings.headerBgColor.trim());
       applyHeaderColor(settings.headerBgColor.trim());
     }
-    if (typeof settings.tickerHighlightEnabled === 'boolean') {
-      saveTickerHighlightEnabled(settings.tickerHighlightEnabled);
-    }
+    // (legacy profiles may contain `tickerHighlightEnabled`; highlighting is always on now, so it is ignored)
     if (typeof settings.tickerFgColor === 'string' && settings.tickerFgColor.trim()) {
       saveTickerFgColor(settings.tickerFgColor.trim());
     }

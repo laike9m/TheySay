@@ -16,7 +16,6 @@ const {
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
   STORAGE_MUTED_SLOTS_KEY,
-  STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY,
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
@@ -27,7 +26,6 @@ const {
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_SLOT_MUTED,
-  DEFAULT_TICKER_HIGHLIGHT_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR
@@ -466,22 +464,6 @@ function saveDiscordSoundEnabled(enabled) {
   } catch (e) {}
 }
 
-function getTickerHighlightEnabled() {
-  try {
-    const raw = localStorage.getItem(STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY);
-    if (raw !== null && raw !== '') {
-      return raw === '1' || raw === 'true';
-    }
-  } catch (e) {}
-  return DEFAULT_TICKER_HIGHLIGHT_ENABLED;
-}
-
-function saveTickerHighlightEnabled(enabled) {
-  try {
-    localStorage.setItem(STORAGE_TICKER_HIGHLIGHT_ENABLED_KEY, enabled ? '1' : '0');
-  } catch (e) {}
-}
-
 function getTickerFgColor() {
   try {
     const raw = localStorage.getItem(STORAGE_TICKER_FG_COLOR_KEY);
@@ -692,9 +674,6 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     headerBgColor: settingsOverrides.headerBgColor !== undefined
       ? settingsOverrides.headerBgColor
       : getHeaderBgColor(),
-    tickerHighlightEnabled: settingsOverrides.tickerHighlightEnabled !== undefined
-      ? settingsOverrides.tickerHighlightEnabled
-      : getTickerHighlightEnabled(),
     tickerFgColor: settingsOverrides.tickerFgColor !== undefined
       ? settingsOverrides.tickerFgColor
       : getTickerFgColor(),
@@ -753,8 +732,6 @@ module.exports = {
   saveShowMemberOnlyTweets,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
-  getTickerHighlightEnabled,
-  saveTickerHighlightEnabled,
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,

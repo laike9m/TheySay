@@ -406,6 +406,81 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     expect(savedLangZh).toBe('zh');
     await expect(page).toHaveTitle('TheySay - Twitter / X 动态网格看板');
   });
+
+  test('8. Dragging a slot keeps every feed\'s scroll position', async () => {
+    // Seed four slots with long feeds so each content container is scrollable
+    await page.evaluate(
+      ({ handlesKey, cacheKey }) => {
+        const handles = ['elonmusk', 'OpenAI', 'nasa', 'github'];
+        while (handles.length < 16) handles.push('');
+        localStorage.setItem(handlesKey, JSON.stringify(handles));
+
+        const feed = (handle, name) => ({
+          handle,
+          source: 'twitter',
+          displayName: name,
+          userHandle: `@${handle}`,
+          avatarUrl: '',
+          lastFetchedAt: Date.now(),
+          tweets: Array.from({ length: 40 }, (_, i) => {
+            const id = `19000000000000${String(i).padStart(5, '0')}`;
+            return {
+              id,
+              text: `${name} message #${i} — lorem ipsum dolor sit amet, consectetur adipiscing elit.`,
+              time: new Date(Date.now() - (40 - i) * 3600e3).toISOString(),
+              url: `https://x.com/${handle}/status/${id}`,
+              isPinned: false,
+              isRetweet: false,
+              isUnread: false,
+              images: []
+            };
+          })
+        });
+        localStorage.setItem(cacheKey, JSON.stringify({
+          0: feed('elonmusk', 'Elon'),
+          1: feed('OpenAI', 'OpenAI'),
+          2: feed('nasa', 'NASA'),
+          3: feed('github', 'GitHub')
+        }));
+      },
+      { handlesKey: STORAGE_HANDLES_KEY, cacheKey: STORAGE_CACHE_KEY }
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#slot-content-3 .im-bubble').first()).toBeVisible();
+
+    // Slot 0 stays at the bottom (default); scroll slots 1-3 to mid-feed so that both a
+    // "reset to top" and a "snap to bottom" regression would be detectable.
+    const before = await page.evaluate(() => [0, 1, 2, 3].map((i) => {
+      const c = document.getElementById(`slot-content-${i}`);
+      if (i > 0) c.scrollTop = Math.round((c.scrollHeight - c.clientHeight) / 2);
+      return c.scrollTop;
+    }));
+    expect(before[0]).toBeGreaterThan(0);
+    expect(before[1]).toBeGreaterThan(0);
+
+    // Drag slot 0 by its header onto slot 1's cell (real mouse events through GridStack DD)
+    const handle0 = await page.locator('.grid-stack-item[gs-id="slot-0"] .slot-drag-handle').boundingBox();
+    const target = await page.locator('.grid-stack-item[gs-id="slot-1"]').boundingBox();
+    const startX = handle0.x + handle0.width / 2;
+    const startY = handle0.y + handle0.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 15, startY + 5, { steps: 3 });
+    await page.mouse.move(target.x + target.width / 2, target.y + 20, { steps: 12 });
+    await page.waitForTimeout(400);
+    await page.mouse.up();
+
+    // Layout swapped...
+    await expect(page.locator('.grid-stack-item[gs-id="slot-0"]')).toHaveAttribute('gs-x', '1');
+    await expect(page.locator('.grid-stack-item[gs-id="slot-1"]')).toHaveAttribute('gs-x', '0');
+    await page.waitForTimeout(500);
+
+    // ...but no feed moved.
+    const after = await page.evaluate(() =>
+      [0, 1, 2, 3].map((i) => document.getElementById(`slot-content-${i}`).scrollTop)
+    );
+    expect(after).toEqual(before);
+  });
 });
 
 

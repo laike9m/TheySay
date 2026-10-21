@@ -40,6 +40,7 @@ const {
 const {
   calculateCellHeight,
   parsePreset,
+  disableGridDomSorting,
   applyGridLayout,
   requestSlotResize,
   initColumnHoverEffect
@@ -430,6 +431,8 @@ window.addEventListener('DOMContentLoaded', () => {
       handles: 'e,se,s,sw,w'
     }
   });
+  // Keep slot feeds' scroll positions intact across drag/resize (see grid.js)
+  disableGridDomSorting(grid);
 
   // Apply layout
   applyGridLayout({

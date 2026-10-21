@@ -16,6 +16,20 @@ function parsePreset(presetStr) {
   return { rows: r || 2, cols: c || 2 };
 }
 
+/**
+ * GridStack (>= 13) calls a private `_sortDom()` at the end of every change event, which
+ * re-appends each widget so DOM order matches the x/y layout order. Re-attaching a node
+ * recreates its layout boxes, so every slot's `.slot-content-container` loses its scroll
+ * position (jumps back to the oldest message) whenever any slot is dragged or resized.
+ *
+ * We never rely on DOM order (slots are addressed via `data-slot-index` / `gs-id` and
+ * `saveGridLayout` persists slotIndex per item), so the reorder is pure churn — disable it.
+ */
+function disableGridDomSorting(grid) {
+  if (!grid || typeof grid._sortDom !== 'function') return;
+  grid._sortDom = () => grid;
+}
+
 function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPositions = false, maxSlots = MAX_SLOTS }) {
   if (!grid || !gridContainer || !Array.isArray(slots)) return;
 
@@ -566,6 +580,7 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
 module.exports = {
   calculateCellHeight,
   parsePreset,
+  disableGridDomSorting,
   applyGridLayout,
   requestSlotResize,
   initColumnHoverEffect,

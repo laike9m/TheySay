@@ -300,10 +300,24 @@ function getSavedGridLayout() {
   return null;
 }
 
+function requestStorageFlush() {
+  try {
+    const { ipcRenderer } = require('electron');
+    if (ipcRenderer && typeof ipcRenderer.send === 'function') {
+      ipcRenderer.send('flush-storage-data');
+    }
+  } catch (_) {}
+}
+
 function saveRawGridLayout(layoutData) {
   try {
     if (Array.isArray(layoutData)) {
-      localStorage.setItem(STORAGE_GRID_LAYOUT_KEY, JSON.stringify(layoutData));
+      const nextRaw = JSON.stringify(layoutData);
+      const prevRaw = localStorage.getItem(STORAGE_GRID_LAYOUT_KEY);
+      localStorage.setItem(STORAGE_GRID_LAYOUT_KEY, nextRaw);
+      if (prevRaw !== nextRaw) {
+        requestStorageFlush();
+      }
     }
   } catch (e) {}
 }
@@ -312,8 +326,9 @@ function saveGridLayout(grid) {
   if (!grid) return;
   try {
     const items = typeof grid.getGridItems === 'function' ? grid.getGridItems() : [];
+    let layoutData;
     if (items.length > 0) {
-      const layoutData = items.map(el => {
+      layoutData = items.map(el => {
         const node = el.gridstackNode || {};
         const slotIndex = parseInt(el.getAttribute('data-slot-index'), 10);
         return {
@@ -325,10 +340,14 @@ function saveGridLayout(grid) {
           h: typeof node.h === 'number' ? node.h : 1
         };
       });
-      localStorage.setItem(STORAGE_GRID_LAYOUT_KEY, JSON.stringify(layoutData));
     } else {
-      const layoutData = grid.save(false);
-      localStorage.setItem(STORAGE_GRID_LAYOUT_KEY, JSON.stringify(layoutData));
+      layoutData = grid.save(false);
+    }
+    const nextRaw = JSON.stringify(layoutData);
+    const prevRaw = localStorage.getItem(STORAGE_GRID_LAYOUT_KEY);
+    localStorage.setItem(STORAGE_GRID_LAYOUT_KEY, nextRaw);
+    if (prevRaw !== nextRaw) {
+      requestStorageFlush();
     }
   } catch (e) {}
 }

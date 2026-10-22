@@ -242,7 +242,12 @@ function createWindow() {
   mainWindow.on('unmaximize', scheduleSaveWindowState);
   mainWindow.on('enter-full-screen', scheduleSaveWindowState);
   mainWindow.on('leave-full-screen', scheduleSaveWindowState);
-  mainWindow.on('close', writeWindowStateSync);
+  mainWindow.on('close', () => {
+    writeWindowStateSync();
+    try {
+      session.defaultSession.flushStorageData();
+    } catch (_) {}
+  });
 
   mainWindow.loadFile('index.html');
 
@@ -664,6 +669,12 @@ ipcMain.handle('fetch-online-tickers', async () => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+ipcMain.on('flush-storage-data', () => {
+  try {
+    session.defaultSession.flushStorageData();
+  } catch (_) {}
 });
 
 app.whenReady().then(() => {

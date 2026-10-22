@@ -35,9 +35,6 @@ function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPosition
 
   resetColumnHoverEffect(slots);
 
-  grid.column(cols);
-  grid.cellHeight(calculateCellHeight(rows));
-
   const totalSlots = rows * cols;
   const savedLayout = !resetPositions ? getSavedGridLayout() : null;
   const savedBySlot = {};
@@ -52,6 +49,8 @@ function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPosition
             : idx);
       if (
         Number.isFinite(sIdx) &&
+        sIdx >= 0 &&
+        sIdx < totalSlots &&
         typeof item.x === 'number' &&
         typeof item.y === 'number' &&
         typeof item.w === 'number' &&
@@ -61,63 +60,162 @@ function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPosition
         item.w >= 1 &&
         item.h >= 1 &&
         item.x + item.w <= cols &&
-        item.y + item.h <= rows
+        item.h <= rows
       ) {
         savedBySlot[sIdx] = { x: item.x, y: item.y, w: item.w, h: item.h };
       }
     });
   }
 
-  // 1. Remove widgets beyond totalSlots from GridStack and DOM
-  for (let i = totalSlots; i < maxSlots; i++) {
-    const slot = slots[i];
-    if (slot && slot.element.parentElement) {
-      try {
-        grid.removeWidget(slot.element, true, false);
-      } catch (e) {}
-      if (slot.element.parentElement) {
-        slot.element.remove();
-      }
-    }
-    if (slot) {
-      updateSlotSizeUI(slot, 1, 1);
-    }
-  }
-
-  // 2. Attach and position active slots
+  // Build target positions for active slots [0 .. totalSlots - 1]
+  const occupiedRects = [];
+  const activePlans = [];
   for (let i = 0; i < totalSlots; i++) {
     const slot = slots[i];
     if (!slot) continue;
-    const isAttached = !!slot.element.parentElement;
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const savedPos = !resetPositions && savedBySlot[i]
-      ? savedBySlot[i]
-      : { x: col, y: row, w: 1, h: 1 };
-
-    if (!isAttached) {
-      gridContainer.appendChild(slot.element);
-      grid.makeWidget(slot.element);
-      grid.update(slot.element, savedPos);
-      updateSlotSizeUI(slot, savedPos.w, savedPos.h);
-    } else if (resetPositions || !slot.element.gridstackNode || savedBySlot[i]) {
-      grid.update(slot.element, savedPos);
-      updateSlotSizeUI(slot, savedPos.w, savedPos.h);
+    if (!resetPositions && savedBySlot[i]) {
+      occupiedRects.push(savedBySlot[i]);
     }
   }
 
-  // 3. Purge any orphan elements that do not belong to active slots
-  const activeElements = new Set(slots.slice(0, totalSlots).map(s => s.element));
-  Array.from(gridContainer.children).forEach(child => {
-    if (!activeElements.has(child)) {
-      try {
-        grid.removeWidget(child, true, false);
-      } catch (e) {}
-      if (child.parentElement) {
-        child.remove();
+  const isCellOccupied = (x, y, w = 1, h = 1) =>
+    occupiedRects.some(
+      r => x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y
+    );
+
+  const findFirstFreeCell = () => {
+    for (let y = 0; ; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (!isCellOccupied(x, y, 1, 1)) {
+          return { x, y, w: 1, h: 1 };
+        }
       }
     }
-  });
+  };
+
+  for (let i = 0; i < totalSlots; i++) {
+    const slot = slots[i];
+    if (!slot) continue;
+    let pos;
+    if (!resetPositions && savedBySlot[i]) {
+      pos = savedBySlot[i];
+    } else if (resetPositions || occupiedRects.length === 0) {
+      pos = { x: i % cols, y: Math.floor(i / cols), w: 1, h: 1 };
+      occupiedRects.push(pos);
+    } else {
+      const defX = i % cols;
+      const defY = Math.floor(i / cols);
+      pos = !isCellOccupied(defX, defY, 1, 1)
+        ? { x: defX, y: defY, w: 1, h: 1 }
+        : findFirstFreeCell();
+      occupiedRects.push(pos);
+    }
+    activePlans.push({ index: i, slot, pos });
+  }
+
+  // Sort active slots by target (y, x) ascending so top-gravity packing in GridStack
+  // never pulls lower-row widgets upward into not-yet-populated upper cells.
+  activePlans.sort((a, b) => (a.pos.y - b.pos.y) || (a.pos.x - b.pos.x) || (a.index - b.index));
+
+  if (typeof grid.batchUpdate === 'function') {
+    grid.batchUpdate(true);
+  }
+  if (grid.engine) {
+    grid.engine._loading = true;
+  }
+
+  try {
+    // 1. Remove widgets beyond totalSlots from GridStack and DOM
+    for (let i = totalSlots; i < maxSlots; i++) {
+      const slot = slots[i];
+      if (slot && slot.element.parentElement) {
+        try {
+          grid.removeWidget(slot.element, true, false);
+        } catch (e) {}
+        if (slot.element.parentElement) {
+          slot.element.remove();
+        }
+      }
+      if (slot) {
+        updateSlotSizeUI(slot, 1, 1);
+      }
+    }
+
+    // 2. Purge any orphan elements that do not belong to active slots
+    const activeElements = new Set(slots.slice(0, totalSlots).filter(Boolean).map(s => s.element));
+    Array.from(gridContainer.children).forEach(child => {
+      if (!activeElements.has(child) && !child.classList.contains('grid-stack-placeholder')) {
+        try {
+          grid.removeWidget(child, true, false);
+        } catch (e) {}
+        if (child.parentElement) {
+          child.remove();
+        }
+      }
+    });
+
+    // 3. Temporarily detach existing active nodes from engine.nodes before column change & repositioning
+    // so neither columnChanged nor out-of-order stale coordinates cause collisions.
+    if (grid.engine && Array.isArray(grid.engine.nodes)) {
+      grid.engine.nodes = grid.engine.nodes.filter(n => !n || !activeElements.has(n.el));
+    }
+
+    grid.column(cols, 'none');
+    grid.cellHeight(calculateCellHeight(rows));
+
+    // 4. Attach and position active slots in sorted (y, x) order
+    for (const { index: i, slot, pos } of activePlans) {
+      const el = slot.element;
+      const isAttached = !!el.parentElement;
+
+      el.setAttribute('gs-x', String(pos.x));
+      el.setAttribute('gs-y', String(pos.y));
+      el.setAttribute('gs-w', String(pos.w));
+      el.setAttribute('gs-h', String(pos.h));
+
+      if (!isAttached) {
+        gridContainer.appendChild(el);
+        grid.makeWidget(el, {
+          x: pos.x,
+          y: pos.y,
+          w: pos.w,
+          h: pos.h,
+          autoPosition: false,
+          id: `slot-${i}`
+        });
+      } else if (el.gridstackNode) {
+        const node = el.gridstackNode;
+        if (grid.engine && Array.isArray(grid.engine.nodes) && !grid.engine.nodes.includes(node)) {
+          grid.engine.nodes.push(node);
+        }
+        if (node.x === pos.x && node.y === pos.y && node.w === pos.w && node.h === pos.h) {
+          if (typeof grid.moveNode === 'function' && grid.engine && grid.engine.nodes.length > 1) {
+            grid.moveNode(node, { x: pos.x, y: pos.y, w: pos.w, h: pos.h, forceCollide: true });
+          }
+          node._dirty = true;
+        } else {
+          grid.update(el, { x: pos.x, y: pos.y, w: pos.w, h: pos.h, autoPosition: false });
+        }
+      } else {
+        grid.makeWidget(el, {
+          x: pos.x,
+          y: pos.y,
+          w: pos.w,
+          h: pos.h,
+          autoPosition: false,
+          id: `slot-${i}`
+        });
+      }
+      updateSlotSizeUI(slot, pos.w, pos.h);
+    }
+  } finally {
+    if (grid.engine) {
+      delete grid.engine._loading;
+    }
+    if (typeof grid.batchUpdate === 'function') {
+      grid.batchUpdate(false);
+    }
+  }
 
   saveGridLayout(grid);
 }
@@ -573,6 +671,7 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     });
     grid.on('dragstop resizestop', () => {
       hoverEffectState.isInteractingWithGrid = false;
+      saveGridLayout(grid);
     });
   }
 }

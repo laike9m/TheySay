@@ -481,6 +481,79 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     );
     expect(after).toEqual(before);
   });
+
+  test('9. Section drag-and-drop & resize layout persistence across app close and reopen', async () => {
+    const readGridPositions = async () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll('#grid-stack-container > .grid-stack-item'))
+          .map((el) => ({
+            slotIndex: parseInt(el.getAttribute('data-slot-index'), 10),
+            x: el.gridstackNode.x,
+            y: el.gridstackNode.y,
+            w: el.gridstackNode.w,
+            h: el.gridstackNode.h
+          }))
+          .sort((a, b) => a.slotIndex - b.slotIndex)
+      );
+
+    // 1. Switch to 3x3 preset and drag slot-0 (top-left, y=0) down to bottom-left (y=2),
+    // swapping with slot-6 (originally y=2) — previously reverted on restart due to out-of-order packing
+    await page.selectOption('#layout-select', '3x3');
+    await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(9);
+
+    const handle0 = page.locator('.grid-stack-item[data-slot-index="0"] .slot-drag-handle');
+    const slot6 = page.locator('.grid-stack-item[data-slot-index="6"]');
+    const box0 = await handle0.boundingBox();
+    const box6 = await slot6.boundingBox();
+
+    await page.mouse.move(box0.x + box0.width / 2, box0.y + box0.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box6.x + box6.width / 2, box6.y + box6.height / 2, { steps: 15 });
+    await page.mouse.up();
+
+    const posAfter3x3Drag = await readGridPositions();
+    // Verify slot-0 moved away from (0, 0) to row 2
+    expect(posAfter3x3Drag.find((p) => p.slotIndex === 0).y).toBe(2);
+
+    // Reload and verify 3x3 dragged layout is preserved
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const posAfter3x3Reload = await readGridPositions();
+    expect(posAfter3x3Reload).toEqual(posAfter3x3Drag);
+
+    // 2. Switch to 2x2, perform a diagonal drag (slot-0 onto slot-3) AND close + reopen the Electron app
+    await page.selectOption('#layout-select', '2x2');
+    await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(4);
+
+    const h0 = page.locator('.grid-stack-item[data-slot-index="0"] .slot-drag-handle');
+    const s3 = page.locator('.grid-stack-item[data-slot-index="3"]');
+    const b0 = await h0.boundingBox();
+    const b3 = await s3.boundingBox();
+
+    await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2, { steps: 15 });
+    await page.mouse.up();
+
+    const posBeforeRestart = await readGridPositions();
+    expect(posBeforeRestart.find((p) => p.slotIndex === 0)).toMatchObject({ x: 1, y: 1 });
+
+    // Close the Electron app completely and relaunch with the same userDataDir
+    await electronApp.close();
+    electronApp = await electron.launch({
+      executablePath: require('electron'),
+      args: [path.join(__dirname, '..', 'main.js')],
+      env: {
+        ...process.env,
+        THEYSAY_USER_DATA_DIR: userDataDir
+      }
+    });
+    page = await electronApp.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('#grid-stack-container')).toBeVisible();
+
+    const posAfterRestart = await readGridPositions();
+    expect(posAfterRestart).toEqual(posBeforeRestart);
+  });
 });
 
 

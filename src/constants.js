@@ -16,9 +16,12 @@ const STORAGE_THEME_KEY = 'theysay_theme';
 const STORAGE_LAST_FETCH_KEY = 'theysay_last_fetch_time';
 const STORAGE_LAST_FETCH_TWITTER_KEY = 'theysay_last_fetch_time_twitter';
 const STORAGE_LAST_FETCH_DISCORD_KEY = 'theysay_last_fetch_time_discord';
+const STORAGE_LAST_FETCH_THREADS_KEY = 'theysay_last_fetch_time_threads';
 const STORAGE_DISCORD_LOGIN_KEY = 'theysay_discord_logged_in';
+const STORAGE_THREADS_LOGIN_KEY = 'theysay_threads_logged_in';
 const STORAGE_TWITTER_INTERVAL_KEY = 'theysay_twitter_interval_minutes';
 const STORAGE_DISCORD_INTERVAL_KEY = 'theysay_discord_interval_minutes';
+const STORAGE_THREADS_INTERVAL_KEY = 'theysay_threads_interval_minutes';
 const STORAGE_SHOW_MEMBER_ONLY_KEY = 'theysay_show_member_only';
 const STORAGE_DISCORD_SOUND_KEY = 'theysay_discord_sound_enabled';
 const STORAGE_MUTED_SLOTS_KEY = 'theysay_slot_muted';
@@ -30,6 +33,7 @@ const STORAGE_LANGUAGE_KEY = 'theysay_language';
 
 const DEFAULT_TWITTER_INTERVAL_MINUTES = 10;
 const DEFAULT_DISCORD_INTERVAL_MINUTES = 10;
+const DEFAULT_THREADS_INTERVAL_MINUTES = 10;
 const DEFAULT_SHOW_MEMBER_ONLY = true;
 // The offscreen Discord client still plays Discord's own pings (DMs, @mentions,
 // ...). Kept on by default to match Discord itself; users can mute it in Settings.
@@ -139,6 +143,10 @@ const DISCORD_LOGIN_URL = 'https://discord.com/login';
 // than a Twitter timeline, so this is deliberately larger than the tweet cap.
 const MAX_DISCORD_MESSAGES = 40;
 
+// Threads runs in its own persistent session so X and Discord sessions remain isolated.
+const THREADS_PARTITION = 'persist:threads_session';
+const THREADS_LOGIN_URL = 'https://www.threads.com/login';
+
 module.exports = {
   MAX_SLOTS,
   DEFAULT_HANDLES,
@@ -151,9 +159,12 @@ module.exports = {
   STORAGE_LAST_FETCH_KEY,
   STORAGE_LAST_FETCH_TWITTER_KEY,
   STORAGE_LAST_FETCH_DISCORD_KEY,
+  STORAGE_LAST_FETCH_THREADS_KEY,
   STORAGE_DISCORD_LOGIN_KEY,
+  STORAGE_THREADS_LOGIN_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_DISCORD_INTERVAL_KEY,
+  STORAGE_THREADS_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
   STORAGE_MUTED_SLOTS_KEY,
@@ -164,6 +175,7 @@ module.exports = {
   STORAGE_LANGUAGE_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
+  DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_SLOT_MUTED,
@@ -176,5 +188,7 @@ module.exports = {
   DISCORD_PARTITION,
   DISCORD_WEBVIEW_ID,
   DISCORD_LOGIN_URL,
-  MAX_DISCORD_MESSAGES
+  MAX_DISCORD_MESSAGES,
+  THREADS_PARTITION,
+  THREADS_LOGIN_URL
 };

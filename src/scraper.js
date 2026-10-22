@@ -16,8 +16,11 @@ const {
   saveLastFetchTimeTwitter,
   getLastFetchTimeDiscord,
   saveLastFetchTimeDiscord,
+  getLastFetchTimeThreads,
+  saveLastFetchTimeThreads,
   getTwitterIntervalMinutes,
-  getDiscordIntervalMinutes
+  getDiscordIntervalMinutes,
+  getThreadsIntervalMinutes
 } = require('./storage');
 const {
   getOrCreateSlotWebview,
@@ -27,16 +30,30 @@ const {
 } = require('./webview');
 const {
   updateSlotAvatar,
+  updateSlotSourceUI,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
   renderSlotTweets,
   persistSlot,
   archiveSlotScrapedData,
-  restoreSlotFromTargetCache
+  restoreSlotFromTargetCache,
+  closeSlotSourceDropdown,
+  showSlotSourceDropdown,
+  applyPlatformSelectionAndFetch
 } = require('./slot');
-const { SOURCE_DISCORD, SOURCE_TWITTER, detectSourceType, normalizeTwitterHandle } = require('./source');
+const {
+  SOURCE_DISCORD,
+  SOURCE_THREADS,
+  SOURCE_TWITTER,
+  detectSourceType,
+  isAmbiguousBareHandle,
+  probeHandlePlatforms,
+  formatThreadsSlotInput,
+  normalizeTwitterHandle
+} = require('./source');
 const { fetchDiscordSlot } = require('./discord');
+const { fetchThreadsSlot } = require('./threads');
 const { notifySlotNewMessages } = require('./notification');
 const { t } = require('./i18n');
 
@@ -304,7 +321,11 @@ function buildExtractionScript(handle) {
   `;
 }
 
-async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slots, bgWebviewsContainer }) {
+async function fetchTwitterSlot(
+  slotIndex,
+  { isBackground = false, prefetchedMeta = null } = {},
+  { slots, bgWebviewsContainer }
+) {
   const slot = slots[slotIndex];
   if (!slot || slot.isFetching) return { ok: false };
 
@@ -376,6 +397,11 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     showSlotLoading(slot, t('scraper.fetchingHandle', { handle }));
   }
 
+  let latestAvatarUrl = (prefetchedMeta && prefetchedMeta.avatarUrl) ? prefetchedMeta.avatarUrl : '';
+  if (latestAvatarUrl) {
+    updateSlotAvatar(slot, latestAvatarUrl);
+  }
+
   const targetUrl = `https://x.com/${handle}`;
 
   // Identify newest non-pinned tweet key as our timeline boundary (last element in ascending sort)
@@ -413,7 +439,6 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
     const maxAttempts = hasExisting ? 15 : 35;
     let attempts = 0;
     let consecutiveEmptyScrolls = 0;
-    let latestAvatarUrl = '';
     let reachedBoundary = false;
 
     while (attempts < maxAttempts) {
@@ -626,25 +651,137 @@ async function fetchTwitterSlot(slotIndex, { isBackground = false } = {}, { slot
 
 /**
  * Entry point for every slot refresh: picks the backend that matches whatever
- * the card is pointed at.
+ * the card is pointed at. When the user enters a bare handle without an explicit
+ * platform prefix/URL, searches both Twitter/X and Threads first:
+ * - If found on both platforms, pops up a compact dropdown next to the input box.
+ * - If found on only one platform, automatically selects that platform and starts scraping.
  */
 async function fetchSlot(slotIndex, options = {}, context) {
   const slot = context.slots[slotIndex];
   if (!slot) return;
 
   const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
-  if (detectSourceType(raw) === SOURCE_DISCORD) {
+  const cleanBare = isAmbiguousBareHandle(raw) ? raw.replace(/^@+/, '') : '';
+  const alreadyLoadedSameHandle =
+    Array.isArray(slot.loadedTweets) &&
+    slot.loadedTweets.length > 0 &&
+    slot.monitoredHandle &&
+    normalizeTwitterHandle(slot.monitoredHandle).toLowerCase() === cleanBare.toLowerCase();
+
+  const shouldProbePlatforms =
+    Boolean(cleanBare) &&
+    !options.isBackground &&
+    !options.skipPlatformProbe &&
+    (Boolean(options.fromInputSubmit) || !alreadyLoadedSameHandle);
+
+  if (shouldProbePlatforms) {
+    closeSlotSourceDropdown(slot);
+    if (!alreadyLoadedSameHandle) {
+      showSlotLoading(slot, t('slot.searchingPlatforms', { handle: cleanBare }));
+    }
+
+    const probeRes = await probeHandlePlatforms(cleanBare);
+    const currentRaw = slot.handleInput ? slot.handleInput.value.trim() : '';
+    if (currentRaw !== raw) {
+      return { ok: false };
+    }
+
+    const twExists = Boolean(probeRes && probeRes.twitter && probeRes.twitter.exists);
+    const thExists = Boolean(probeRes && probeRes.threads && probeRes.threads.exists);
+
+    if (twExists && thExists) {
+      slot.loading.style.display = 'none';
+      if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+        slot.tweetsList.style.display = 'flex';
+      } else {
+        slot.placeholder.style.display = 'flex';
+      }
+      showSlotSourceDropdown(slot, {
+        handle: cleanBare,
+        twitter: probeRes.twitter,
+        threads: probeRes.threads,
+        slots: context.slots,
+        onSelect: (chosenSource) => {
+          applyPlatformSelectionAndFetch(slot, chosenSource, probeRes, {
+            slots: context.slots,
+            onFetch: (idx, nextOpts) => fetchSlot(idx, { ...options, ...nextOpts }, context)
+          });
+        }
+      });
+      return { ok: true, awaitingSelection: true };
+    }
+
+    if (!twExists && thExists) {
+      const thHandle = probeRes.threads.handle || cleanBare.toLowerCase();
+      if (slot.handleInput) {
+        slot.handleInput.value = formatThreadsSlotInput(thHandle);
+        slot.handleInput.blur();
+      }
+      slot.source = SOURCE_THREADS;
+      updateSlotSourceUI(slot);
+      if (probeRes.threads.avatarUrl) {
+        updateSlotAvatar(slot, probeRes.threads.avatarUrl);
+      }
+      saveHandles(context.slots);
+      return fetchThreadsSlot(
+        slotIndex,
+        { ...options, skipPlatformProbe: true, prefetchedMeta: probeRes.threads },
+        context
+      );
+    }
+
+    if (twExists && !thExists) {
+      const twHandle = probeRes.twitter.handle || cleanBare;
+      if (slot.handleInput) {
+        slot.handleInput.value = twHandle;
+        slot.handleInput.blur();
+      }
+      slot.source = SOURCE_TWITTER;
+      updateSlotSourceUI(slot);
+      if (probeRes.twitter.avatarUrl) {
+        updateSlotAvatar(slot, probeRes.twitter.avatarUrl);
+      }
+      saveHandles(context.slots);
+      return fetchTwitterSlot(
+        slotIndex,
+        { ...options, skipPlatformProbe: true, prefetchedMeta: probeRes.twitter },
+        context
+      );
+    }
+
+    if (slot.handleInput) {
+      slot.handleInput.blur();
+    }
+    if (!/^[A-Za-z0-9_]{1,15}$/.test(cleanBare)) {
+      slot.handleInput.value = formatThreadsSlotInput(cleanBare);
+      slot.source = SOURCE_THREADS;
+      updateSlotSourceUI(slot);
+      saveHandles(context.slots);
+      return fetchThreadsSlot(slotIndex, { ...options, skipPlatformProbe: true }, context);
+    }
+    return fetchTwitterSlot(slotIndex, { ...options, skipPlatformProbe: true }, context);
+  }
+
+  closeSlotSourceDropdown(slot);
+  const sourceType = detectSourceType(raw);
+  if (sourceType === SOURCE_DISCORD) {
     return fetchDiscordSlot(slotIndex, options, context);
+  }
+  if (sourceType === SOURCE_THREADS) {
+    return fetchThreadsSlot(slotIndex, options, context);
   }
   return fetchTwitterSlot(slotIndex, options, context);
 }
 
 let isTwitterBackgroundFetching = false;
 let isDiscordBackgroundFetching = false;
+let isThreadsBackgroundFetching = false;
 let twitterFetchTimer = null;
 let twitterFetchTimeout = null;
 let discordFetchTimer = null;
 let discordFetchTimeout = null;
+let threadsFetchTimer = null;
+let threadsFetchTimeout = null;
 let activeBackgroundFetchContext = null;
 
 async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
@@ -719,12 +856,49 @@ async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActive
   }
 }
 
+async function runThreadsBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount }) {
+  if (isThreadsBackgroundFetching) return;
+  if (!(await canReachHost('www.threads.com'))) return;
+  isThreadsBackgroundFetching = true;
+
+  let abortedOffline = false;
+  try {
+    const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
+    for (let i = 0; i < totalSlots; i++) {
+      if (!isNetworkOnline()) {
+        abortedOffline = true;
+        break;
+      }
+      const slot = slots[i];
+      if (!slot) continue;
+      const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
+      if (raw && detectSourceType(raw) === SOURCE_THREADS && !slot.isFetching) {
+        const res = await fetchThreadsSlot(i, { isBackground: true }, { slots, bgWebviewsContainer });
+        if (res && res.offline) {
+          abortedOffline = true;
+          break;
+        }
+        // Polite pause between sequential card crawls to avoid rapid bursts
+        await sleep(1500);
+      }
+    }
+  } catch (err) {
+    console.error('[Threads Background Fetch] Error during sequential crawl:', err);
+  } finally {
+    isThreadsBackgroundFetching = false;
+    if (!abortedOffline && isNetworkOnline()) {
+      saveLastFetchTimeThreads(Date.now());
+    }
+  }
+}
+
 async function runBackgroundFetch(context) {
   const ctx = context || activeBackgroundFetchContext;
   if (!ctx) return;
   await Promise.all([
     runTwitterBackgroundFetch(ctx),
-    runDiscordBackgroundFetch(ctx)
+    runDiscordBackgroundFetch(ctx),
+    runThreadsBackgroundFetch(ctx)
   ]);
 }
 
@@ -744,6 +918,14 @@ function clearPeriodicBackgroundFetch() {
   if (discordFetchTimeout) {
     clearTimeout(discordFetchTimeout);
     discordFetchTimeout = null;
+  }
+  if (threadsFetchTimer) {
+    clearInterval(threadsFetchTimer);
+    threadsFetchTimer = null;
+  }
+  if (threadsFetchTimeout) {
+    clearTimeout(threadsFetchTimeout);
+    threadsFetchTimeout = null;
   }
 }
 
@@ -804,15 +986,38 @@ function startPeriodicBackgroundFetch(context) {
       }, discordIntervalMs);
     }, delayUntilDiscord);
   }
+
+  // 3. Threads Periodic Background Fetch
+  const threadsMinutes = getThreadsIntervalMinutes();
+  if (threadsMinutes > 0) {
+    const threadsIntervalMs = Math.round(threadsMinutes * 60 * 1000);
+    const lastThreadsRaw = getLastFetchTimeThreads();
+    const lastThreadsTime = lastThreadsRaw ? parseInt(lastThreadsRaw, 10) : 0;
+    const elapsedThreads = lastThreadsTime > 0 ? (now - lastThreadsTime) : Infinity;
+
+    let delayUntilThreads = 5000;
+    if (elapsedThreads < threadsIntervalMs) {
+      delayUntilThreads = Math.max(threadsIntervalMs - elapsedThreads, 5000);
+    }
+
+    threadsFetchTimeout = setTimeout(() => {
+      runThreadsBackgroundFetch(context);
+      threadsFetchTimer = setInterval(() => {
+        runThreadsBackgroundFetch(context);
+      }, threadsIntervalMs);
+    }, delayUntilThreads);
+  }
 }
 
 module.exports = {
   buildExtractionScript,
   fetchSlot,
   fetchTwitterSlot,
+  fetchThreadsSlot,
   runBackgroundFetch,
   runTwitterBackgroundFetch,
   runDiscordBackgroundFetch,
+  runThreadsBackgroundFetch,
   startPeriodicBackgroundFetch,
   clearPeriodicBackgroundFetch
 };

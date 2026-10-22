@@ -1,3 +1,4 @@
+const { THREADS_PARTITION } = require('./constants');
 const { isNetworkOnline, canReachHost } = require('./utils');
 
 // Chromium net error codes indicating network disconnection or DNS failure
@@ -24,6 +25,32 @@ function getOrCreateSlotWebview(slotIndex, bgWebviewsContainer, slots = []) {
     }
     if (slots[slotIndex]) {
       slots[slotIndex].bgWebview = wv;
+    }
+  }
+  return wv;
+}
+
+function getOrCreateThreadsSlotWebview(slotIndex, bgWebviewsContainer, slots = []) {
+  let wv = document.getElementById(`threads-bg-webview-${slotIndex}`);
+  if (!wv) {
+    wv = document.createElement('webview');
+    wv.id = `threads-bg-webview-${slotIndex}`;
+    wv.src = 'about:blank';
+    wv.setAttribute('partition', THREADS_PARTITION);
+    wv.setAttribute('allowpopups', 'true');
+    wv.setAttribute('useragent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    wv.setAttribute('webpreferences', 'backgroundThrottling=no');
+
+    wv._isReady = false;
+    wv.addEventListener('dom-ready', () => {
+      wv._isReady = true;
+    }, { once: true });
+
+    if (bgWebviewsContainer) {
+      bgWebviewsContainer.appendChild(wv);
+    }
+    if (slots[slotIndex]) {
+      slots[slotIndex].threadsBgWebview = wv;
     }
   }
   return wv;
@@ -142,6 +169,7 @@ async function executeWebviewScript(wv, script, timeoutMs = 8000) {
 
 module.exports = {
   getOrCreateSlotWebview,
+  getOrCreateThreadsSlotWebview,
   initBackgroundWebviews,
   waitForWebviewReady,
   loadWebviewTarget,

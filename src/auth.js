@@ -1,9 +1,16 @@
 const { ipcRenderer } = require('electron');
-const { getDiscordLoggedIn, saveDiscordLoggedIn } = require('./storage');
+const {
+  getDiscordLoggedIn,
+  saveDiscordLoggedIn,
+  getThreadsLoggedIn,
+  saveThreadsLoggedIn
+} = require('./storage');
 const { t } = require('./i18n');
 
 let isTwitterLoggedIn = false;
 let lastTwitterStatus = 'checking';
+let isThreadsLoggedIn = false;
+let lastThreadsStatus = 'checking';
 let isDiscordLoggedIn = false;
 
 function updateMenuStatusDot() {
@@ -11,7 +18,7 @@ function updateMenuStatusDot() {
   if (!dot) return;
 
   dot.classList.remove('has-login', 'checking', 'all-logged-out');
-  if (isTwitterLoggedIn || isDiscordLoggedIn) {
+  if (isTwitterLoggedIn || isThreadsLoggedIn || isDiscordLoggedIn) {
     dot.classList.add('has-login');
   } else {
     dot.classList.add('all-logged-out');
@@ -43,6 +50,31 @@ function updateTwitterStatusUI(status) {
   updateMenuStatusDot();
 }
 
+function updateThreadsStatusUI(status) {
+  // status: boolean | 'checking'
+  lastThreadsStatus = status;
+  const badge = document.getElementById('threads-status-badge');
+  const label = document.getElementById('threads-status-label');
+  const item = document.getElementById('item-login-threads');
+
+  if (status === 'checking') {
+    if (badge) badge.className = 'platform-status-badge checking';
+    if (label) label.innerText = t('auth.checking');
+    if (item) item.title = t('auth.threadsCheckingTitle');
+  } else if (status === true) {
+    isThreadsLoggedIn = true;
+    if (badge) badge.className = 'platform-status-badge logged-in';
+    if (label) label.innerText = t('auth.loggedIn');
+    if (item) item.title = t('auth.threadsLoggedInTitle');
+  } else {
+    isThreadsLoggedIn = false;
+    if (badge) badge.className = 'platform-status-badge logged-out';
+    if (label) label.innerText = t('auth.loggedOut');
+    if (item) item.title = t('auth.threadsLoggedOutTitle');
+  }
+  updateMenuStatusDot();
+}
+
 function updateDiscordStatusUI(isLoggedIn) {
   isDiscordLoggedIn = Boolean(isLoggedIn);
   const badge = document.getElementById('discord-status-badge');
@@ -63,6 +95,7 @@ function updateDiscordStatusUI(isLoggedIn) {
 
 function refreshAuthLocaleUI() {
   updateTwitterStatusUI(lastTwitterStatus);
+  updateThreadsStatusUI(lastThreadsStatus);
   updateDiscordStatusUI(isDiscordLoggedIn);
 }
 
@@ -76,10 +109,22 @@ async function checkTwitterLoginStatus() {
   }
 }
 
+async function checkThreadsLoginStatus() {
+  updateThreadsStatusUI('checking');
+  try {
+    const loggedIn = await ipcRenderer.invoke('check-threads-login-status');
+    saveThreadsLoggedIn(Boolean(loggedIn));
+    updateThreadsStatusUI(Boolean(loggedIn));
+  } catch (e) {
+    updateThreadsStatusUI(getThreadsLoggedIn());
+  }
+}
+
 function initAuth({ onExportProfile, onImportProfile } = {}) {
   const btnLoginMenu = document.getElementById('btn-login-menu');
   const loginMenu = document.getElementById('login-dropdown-menu');
   const itemTwitter = document.getElementById('item-login-twitter');
+  const itemThreads = document.getElementById('item-login-threads');
   const itemDiscord = document.getElementById('item-login-discord');
   const itemExportProfile = document.getElementById('item-export-profile');
   const itemImportProfile = document.getElementById('item-import-profile');
@@ -134,6 +179,13 @@ function initAuth({ onExportProfile, onImportProfile } = {}) {
     });
   }
 
+  if (itemThreads) {
+    itemThreads.addEventListener('click', () => {
+      closeMenu();
+      ipcRenderer.send('open-threads-login-window', { wasLoggedIn: isThreadsLoggedIn });
+    });
+  }
+
   if (itemDiscord) {
     itemDiscord.addEventListener('click', () => {
       closeMenu();
@@ -163,6 +215,11 @@ function initAuth({ onExportProfile, onImportProfile } = {}) {
     updateTwitterStatusUI(loggedIn);
   });
 
+  ipcRenderer.on('threads-login-status-changed', (event, { loggedIn }) => {
+    saveThreadsLoggedIn(Boolean(loggedIn));
+    updateThreadsStatusUI(Boolean(loggedIn));
+  });
+
   ipcRenderer.on('discord-login-status-changed', (event, { loggedIn }) => {
     saveDiscordLoggedIn(loggedIn);
     updateDiscordStatusUI(loggedIn);
@@ -170,9 +227,10 @@ function initAuth({ onExportProfile, onImportProfile } = {}) {
 
   // Initial checks
   checkTwitterLoginStatus();
+  checkThreadsLoginStatus();
   updateDiscordStatusUI(getDiscordLoggedIn());
 
-  // Periodically check discord cached status
+  // Periodically check discord & threads cached status
   setInterval(() => {
     updateDiscordStatusUI(getDiscordLoggedIn());
   }, 5000);
@@ -180,8 +238,10 @@ function initAuth({ onExportProfile, onImportProfile } = {}) {
 
 module.exports = {
   updateLoginUI: updateTwitterStatusUI,
+  updateThreadsLoginUI: updateThreadsStatusUI,
   updateDiscordLoginUI: updateDiscordStatusUI,
   checkLoginStatus: checkTwitterLoginStatus,
+  checkThreadsLoginStatus,
   refreshAuthLocaleUI,
   initAuth
 };

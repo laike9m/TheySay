@@ -134,6 +134,20 @@
                 </div>
               </button>
 
+              <!-- Threads -->
+              <button class="login-menu-item" id="item-login-threads" title="点击登录或切换 Threads 账号">
+                <div class="login-item-left">
+                  <span class="platform-icon threads">@</span>
+                  <span class="platform-name">Threads</span>
+                </div>
+                <div class="login-item-right">
+                  <span class="platform-status-badge checking" id="threads-status-badge">
+                    <span class="status-indicator-dot"></span>
+                    <span class="status-label" id="threads-status-label" data-i18n="auth.checking">检测中...</span>
+                  </span>
+                </div>
+              </button>
+
               <!-- Discord -->
               <button class="login-menu-item" id="item-login-discord" title="点击登录或切换 Discord 账号">
                 <div class="login-item-left">
@@ -291,6 +305,33 @@
                 </select>
                 <div id="setting-twitter-custom-wrap" class="settings-custom-wrap" style="display: none;">
                   <input type="number" id="setting-twitter-custom" class="settings-input-number" min="1" max="1440" step="1" value="10">
+                  <span class="settings-unit" data-i18n="settings.unitMinutes">分</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Threads 刷新频率 -->
+            <div class="settings-row" data-i18n-title="settings.threadsRefreshTip" title="建议设为 5 ~ 15 分钟或以上">
+              <div class="settings-row-main">
+                <span class="platform-icon threads">@</span>
+                <div class="settings-row-text">
+                  <div class="settings-row-title" data-i18n="settings.threadsRefreshTitle">Threads 刷新</div>
+                  <div class="settings-row-subtitle" data-i18n="settings.threadsRefreshSubtitle">后台轮询周期</div>
+                </div>
+              </div>
+              <div class="settings-input-group">
+                <select id="setting-threads-interval" class="settings-select">
+                  <option value="2" data-i18n="settings.interval2m">2 分钟</option>
+                  <option value="3" data-i18n="settings.interval3m">3 分钟</option>
+                  <option value="5" data-i18n="settings.interval5m">5 分钟</option>
+                  <option value="10" data-i18n="settings.interval10mDefault">10 分钟 (默认)</option>
+                  <option value="15" data-i18n="settings.interval15m">15 分钟</option>
+                  <option value="30" data-i18n="settings.interval30m">30 分钟</option>
+                  <option value="60" data-i18n="settings.interval60m">60 分钟</option>
+                  <option value="custom" data-i18n="settings.intervalCustom">自定义...</option>
+                </select>
+                <div id="setting-threads-custom-wrap" class="settings-custom-wrap" style="display: none;">
+                  <input type="number" id="setting-threads-custom" class="settings-input-number" min="1" max="1440" step="1" value="10">
                   <span class="settings-unit" data-i18n="settings.unitMinutes">分</span>
                 </div>
               </div>

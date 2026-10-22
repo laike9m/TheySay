@@ -1,7 +1,7 @@
 const { ipcRenderer } = require('electron');
 const { processAndSortTweets, isMemberOnlyTweet, isTweetWithQuote } = require('./tweet');
 const { getShowMemberOnlyTweets } = require('./storage');
-const { SOURCE_DISCORD } = require('./source');
+const { SOURCE_DISCORD, SOURCE_THREADS, normalizeThreadsHandle } = require('./source');
 const {
   t,
   translateAttachmentLabel,
@@ -56,7 +56,7 @@ function sendSystemNotification({ title, subtitle = '', body = '', slotIndex = n
 }
 
 /**
- * Triggers a system notification for newly fetched tweets or Discord messages
+ * Triggers a system notification for newly fetched tweets, Threads posts, or Discord messages
  * on `slot` when that slot's mute toggle is turned off (`slot.isMuted === false`).
  */
 function notifySlotNewMessages(slot, newItems) {
@@ -64,9 +64,10 @@ function notifySlotNewMessages(slot, newItems) {
   if (!Array.isArray(newItems) || newItems.length === 0) return;
 
   const isDiscord = slot.source === SOURCE_DISCORD;
+  const isThreads = slot.source === SOURCE_THREADS;
   const showMemberOnly = getShowMemberOnlyTweets();
 
-  const visibleItems = (showMemberOnly || isDiscord)
+  const visibleItems = (showMemberOnly || isDiscord || isThreads)
     ? newItems
     : newItems.filter(item => !isMemberOnlyTweet(item));
 
@@ -109,7 +110,13 @@ function notifySlotNewMessages(slot, newItems) {
       slotIndex: slot.index
     });
   } else {
-    const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim().replace(/^@/, '') : '');
+    const handle = slot.monitoredHandle || (
+      slot.handleInput
+        ? (isThreads
+            ? normalizeThreadsHandle(slot.handleInput.value)
+            : slot.handleInput.value.trim().replace(/^@/, ''))
+        : ''
+    );
     const rawAuthorName = compactSingleLine(
       (slot.authorName && slot.authorName.innerText) || latest.displayName || `@${handle}`,
       50
@@ -122,9 +129,10 @@ function notifySlotNewMessages(slot, newItems) {
     const bareName = rawAuthorName.replace(/^@/, '').toLowerCase();
     const bareHandle = rawAuthorHandle.replace(/^@/, '').toLowerCase();
 
-    const title = (rawAuthorName && rawAuthorHandle && bareName !== bareHandle)
+    const baseTitle = (rawAuthorName && rawAuthorHandle && bareName !== bareHandle)
       ? `${rawAuthorName} (${rawAuthorHandle})`
-      : (rawAuthorName || rawAuthorHandle || 'Twitter / X');
+      : (rawAuthorName || rawAuthorHandle || (isThreads ? 'Threads' : 'Twitter / X'));
+    const title = isThreads ? `${baseTitle} · Threads` : baseTitle;
 
     let tagDesc = t('notification.newTweet');
     if (latest.isRetweet) tagDesc = t('notification.repost');

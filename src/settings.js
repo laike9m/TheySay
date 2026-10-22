@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 const {
   DEFAULT_TWITTER_INTERVAL_MINUTES,
+  DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
@@ -11,6 +12,8 @@ const {
 const {
   getTwitterIntervalMinutes,
   saveTwitterIntervalMinutes,
+  getThreadsIntervalMinutes,
+  saveThreadsIntervalMinutes,
   getDiscordIntervalMinutes,
   saveDiscordIntervalMinutes,
   getShowMemberOnlyTweets,
@@ -182,6 +185,10 @@ function loadCurrentSettings() {
   const twitterCustomWrap = document.getElementById('setting-twitter-custom-wrap');
   const twitterCustomInput = document.getElementById('setting-twitter-custom');
 
+  const threadsSelect = document.getElementById('setting-threads-interval');
+  const threadsCustomWrap = document.getElementById('setting-threads-custom-wrap');
+  const threadsCustomInput = document.getElementById('setting-threads-custom');
+
   const discordSelect = document.getElementById('setting-discord-interval');
   const discordCustomWrap = document.getElementById('setting-discord-custom-wrap');
   const discordCustomInput = document.getElementById('setting-discord-custom');
@@ -189,6 +196,11 @@ function loadCurrentSettings() {
   if (twitterSelect && twitterCustomWrap && twitterCustomInput) {
     const twitterVal = getTwitterIntervalMinutes();
     populateSelectAndInput(twitterSelect, twitterCustomWrap, twitterCustomInput, twitterVal);
+  }
+
+  if (threadsSelect && threadsCustomWrap && threadsCustomInput) {
+    const threadsVal = getThreadsIntervalMinutes();
+    populateSelectAndInput(threadsSelect, threadsCustomWrap, threadsCustomInput, threadsVal);
   }
 
   if (discordSelect && discordCustomWrap && discordCustomInput) {
@@ -238,6 +250,8 @@ function getFormSettingsOverrides() {
   const languageSelect = document.getElementById('setting-language');
   const twitterSelect = document.getElementById('setting-twitter-interval');
   const twitterCustomInput = document.getElementById('setting-twitter-custom');
+  const threadsSelect = document.getElementById('setting-threads-interval');
+  const threadsCustomInput = document.getElementById('setting-threads-custom');
   const discordSelect = document.getElementById('setting-discord-interval');
   const discordCustomInput = document.getElementById('setting-discord-custom');
   const memberOnlySelect = document.getElementById('setting-show-member-only');
@@ -262,6 +276,17 @@ function getFormSettingsOverrides() {
     } else {
       const val = parseFloat(twitterSelect.value);
       if (!isNaN(val) && val > 0) twitterIntervalMinutes = val;
+    }
+  }
+
+  let threadsIntervalMinutes = getThreadsIntervalMinutes();
+  if (threadsSelect) {
+    if (threadsSelect.value === 'custom' && threadsCustomInput) {
+      const val = parseFloat(threadsCustomInput.value);
+      if (!isNaN(val) && val > 0) threadsIntervalMinutes = Math.max(1, Math.round(val));
+    } else {
+      const val = parseFloat(threadsSelect.value);
+      if (!isNaN(val) && val > 0) threadsIntervalMinutes = val;
     }
   }
 
@@ -298,6 +323,7 @@ function getFormSettingsOverrides() {
   return {
     language,
     twitterIntervalMinutes,
+    threadsIntervalMinutes,
     discordIntervalMinutes,
     showMemberOnlyTweets,
     discordSoundEnabled,
@@ -325,6 +351,10 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   const twitterCustomWrap = document.getElementById('setting-twitter-custom-wrap');
   const twitterCustomInput = document.getElementById('setting-twitter-custom');
 
+  const threadsSelect = document.getElementById('setting-threads-interval');
+  const threadsCustomWrap = document.getElementById('setting-threads-custom-wrap');
+  const threadsCustomInput = document.getElementById('setting-threads-custom');
+
   const discordSelect = document.getElementById('setting-discord-interval');
   const discordCustomWrap = document.getElementById('setting-discord-custom-wrap');
   const discordCustomInput = document.getElementById('setting-discord-custom');
@@ -348,6 +378,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       onSave({
         language: getLanguage(),
         twitterMinutes: getTwitterIntervalMinutes(),
+        threadsMinutes: getThreadsIntervalMinutes(),
         discordMinutes: getDiscordIntervalMinutes(),
         showMemberOnly: getShowMemberOnlyTweets(),
         discordSoundEnabled: getDiscordSoundEnabled(),
@@ -445,6 +476,45 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
 
     twitterCustomInput.addEventListener('change', () => commitTwitterCustom({ showErr: true }));
     twitterCustomInput.addEventListener('blur', () => commitTwitterCustom({ showErr: true }));
+  }
+
+  if (threadsSelect && threadsCustomWrap && threadsCustomInput) {
+    threadsSelect.addEventListener('change', () => {
+      syncCustomVisibility(threadsSelect, threadsCustomWrap);
+      if (threadsSelect.value === 'custom') {
+        threadsCustomInput.focus();
+        threadsCustomInput.select();
+        const val = parseFloat(threadsCustomInput.value);
+        if (!isNaN(val) && val > 0) {
+          saveThreadsIntervalMinutes(Math.max(1, Math.round(val)));
+          notifySaved();
+        }
+      } else {
+        const mins = parseFloat(threadsSelect.value);
+        if (!isNaN(mins) && mins > 0) {
+          saveThreadsIntervalMinutes(mins);
+          notifySaved();
+        }
+      }
+    });
+
+    const commitThreadsCustom = ({ showErr = false } = {}) => {
+      const val = parseFloat(threadsCustomInput.value);
+      if (isNaN(val) || val <= 0) {
+        if (showErr) {
+          showToast(t('settings.toastInvalidThreadsInterval'), 'error', 2500);
+          threadsCustomInput.value = getThreadsIntervalMinutes();
+        }
+        return;
+      }
+      const mins = Math.max(1, Math.round(val));
+      if (showErr) threadsCustomInput.value = mins;
+      saveThreadsIntervalMinutes(mins);
+      notifySaved();
+    };
+
+    threadsCustomInput.addEventListener('change', () => commitThreadsCustom({ showErr: true }));
+    threadsCustomInput.addEventListener('blur', () => commitThreadsCustom({ showErr: true }));
   }
 
   if (discordSelect && discordCustomWrap && discordCustomInput) {
@@ -647,6 +717,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       }
 
       saveTwitterIntervalMinutes(DEFAULT_TWITTER_INTERVAL_MINUTES);
+      saveThreadsIntervalMinutes(DEFAULT_THREADS_INTERVAL_MINUTES);
       saveDiscordIntervalMinutes(DEFAULT_DISCORD_INTERVAL_MINUTES);
       saveShowMemberOnlyTweets(DEFAULT_SHOW_MEMBER_ONLY);
       saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
@@ -662,6 +733,14 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
           twitterCustomWrap,
           twitterCustomInput,
           DEFAULT_TWITTER_INTERVAL_MINUTES
+        );
+      }
+      if (threadsSelect && threadsCustomWrap && threadsCustomInput) {
+        populateSelectAndInput(
+          threadsSelect,
+          threadsCustomWrap,
+          threadsCustomInput,
+          DEFAULT_THREADS_INTERVAL_MINUTES
         );
       }
       if (discordSelect && discordCustomWrap && discordCustomInput) {

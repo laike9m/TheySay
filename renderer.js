@@ -9,6 +9,7 @@ const {
   saveHandlesArray,
   saveMutedSlotsArray,
   saveTwitterIntervalMinutes,
+  saveThreadsIntervalMinutes,
   saveDiscordIntervalMinutes,
   saveShowMemberOnlyTweets,
   saveDiscordSoundEnabled,
@@ -47,6 +48,7 @@ const {
 const {
   fetchSlot,
   runBackgroundFetch,
+  runThreadsBackgroundFetch,
   runDiscordBackgroundFetch,
   startPeriodicBackgroundFetch
 } = require('./src/scraper');
@@ -86,8 +88,8 @@ function refreshLocalizedAppUI(lang) {
   refreshSlotsContent(slots);
 }
 
-function handleFetchSlot(slotIndex) {
-  fetchSlot(slotIndex, { isBackground: false }, { slots, bgWebviewsContainer });
+function handleFetchSlot(slotIndex, extraOptions = {}) {
+  fetchSlot(slotIndex, { isBackground: false, ...extraOptions }, { slots, bgWebviewsContainer });
 }
 
 function handleSlotResize(slot, targetW, targetH) {
@@ -172,6 +174,9 @@ async function handleImportProfile() {
     }
     if (typeof settings.twitterIntervalMinutes === 'number' && settings.twitterIntervalMinutes > 0) {
       saveTwitterIntervalMinutes(settings.twitterIntervalMinutes);
+    }
+    if (typeof settings.threadsIntervalMinutes === 'number' && settings.threadsIntervalMinutes > 0) {
+      saveThreadsIntervalMinutes(settings.threadsIntervalMinutes);
     }
     if (typeof settings.discordIntervalMinutes === 'number' && settings.discordIntervalMinutes > 0) {
       saveDiscordIntervalMinutes(settings.discordIntervalMinutes);
@@ -331,7 +336,10 @@ async function handleImportProfile() {
     // Trigger background fetch for any active slot that has a handle/channel but no cached data yet
     const activeSlots = slots.slice(0, getActiveSlotCount());
     const hasUncachedTwitter = activeSlots.some(
-      s => s && s.handleInput && s.handleInput.value.trim() && s.source !== 'discord' && (!s.loadedTweets || s.loadedTweets.length === 0)
+      s => s && s.handleInput && s.handleInput.value.trim() && s.source !== 'discord' && s.source !== 'threads' && (!s.loadedTweets || s.loadedTweets.length === 0)
+    );
+    const hasUncachedThreads = activeSlots.some(
+      s => s && s.handleInput && s.handleInput.value.trim() && s.source === 'threads' && (!s.loadedTweets || s.loadedTweets.length === 0)
     );
     const hasUncachedDiscord = activeSlots.some(
       s => s && s.handleInput && s.handleInput.value.trim() && s.source === 'discord' && (!s.loadedTweets || s.loadedTweets.length === 0)
@@ -340,6 +348,11 @@ async function handleImportProfile() {
       setTimeout(() => {
         runBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount });
       }, 600);
+    }
+    if (hasUncachedThreads) {
+      setTimeout(() => {
+        runThreadsBackgroundFetch({ slots, bgWebviewsContainer, getActiveSlotCount });
+      }, 700);
     }
     if (hasUncachedDiscord) {
       setTimeout(() => {

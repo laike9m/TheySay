@@ -7,6 +7,7 @@ const {
   STORAGE_CACHE_KEY,
   STORAGE_PRESET_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
+  STORAGE_THREADS_INTERVAL_KEY,
   STORAGE_MUTED_SLOTS_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY
@@ -355,7 +356,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#settings-dialog-title')).toHaveText('Preferences');
     await expect(page.locator('#handle-input-1')).toHaveAttribute(
       'placeholder',
-      'Twitter handle or Discord channel URL'
+      'Twitter / Threads handle or Discord URL'
     );
 
     // Ensure no settings card title or subtitle is clipped/overflowing in English
@@ -381,7 +382,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       STORAGE_LANGUAGE_KEY
     );
     expect(savedLangEn).toBe('en');
-    await expect(page).toHaveTitle('TheySay - Twitter / X & Discord Grid Dashboard');
+    await expect(page).toHaveTitle('TheySay - Twitter / X, Threads & Discord Grid Dashboard');
 
     // Switch to Chinese ('zh') and verify UI updates to Chinese & persists to disk immediately
     const prefFilePath = path.join(userDataDir, 'preferences.json');
@@ -391,7 +392,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#settings-dialog-title')).toHaveText('偏好设置');
     await expect(page.locator('#handle-input-1')).toHaveAttribute(
       'placeholder',
-      'Twitter 用户名 或 Discord 频道链接'
+      'Twitter / Threads 用户名 或 Discord 频道链接'
     );
     await expect.poll(() => {
       if (!fs.existsSync(prefFilePath)) return null;
@@ -404,7 +405,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       STORAGE_LANGUAGE_KEY
     );
     expect(savedLangZh).toBe('zh');
-    await expect(page).toHaveTitle('TheySay - Twitter / X 动态网格看板');
+    await expect(page).toHaveTitle('TheySay - Twitter / X, Threads & Discord 动态网格看板');
   });
 
   test('8. Dragging a slot keeps every feed\'s scroll position', async () => {
@@ -554,6 +555,168 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     const posAfterRestart = await readGridPositions();
     expect(posAfterRestart).toEqual(posBeforeRestart);
   });
-});
 
+  test('10. Threads data source detection, cached feed rendering, Threads popup modal & settings', async () => {
+    // 1. Verify source detection & canonical target key resolution for Threads URLs/shorthands
+    const sourceParsing = await page.evaluate(() => {
+      const {
+        detectSourceType,
+        parseThreadsInput,
+        buildThreadsProfileUrl,
+        getCanonicalTargetKey
+      } = require('./src/source');
+      return {
+        comUrl: detectSourceType('https://www.threads.com/@zuck'),
+        netUrl: detectSourceType('https://www.threads.net/@mosseri/post/DVZ8a9bXk12'),
+        shorthand: detectSourceType('threads:@zuck'),
+        slashForm: detectSourceType('threads/zuck'),
+        parsedHandle: parseThreadsInput('https://www.threads.com/@Zuck/post/DVZ8a9bXk12')?.handle,
+        profileUrl: buildThreadsProfileUrl('threads:@zuck'),
+        canonicalCom: getCanonicalTargetKey('https://www.threads.com/@Zuck'),
+        canonicalShort: getCanonicalTargetKey('threads:zuck')
+      };
+    });
+
+    expect(sourceParsing.comUrl).toBe('threads');
+    expect(sourceParsing.netUrl).toBe('threads');
+    expect(sourceParsing.shorthand).toBe('threads');
+    expect(sourceParsing.slashForm).toBe('threads');
+    expect(sourceParsing.parsedHandle).toBe('zuck');
+    expect(sourceParsing.profileUrl).toBe('https://www.threads.com/@zuck');
+    expect(sourceParsing.canonicalCom).toBe('threads:zuck');
+    expect(sourceParsing.canonicalShort).toBe('threads:zuck');
+
+    // 2. Seed slot 0 with a Threads account and cached Threads posts
+    const nowIso = new Date().toISOString();
+    await page.evaluate(
+      ({ timestamp, handlesKey, cacheKey }) => {
+        const handles = ['threads:@zuck', 'OpenAI', '', ''];
+        while (handles.length < 16) handles.push('');
+        localStorage.setItem(handlesKey, JSON.stringify(handles));
+
+        const cache = {
+          0: {
+            handle: 'threads:@zuck',
+            source: 'threads',
+            displayName: 'Mark Zuckerberg',
+            userHandle: 'threads:@zuck',
+            avatarUrl: '',
+            lastFetchedAt: Date.now(),
+            tweets: [
+              {
+                id: 'DVZ8a9bXk12',
+                text: 'Shipping Llama 4 and tracking $META and NVDA compute clusters!',
+                time: timestamp,
+                url: 'https://www.threads.com/@zuck/post/DVZ8a9bXk12',
+                author: 'zuck',
+                isPinned: true,
+                isRetweet: false,
+                isQuote: true,
+                quoteAuthor: '@mosseri',
+                quoteText: 'Threads web updates rolling out today.',
+                isUnread: true,
+                images: []
+              }
+            ]
+          }
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      },
+      {
+        timestamp: nowIso,
+        handlesKey: STORAGE_HANDLES_KEY,
+        cacheKey: STORAGE_CACHE_KEY
+      }
+    );
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect(page.locator('#author-name-0')).toHaveText('Mark Zuckerberg');
+    await expect(page.locator('#author-handle-0')).toHaveText('threads:@zuck');
+    await expect(page.locator('#slot-card-0')).toHaveClass(/is-threads/);
+
+    const threadsBubble = page.locator('#slot-content-0 .im-bubble.threads').first();
+    await expect(threadsBubble).toBeVisible();
+    await expect(threadsBubble.locator('.ticker-highlight')).toHaveCount(2);
+    await expect(threadsBubble.locator('.ticker-highlight').nth(0)).toHaveText('$META');
+    await expect(threadsBubble.locator('.ticker-highlight').nth(1)).toHaveText('NVDA');
+    await expect(threadsBubble.locator('.tweet-tag.pinned')).toBeVisible();
+    await expect(threadsBubble.locator('.tweet-tag.quote')).toBeVisible();
+
+    // 3. Click the Threads bubble to open the zero-latency local Threads popup modal
+    await threadsBubble.click();
+    const popupOverlay = page.locator('#tweet-popup-overlay');
+    await expect(popupOverlay).not.toHaveClass(/is-closed/);
+    const threadsPopupCard = popupOverlay.locator('.threads-popup-card');
+    await expect(threadsPopupCard).toBeVisible();
+    await expect(threadsPopupCard.locator('.discord-popup-name')).toHaveText('Mark Zuckerberg');
+    await expect(threadsPopupCard.locator('.tweet-tag.threads')).toHaveText('Threads');
+    await expect(threadsPopupCard.locator('.threads-popup-quote-author')).toHaveText('@mosseri');
+    await expect(threadsPopupCard.locator('.threads-popup-quote-text')).toContainText(
+      'Threads web updates rolling out today.'
+    );
+    await expect(threadsPopupCard.locator('.discord-popup-open-btn')).toBeVisible();
+
+    // Press Escape to close the Threads popup modal
+    await page.keyboard.press('Escape');
+    await expect(popupOverlay).toHaveClass(/is-closed/);
+
+    // 4. Verify Threads login item in Accounts menu & Threads refresh interval in Settings
+    await page.locator('#btn-login-menu').click();
+    await expect(page.locator('#item-login-threads')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#setting-threads-interval')).toBeVisible();
+    await page.selectOption('#setting-threads-interval', '15');
+    await page.locator('#btn-settings-close').click();
+
+    const savedThreadsInterval = await page.evaluate(
+      (key) => localStorage.getItem(key),
+      STORAGE_THREADS_INTERVAL_KEY
+    );
+    expect(savedThreadsInterval).toBe('15');
+
+    // 5. Verify dual-platform handle search dropdown when a handle exists on both Twitter & Threads
+    await page.evaluate(() => {
+      window.__THEYSAY_MOCK_PLATFORM_PROBE = async (handle) => {
+        if (handle.toLowerCase() === 'mosseri') {
+          return {
+            twitter: {
+              exists: true,
+              handle: 'mosseri',
+              displayName: 'Adam',
+              avatarUrl: ''
+            },
+            threads: {
+              exists: true,
+              handle: 'mosseri',
+              displayName: 'Adam Mosseri',
+              avatarUrl: ''
+            }
+          };
+        }
+        return { twitter: { exists: false }, threads: { exists: false } };
+      };
+    });
+
+    await page.locator('#slot-author-header-1').click();
+    const input1 = page.locator('#handle-input-1');
+    await expect(input1).toBeVisible();
+    await input1.fill('mosseri');
+    await input1.press('Enter');
+
+    const dropdown1 = page.locator('#slot-source-dropdown-1');
+    await expect(dropdown1).toBeVisible();
+    await expect(dropdown1.locator('.source-dropdown-item[data-source="twitter"]')).toBeVisible();
+    await expect(dropdown1.locator('.source-dropdown-item[data-source="threads"]')).toBeVisible();
+    await expect(dropdown1.locator('.source-dropdown-item[data-source="threads"] .source-dropdown-name')).toHaveText(
+      'Adam Mosseri'
+    );
+
+    await dropdown1.locator('.source-dropdown-item[data-source="threads"]').click();
+    await expect(dropdown1).toBeHidden();
+    await expect(input1).toHaveValue('threads.com/@mosseri');
+  });
+});
 

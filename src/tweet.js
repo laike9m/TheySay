@@ -1,8 +1,11 @@
 function getTweetId(tweet) {
+  if (!tweet) return '';
   if (tweet.id) return String(tweet.id);
   if (tweet.url) {
     const m = String(tweet.url).match(/\/status\/(\d+)/);
     if (m) return m[1];
+    const tm = String(tweet.url).match(/\/post\/([A-Za-z0-9_-]+)/);
+    if (tm) return tm[1];
   }
   return '';
 }
@@ -20,7 +23,7 @@ function getTweetTimestamp(tweet) {
     if (!isNaN(parsed) && parsed > 0) return parsed;
   }
   const id = getTweetId(tweet);
-  if (id) {
+  if (id && /^\d+$/.test(id)) {
     try {
       const epoch = tweet.source === 'discord' ? DISCORD_EPOCH : TWITTER_EPOCH;
       return Number((BigInt(id) >> 22n) + epoch);
@@ -31,7 +34,9 @@ function getTweetTimestamp(tweet) {
 
 function getTweetKey(tweet) {
   if (!tweet) return '';
-  const prefix = tweet.source === 'discord' ? 'discord_' : '';
+  const prefix = tweet.source === 'discord'
+    ? 'discord_'
+    : (tweet.source === 'threads' ? 'threads_' : '');
   const id = getTweetId(tweet);
   if (id) return `${prefix}id_${id}`;
   if (tweet.url) return `${prefix}url_${tweet.url}`;
@@ -63,6 +68,8 @@ function processAndSortTweets(tweets) {
       if (!prev.avatarUrl && t.avatarUrl) prev.avatarUrl = t.avatarUrl;
       if (t.hasQuote && !prev.hasQuote) prev.hasQuote = true;
       if (t.quoteUrl && !prev.quoteUrl) prev.quoteUrl = t.quoteUrl;
+      if (t.quoteAuthor && !prev.quoteAuthor) prev.quoteAuthor = t.quoteAuthor;
+      if (t.quoteText && !prev.quoteText) prev.quoteText = t.quoteText;
       if (Array.isArray(t.images) && t.images.length > 0 && (!Array.isArray(prev.images) || prev.images.length === 0)) {
         prev.images = t.images;
       }
@@ -106,12 +113,15 @@ function processAndSortTweets(tweets) {
     if (timeA !== timeB) {
       return timeA - timeB; // 升序：时间早的在前(上)，时间晚(新)的在后(下)
     }
-    // Fallback: compare Snowflake IDs
+    // Fallback: compare Snowflake IDs or string IDs
     if (a.id && b.id) {
-      try {
-        const diff = BigInt(a.id) - BigInt(b.id);
-        return diff > 0n ? 1 : (diff < 0n ? -1 : 0);
-      } catch (e) {}
+      if (/^\d+$/.test(a.id) && /^\d+$/.test(b.id)) {
+        try {
+          const diff = BigInt(a.id) - BigInt(b.id);
+          return diff > 0n ? 1 : (diff < 0n ? -1 : 0);
+        } catch (e) {}
+      }
+      return String(a.id).localeCompare(String(b.id));
     }
     return 0;
   });

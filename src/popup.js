@@ -237,9 +237,9 @@ function renderFallbackInto(entry) {
 
 // Warm a tweet's embed in the background so a later click is instant.
 function prefetchTweet(tweet, { priority = false } = {}) {
-  // Discord messages and member-only tweets are rendered locally from data we already hold;
+  // Discord messages, Threads posts, and member-only tweets are rendered locally from data we already hold;
   // there is no third-party widget to warm up.
-  if (!tweet || tweet.source === 'discord' || isMemberOnlyTweet(tweet)) return;
+  if (!tweet || tweet.source === 'discord' || tweet.source === 'threads' || isMemberOnlyTweet(tweet)) return;
 
   const tweetId = getTweetId(tweet);
   if (!tweetId) return;
@@ -379,10 +379,131 @@ function openDiscordPopup(msg) {
   if (!el) return;
 
   if (activeTweetId) deactivateSlot(activeTweetId);
+  if (threadsSlotEl) threadsSlotEl.classList.remove('is-active');
   activeTweetId = null;
   currentTweet = msg;
 
   renderDiscordCardInto(el, msg);
+  el.classList.add('is-active');
+
+  const loadingEl = getLoadingEl();
+  if (loadingEl) loadingEl.style.display = 'none';
+  openOverlay();
+}
+
+/* ----------------------------------------------------------------
+   Threads post card
+   ---------------------------------------------------------------- */
+
+let threadsSlotEl = null;
+
+function getThreadsSlotEl() {
+  if (threadsSlotEl) return threadsSlotEl;
+  const container = getEmbedContainer();
+  if (!container) return null;
+
+  threadsSlotEl = document.createElement('div');
+  threadsSlotEl.className = 'tweet-embed-slot threads-embed-slot';
+  container.appendChild(threadsSlotEl);
+  return threadsSlotEl;
+}
+
+function renderThreadsCardInto(el, post) {
+  const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
+  const rawText = normalizeMediaOnlyText((post.text || '').trim());
+  const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
+  const effectiveText = isMediaFallbackOnly ? '' : rawText;
+  const timeDisplay = post.datetime ? new Date(post.datetime).toLocaleString() : (post.time || '');
+  const displayName = post.displayName || post.userHandle || '';
+  const userHandle = post.userHandle || '';
+
+  let tagsHtml = '<span class="tweet-tag threads threads-badge">Threads</span>';
+  if (post.isPinned) tagsHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
+  if (post.isRetweet) tagsHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
+
+  let quoteHtml = '';
+  if (post.hasQuote || post.quoteUrl || post.quoteText || post.quoteAuthor) {
+    const qAuthor = post.quoteAuthor
+      ? (post.quoteAuthor.startsWith('@') ? post.quoteAuthor : `@${post.quoteAuthor}`)
+      : '';
+    const qText = (post.quoteText || '').trim();
+    quoteHtml = `
+      <div class="threads-popup-quote">
+        <div class="threads-popup-quote-header">
+          <span class="tweet-tag quote">${escapeHtml(t('popup.quoteTag'))}</span>
+          ${qAuthor ? `<span class="threads-popup-quote-author">${escapeHtml(qAuthor)}</span>` : ''}
+          ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedTweet'))}</a>` : ''}
+        </div>
+        ${qText ? `<div class="threads-popup-quote-text">${formatTextWithTickers(qText, undefined, { linkifyUrls: true })}</div>` : ''}
+      </div>
+    `;
+  }
+
+  let imagesHtml = '';
+  if (images.length > 0) {
+    imagesHtml = `
+      <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
+        ${images.map(url => `
+          <div class="discord-popup-image-wrap">
+            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="${escapeHtml(t('slot.imageAlt'))}" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="${escapeHtml(t('popup.viewOriginalImageTitle'))}">
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  el.innerHTML = `
+    <div class="discord-popup-card threads-popup-card ${images.length > 0 ? 'has-images' : ''}">
+      <div class="discord-popup-header">
+        ${post.avatarUrl
+          ? `<img class="discord-popup-avatar" src="${escapeHtml(post.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
+          : '<div class="discord-popup-avatar-placeholder threads-avatar-placeholder">@</div>'}
+        <div class="tweet-popup-fallback-names">
+          <div class="discord-popup-names">
+            <span class="discord-popup-name">${escapeHtml(displayName)}</span>
+            ${tagsHtml}
+          </div>
+          ${userHandle && userHandle.toLowerCase() !== displayName.toLowerCase()
+            ? `<span class="tweet-popup-fallback-handle">${escapeHtml(userHandle)}</span>`
+            : ''}
+        </div>
+      </div>
+      ${effectiveText ? `<div class="discord-popup-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true })}</div>` : ''}
+      ${imagesHtml}
+      ${quoteHtml}
+      <div class="discord-popup-footer">
+        <span class="discord-popup-time">${escapeHtml(timeDisplay)}</span>
+        ${post.url ? '<button class="tweet-popup-fallback-btn discord-popup-open-btn" data-url="' + escapeHtml(post.url) + '">' + escapeHtml(t('popup.openOnThreads')) + '</button>' : ''}
+      </div>
+    </div>
+  `;
+
+  el.querySelectorAll('.discord-popup-image').forEach(imgEl => {
+    imgEl.addEventListener('error', () => {
+      const wrap = imgEl.closest('.discord-popup-image-wrap');
+      if (wrap) wrap.style.display = 'none';
+    });
+  });
+
+  el.querySelectorAll('[data-url]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const url = btn.getAttribute('data-url');
+      if (url) shell.openExternal(url);
+    });
+  });
+}
+
+function openThreadsPopup(post) {
+  const el = getThreadsSlotEl();
+  if (!el) return;
+
+  if (activeTweetId) deactivateSlot(activeTweetId);
+  if (discordSlotEl) discordSlotEl.classList.remove('is-active');
+  activeTweetId = null;
+  currentTweet = post;
+
+  renderThreadsCardInto(el, post);
   el.classList.add('is-active');
 
   const loadingEl = getLoadingEl();
@@ -396,6 +517,10 @@ function openTweetPopup(tweet) {
     openDiscordPopup(tweet);
     return;
   }
+  if (tweet.source === 'threads') {
+    openThreadsPopup(tweet);
+    return;
+  }
 
   const overlay = getOverlay();
   const loadingEl = getLoadingEl();
@@ -406,6 +531,7 @@ function openTweetPopup(tweet) {
 
   // Hide whatever was shown before.
   if (discordSlotEl) discordSlotEl.classList.remove('is-active');
+  if (threadsSlotEl) threadsSlotEl.classList.remove('is-active');
   if (activeTweetId && activeTweetId !== tweetId) {
     deactivateSlot(activeTweetId);
   }
@@ -469,6 +595,7 @@ function closeTweetPopup() {
   // reopening the same tweet is instant.
   if (activeTweetId) deactivateSlot(activeTweetId);
   if (discordSlotEl) discordSlotEl.classList.remove('is-active');
+  if (threadsSlotEl) threadsSlotEl.classList.remove('is-active');
   activeTweetId = null;
 
   if (loadingEl) loadingEl.style.display = 'none';

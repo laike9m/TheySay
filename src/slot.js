@@ -31,8 +31,13 @@ const {
 const { getOrCreateSlotWebview } = require('./webview');
 const {
   SOURCE_DISCORD,
+  SOURCE_THREADS,
   detectSourceType,
+  isAmbiguousBareHandle,
+  probeHandlePlatforms,
   normalizeTwitterHandle,
+  normalizeThreadsHandle,
+  formatThreadsSlotInput,
   parseDiscordChannelUrl,
   getCanonicalTargetKey
 } = require('./source');
@@ -78,7 +83,7 @@ function createSlotWidget(index) {
 
           <!-- User Profile Avatar in Header -->
           <div class="slot-avatar" id="slot-avatar-${index}" title="${escapeHtml(t('slot.avatarTitle'))}">
-            <img class="slot-avatar-img" id="slot-avatar-img-${index}" alt="" style="display: none;">
+            <img class="slot-avatar-img" id="slot-avatar-img-${index}" referrerpolicy="no-referrer" alt="" style="display: none;">
             <span class="slot-avatar-placeholder" id="slot-avatar-placeholder-${index}">👤</span>
           </div>
 
@@ -112,6 +117,8 @@ function createSlotWidget(index) {
               </svg>
             </span>
           </button>
+          <!-- Platform Source Picker Dropdown (shown when a handle exists on both Twitter & Threads) -->
+          <div class="slot-source-dropdown" id="slot-source-dropdown-${index}" style="display: none;"></div>
           <!-- Size Options Dropdown Popover Menu -->
           <div class="slot-size-menu" id="size-menu-${index}" style="display: none;"></div>
         </div>
@@ -161,12 +168,20 @@ function isDiscordSlot(slot) {
   return getSlotSource(slot) === SOURCE_DISCORD;
 }
 
+function isThreadsSlot(slot) {
+  return getSlotSource(slot) === SOURCE_THREADS;
+}
+
 function getSlotDisplayLabel(slot) {
   if (!slot) return t('slot.defaultChannelName');
   if (isDiscordSlot(slot)) {
     return normalizeDiscordChannelFallback(
       slot.sourceTitle || (slot.authorName && slot.authorName.innerText) || t('slot.defaultDiscordChannel')
     ).trim();
+  }
+  if (isThreadsSlot(slot)) {
+    const h = slot.monitoredHandle || (slot.handleInput ? normalizeThreadsHandle(slot.handleInput.value) : '');
+    return h ? `@${h} (Threads)` : t('slot.defaultChannelName');
   }
   const h = slot.monitoredHandle || (slot.handleInput ? normalizeTwitterHandle(slot.handleInput.value) : '');
   return h ? `@${h}` : t('slot.defaultChannelName');
@@ -217,21 +232,33 @@ function toggleSlotMute(slot, slots = []) {
 
 /**
  * Keeps the input affordances in sync with whatever the user is typing: a bare
- * Twitter handle reads as "@name", a pasted Discord link as a "#channel".
+ * Twitter handle reads as "@name", a Threads target as "@name" with Threads styling,
+ * and a pasted Discord link as "#channel".
  */
 function updateSlotSourceUI(slot) {
   if (!slot) return;
-  const isDiscord = detectSourceType(slot.handleInput ? slot.handleInput.value : '') === SOURCE_DISCORD;
+  const rawInput = slot.handleInput ? slot.handleInput.value : '';
+  const detected = detectSourceType(rawInput);
+  const isDiscord = detected === SOURCE_DISCORD || (!rawInput && slot.source === SOURCE_DISCORD);
+  const isThreads = detected === SOURCE_THREADS || (!rawInput && slot.source === SOURCE_THREADS);
 
   if (slot.inputPrefix) {
     slot.inputPrefix.innerText = isDiscord ? '#' : '@';
-    slot.inputPrefix.classList.toggle('is-discord', isDiscord);
+    slot.inputPrefix.classList.toggle('is-discord', detected === SOURCE_DISCORD);
+    slot.inputPrefix.classList.toggle('is-threads', detected === SOURCE_THREADS);
   }
   if (slot.avatarPlaceholder) {
-    slot.avatarPlaceholder.innerText = (isDiscord || slot.source === SOURCE_DISCORD) ? '#' : '👤';
+    if (isDiscord || slot.source === SOURCE_DISCORD) {
+      slot.avatarPlaceholder.innerText = '#';
+    } else if (isThreads || slot.source === SOURCE_THREADS) {
+      slot.avatarPlaceholder.innerText = '@';
+    } else {
+      slot.avatarPlaceholder.innerText = '👤';
+    }
   }
   if (slot.card) {
     slot.card.classList.toggle('is-discord', isDiscord || slot.source === SOURCE_DISCORD);
+    slot.card.classList.toggle('is-threads', isThreads || slot.source === SOURCE_THREADS);
   }
 }
 
@@ -266,6 +293,7 @@ function updateSlotFetchTimeUI(slot, timestamp) {
   if (!slot) return;
   const timeStr = formatFetchTime(timestamp);
   const isDiscord = isDiscordSlot(slot);
+  const isThreads = isThreadsSlot(slot);
 
   if (slot.authorHeader) {
     let name;
@@ -273,6 +301,9 @@ function updateSlotFetchTimeUI(slot, timestamp) {
       const title = normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel'));
       const subtitle = slot.sourceSubtitle || '';
       name = subtitle ? `${title} · ${subtitle}` : title;
+    } else if (isThreads) {
+      const h = slot.monitoredHandle || (slot.handleInput ? normalizeThreadsHandle(slot.handleInput.value) : '');
+      name = `@${h} · Threads`;
     } else {
       name = `@${slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')}`;
     }
@@ -286,8 +317,9 @@ function updateSlotFetchTimeUI(slot, timestamp) {
 function getSlotUnreadCount(slot) {
   if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return 0;
   const isDiscord = isDiscordSlot(slot);
+  const isThreads = isThreadsSlot(slot);
   const showMemberOnly = getShowMemberOnlyTweets();
-  const visible = (showMemberOnly || isDiscord)
+  const visible = (showMemberOnly || isDiscord || isThreads)
     ? slot.loadedTweets
     : slot.loadedTweets.filter(t => !isMemberOnlyTweet(t));
   let count = 0;
@@ -426,22 +458,38 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 }
 
 function buildTweetBubbleHtml(tweet) {
+  const images = Array.isArray(tweet.images) ? tweet.images.filter(Boolean) : [];
   const rawText = normalizeMediaOnlyText((tweet.text || '').trim());
-  const chars = Array.from(rawText);
+  const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
+  const effectiveText = isMediaFallbackOnly ? '' : rawText;
+  const chars = Array.from(effectiveText);
   const isLong = chars.length > 100;
-  const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
+  const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
 
   let tagHtml = '';
-  if (tweet.isPinned) tagHtml += `<span class="tweet-tag">${escapeHtml(t('slot.tagPinned'))}</span>`;
+  if (tweet.isPinned) tagHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
   if (tweet.isRetweet) tagHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
   if (isTweetWithQuote(tweet)) tagHtml += `<span class="tweet-tag quote">${escapeHtml(t('slot.tagQuote'))}</span>`;
   if (isMemberOnlyTweet(tweet)) tagHtml += `<span class="tweet-tag member" title="${escapeHtml(t('slot.tagMemberOnlyTitle'))}">${escapeHtml(t('slot.tagMemberOnly'))}</span>`;
 
-  const textHtml = isLong
-    ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
-    : `<span class="im-text-content">${formatTextWithTickers(rawText)}</span>`;
+  let textHtml = '';
+  if (effectiveText) {
+    textHtml = isLong
+      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, effectiveText)}<span class="im-text-ellipsis">...</span></span></span>`
+      : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
+  }
 
-  return `${tagHtml}${textHtml}`;
+  let mediaHtml = '';
+  if (images.length > 0) {
+    const gridClass = images.length > 1 ? 'multi' : 'single';
+    mediaHtml += `<div class="im-media-grid ${gridClass}">`;
+    images.forEach(imgUrl => {
+      mediaHtml += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(t('slot.imageAlt'))}" loading="lazy" referrerpolicy="no-referrer">`;
+    });
+    mediaHtml += '</div>';
+  }
+
+  return `${tagHtml}${textHtml}${mediaHtml}`;
 }
 
 /**
@@ -461,7 +509,8 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   slot.loadedTweets = tweets;
 
   const isDiscord = !!(meta && meta.source === SOURCE_DISCORD);
-  slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
+  const isThreads = !!(meta && meta.source === SOURCE_THREADS);
+  slot.source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
 
   const firstTweet = tweets[0] || {};
 
@@ -555,12 +604,17 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     }
 
     if (!rawHandle) {
-      rawHandle = sanitizeSingleLine(firstTweet.userHandle || `@${handle}`);
+      rawHandle = sanitizeSingleLine(firstTweet.userHandle || (isThreads ? `threads:@${handle}` : `@${handle}`));
     }
-    if (!rawHandle.startsWith('@') && rawHandle) rawHandle = `@${rawHandle}`;
+    if (isThreads) {
+      const bare = rawHandle.replace(/^@?threads:\s*@?/i, '').replace(/^@/, '');
+      rawHandle = bare ? `threads:@${bare}` : `threads:@${handle}`;
+    } else if (!rawHandle.startsWith('@') && rawHandle) {
+      rawHandle = `@${rawHandle}`;
+    }
 
-    const bareHandle = rawHandle.replace(/^@/, '').toLowerCase();
-    const bareName = rawName.replace(/^@/, '').toLowerCase();
+    const bareHandle = rawHandle.replace(/^@?threads:\s*@?/i, '').replace(/^@/, '').toLowerCase();
+    const bareName = rawName.replace(/^@?threads:\s*@?/i, '').replace(/^@/, '').toLowerCase();
 
     slot.sourceTitle = '';
     slot.sourceSubtitle = '';
@@ -572,7 +626,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       slot.authorName.innerText = displayName;
       slot.authorHandle.innerText = userHandle;
     } else {
-      displayName = rawHandle || `@${handle}`;
+      displayName = rawHandle || (isThreads ? `threads:@${handle}` : `@${handle}`);
       userHandle = '';
       slot.authorName.innerText = displayName;
       slot.authorHandle.innerText = '';
@@ -622,7 +676,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   };
 
   const showMemberOnly = getShowMemberOnlyTweets();
-  const displayTweets = (showMemberOnly || isDiscord)
+  const displayTweets = (showMemberOnly || isDiscord || isThreads)
     ? tweets
     : tweets.filter(t => !isMemberOnlyTweet(t));
 
@@ -630,6 +684,10 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   let lastAuthorName = null;
 
   displayTweets.forEach((tweet) => {
+    if (!tweet.source && slot.source) {
+      tweet.source = slot.source;
+    }
+
     const dateKey = getTweetDateKey(tweet);
     const dateLabel = getTweetDateLabel(tweet);
     let startedNewDay = false;
@@ -657,13 +715,19 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       markBubbleAsRead(tweet, bubble);
     });
 
-    // Store avatar reference on tweet object if available
+    // Store avatar and author reference on tweet object if available
     if (!tweet.avatarUrl && finalAvatar) {
       tweet.avatarUrl = finalAvatar;
     }
+    if (!isDiscord) {
+      if (!tweet.displayName && displayName) tweet.displayName = displayName;
+      if (!tweet.userHandle && userHandle) tweet.userHandle = userHandle;
+    }
 
     const timeDisplay = formatTelegramTime(tweet);
-    const linkTitle = isDiscord ? t('slot.openOriginalDiscord') : t('slot.openOriginalTweet');
+    const linkTitle = isDiscord
+      ? t('slot.openOriginalDiscord')
+      : (isThreads ? t('slot.openOriginalThreads') : t('slot.openOriginalTweet'));
 
     let bodyHtml;
     if (isDiscord) {
@@ -676,6 +740,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       lastAuthorName = tweet.displayName;
     } else {
       bodyHtml = buildTweetBubbleHtml(tweet);
+      if (isThreads) bubble.classList.add('threads');
     }
 
     bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="${escapeHtml(linkTitle)}">↗</a>` : ''}`;
@@ -731,10 +796,10 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     const hasPopup = shouldShowTweetPopup(tweet);
     if (hasPopup) {
       bubble.classList.add('has-popup');
-      if (!isDiscord) {
+      if (!isDiscord && !isThreads) {
         // Hovering is a strong hint the user is about to click, so jump this
-        // tweet to the front of the embed render queue. Discord messages are
-        // rendered locally and need no warm-up.
+        // tweet to the front of the embed render queue. Discord and Threads messages
+        // are rendered locally and need no warm-up.
         bubble.addEventListener('mouseenter', () => {
           prefetchTweet(tweet, { priority: true });
         });
@@ -753,7 +818,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     slot.tweetsList.appendChild(bubble);
   });
 
-  if (displayTweets.length === 0 && tweets.length > 0 && !isDiscord) {
+  if (displayTweets.length === 0 && tweets.length > 0 && !isDiscord && !isThreads) {
     const emptyNotice = document.createElement('div');
     emptyNotice.className = 'im-filtered-empty-notice';
     emptyNotice.innerText = t('slot.hiddenMemberTweets', { count: tweets.length });
@@ -772,7 +837,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
   // Background idle prefetch for tweets eligible for popups.
   // The list auto-scrolls to the bottom, so the newest tweets are the ones on
   // screen and the most likely to be clicked.
-  if (!isDiscord && Array.isArray(tweets) && tweets.length > 0) {
+  if (!isDiscord && !isThreads && Array.isArray(tweets) && tweets.length > 0) {
     const popTweets = tweets.filter(shouldShowTweetPopup);
     if (popTweets.length > 0) {
       setTimeout(() => {
@@ -785,8 +850,10 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 
 function archiveSlotScrapedData(slot) {
   if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return;
-  const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
+  const rawInput = slot.handleInput ? slot.handleInput.value.trim() : '';
+  const handle = slot.monitoredHandle || rawInput;
   if (!handle) return;
+  const source = slot.source || detectSourceType(rawInput || handle);
   recordSlotReadTweets(slot, slot.loadedTweets);
   saveTargetCacheEntry(handle, {
     handle,
@@ -795,7 +862,7 @@ function archiveSlotScrapedData(slot) {
     tweets: slot.loadedTweets,
     avatarUrl: (slot.avatarImg && slot.avatarImg.src) || '',
     isMuted: slot.isMuted !== false,
-    source: slot.source || detectSourceType(handle),
+    source,
     sourceTitle: slot.sourceTitle || '',
     sourceSubtitle: slot.sourceSubtitle || '',
     lastFetchedAt: slot.lastFetchedAt || Date.now(),
@@ -803,21 +870,26 @@ function archiveSlotScrapedData(slot) {
   });
 }
 
-function restoreSlotFromTargetCache(slot, rawInput, slots = []) {
+function restoreSlotFromTargetCache(slot, rawInput, slots = [], sourceOverride = null) {
   if (!slot) return false;
   const trimmed = String(rawInput || '').trim();
   if (!trimmed) return false;
 
-  const isDiscord = detectSourceType(trimmed) === SOURCE_DISCORD;
-  const cached = getTargetCacheEntry(trimmed, isDiscord ? SOURCE_DISCORD : 'twitter');
+  const detected = sourceOverride || detectSourceType(trimmed);
+  const isDiscord = detected === SOURCE_DISCORD;
+  const isThreads = detected === SOURCE_THREADS;
+  const source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
+  const cached = getTargetCacheEntry(trimmed, source);
   if (!cached || !Array.isArray(cached.tweets) || cached.tweets.length === 0) {
     return false;
   }
 
-  const targetHandle = isDiscord ? trimmed : normalizeTwitterHandle(trimmed);
+  const targetHandle = isDiscord
+    ? trimmed
+    : (isThreads ? normalizeThreadsHandle(trimmed) : normalizeTwitterHandle(trimmed));
   resetSlotReadTracking(slot);
   ensureSlotReadTracking(slot, cached);
-  slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
+  slot.source = source;
   slot.monitoredHandle = targetHandle;
   slot.sourceTitle = cached.sourceTitle || '';
   slot.sourceSubtitle = cached.sourceSubtitle || '';
@@ -840,7 +912,7 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = []) {
         subtitle: cached.sourceSubtitle || cached.userHandle || ''
       }
     : {
-        source: 'twitter',
+        source,
         displayName: sanitizeSingleLine(cached.displayName || ''),
         userHandle: sanitizeSingleLine(cached.userHandle || `@${targetHandle}`)
       };
@@ -862,10 +934,13 @@ function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
   }
   updateSlotAvatar(slot, null);
   slot.loadedTweets = [];
+  const nextSource = detectSourceType(trimmed);
   slot.monitoredHandle = trimmed
-    ? (detectSourceType(trimmed) === SOURCE_DISCORD ? trimmed : normalizeTwitterHandle(trimmed))
+    ? (nextSource === SOURCE_DISCORD
+        ? trimmed
+        : (nextSource === SOURCE_THREADS ? normalizeThreadsHandle(trimmed) : normalizeTwitterHandle(trimmed)))
     : '';
-  slot.source = detectSourceType(trimmed);
+  slot.source = nextSource;
   slot.sourceTitle = '';
   slot.sourceSubtitle = '';
   slot.lastFetchedAt = null;
@@ -946,10 +1021,143 @@ function updateSlotSizeUI(slot, w, h) {
   }
 }
 
+function closeSlotSourceDropdown(slot) {
+  if (!slot || !slot.sourceDropdown) return;
+  slot.sourceDropdown.style.display = 'none';
+  slot.sourceDropdown.innerHTML = '';
+  slot._dropdownHandle = '';
+  slot._dropdownOnSelect = null;
+}
+
+function closeAllSourceDropdowns(slots) {
+  if (!Array.isArray(slots)) return;
+  slots.forEach(s => closeSlotSourceDropdown(s));
+}
+
+function applyPlatformSelectionAndFetch(slot, chosenSource, probeRes, { slots, onFetch } = {}) {
+  if (!slot) return;
+  closeSlotSourceDropdown(slot);
+  const twitter = (probeRes && probeRes.twitter) || {};
+  const threads = (probeRes && probeRes.threads) || {};
+  const rawVal = slot.handleInput ? slot.handleInput.value.trim() : '';
+
+  if (chosenSource === SOURCE_THREADS) {
+    const thHandle = threads.handle || normalizeThreadsHandle(rawVal);
+    if (slot.handleInput) {
+      slot.handleInput.value = formatThreadsSlotInput(thHandle);
+    }
+    slot.source = SOURCE_THREADS;
+    updateSlotSourceUI(slot);
+    if (threads.avatarUrl) {
+      updateSlotAvatar(slot, threads.avatarUrl);
+    }
+    if (slots) saveHandles(slots);
+    if (slot.handleInput) slot.handleInput.blur();
+    if (typeof onFetch === 'function') {
+      onFetch(slot.index, { skipPlatformProbe: true, prefetchedMeta: threads });
+    }
+    return;
+  }
+
+  const twHandle = twitter.handle || normalizeTwitterHandle(rawVal);
+  if (slot.handleInput) {
+    slot.handleInput.value = twHandle;
+  }
+  slot.source = 'twitter';
+  updateSlotSourceUI(slot);
+  if (twitter.avatarUrl) {
+    updateSlotAvatar(slot, twitter.avatarUrl);
+  }
+  if (slots) saveHandles(slots);
+  if (slot.handleInput) slot.handleInput.blur();
+  if (typeof onFetch === 'function') {
+    onFetch(slot.index, { skipPlatformProbe: true, prefetchedMeta: twitter });
+  }
+}
+
+function showSlotSourceDropdown(slot, { handle, twitter, threads, onSelect, slots } = {}) {
+  if (!slot || !slot.sourceDropdown) return;
+  if (slots) {
+    closeAllSourceDropdowns(slots);
+    slots.forEach(s => {
+      if (s.sizeMenu) s.sizeMenu.style.display = 'none';
+    });
+  }
+
+  const cleanHandle = String(handle || '').replace(/^@+/, '');
+  const twName = (twitter && twitter.displayName) || cleanHandle;
+  const twHandle = (twitter && twitter.handle) || cleanHandle;
+  const twAvatar = (twitter && twitter.avatarUrl) || '';
+
+  const thName = (threads && threads.displayName) || cleanHandle;
+  const thHandle = (threads && threads.handle) || cleanHandle.toLowerCase();
+  const thAvatar = (threads && threads.avatarUrl) || '';
+
+  if (slot.authorHeader) slot.authorHeader.style.display = 'none';
+  if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
+
+  slot.sourceDropdown.innerHTML = `
+    <div class="source-dropdown-title">${escapeHtml(t('slot.choosePlatformTitle', { handle: cleanHandle }))}</div>
+    <button type="button" class="source-dropdown-item" data-source="twitter">
+      <div class="source-dropdown-avatar-wrap">
+        ${twAvatar
+          ? `<img class="source-dropdown-avatar" src="${escapeHtml(twAvatar)}" alt="" referrerpolicy="no-referrer">`
+          : '<span class="source-dropdown-avatar-fallback">𝕏</span>'}
+      </div>
+      <div class="source-dropdown-info">
+        <span class="source-dropdown-name">${escapeHtml(twName)}</span>
+        <span class="source-dropdown-handle">@${escapeHtml(twHandle)}</span>
+      </div>
+      <span class="source-dropdown-badge twitter">${escapeHtml(t('slot.platformTwitterBadge'))}</span>
+    </button>
+    <button type="button" class="source-dropdown-item" data-source="threads">
+      <div class="source-dropdown-avatar-wrap">
+        ${thAvatar
+          ? `<img class="source-dropdown-avatar" src="${escapeHtml(thAvatar)}" alt="" referrerpolicy="no-referrer">`
+          : '<span class="source-dropdown-avatar-fallback">@</span>'}
+      </div>
+      <div class="source-dropdown-info">
+        <span class="source-dropdown-name">${escapeHtml(thName)}</span>
+        <span class="source-dropdown-handle">threads:@${escapeHtml(thHandle)}</span>
+      </div>
+      <span class="source-dropdown-badge threads">${escapeHtml(t('slot.platformThreadsBadge'))}</span>
+    </button>
+  `;
+
+  slot.sourceDropdown.style.display = 'flex';
+  slot._dropdownHandle = cleanHandle.toLowerCase();
+  slot._dropdownOnSelect = onSelect;
+
+  slot.sourceDropdown.onmousedown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  slot.sourceDropdown.querySelectorAll('.source-dropdown-avatar').forEach(imgEl => {
+    imgEl.addEventListener('error', () => {
+      imgEl.style.display = 'none';
+    });
+  });
+
+  slot.sourceDropdown.querySelectorAll('.source-dropdown-item').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const chosenSource = btn.getAttribute('data-source');
+      const cb = slot._dropdownOnSelect;
+      closeSlotSourceDropdown(slot);
+      if (typeof cb === 'function') {
+        cb(chosenSource);
+      }
+    });
+  });
+}
+
 function closeAllSizeMenus(slots) {
   if (!Array.isArray(slots)) return;
   slots.forEach(s => {
     if (s.sizeMenu) s.sizeMenu.style.display = 'none';
+    closeSlotSourceDropdown(s);
   });
 }
 
@@ -1053,12 +1261,15 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
 
   // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist for same handle (or if left empty)
   slot.handleInput.addEventListener('blur', () => {
+    if (slot.sourceDropdown && slot.sourceDropdown.style.display === 'flex') {
+      return;
+    }
     const val = slot.handleInput.value.trim();
     const monitored = (slot.monitoredHandle || '').trim();
-    const isSameOrEmpty = !val || (monitored && getCanonicalTargetKey(val) === getCanonicalTargetKey(monitored));
+    const isSameOrEmpty = !val || (monitored && getCanonicalTargetKey(val) === getCanonicalTargetKey(monitored, slot.source));
     if (isSameOrEmpty && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
       if (!val && monitored) {
-        slot.handleInput.value = monitored;
+        slot.handleInput.value = slot.source === SOURCE_THREADS ? formatThreadsSlotInput(monitored) : monitored;
         updateClearVisibility();
         updateSlotSourceUI(slot);
       }
@@ -1070,9 +1281,21 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
 
   slot.handleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (slot._probeDebounceTimer) {
+        clearTimeout(slot._probeDebounceTimer);
+        slot._probeDebounceTimer = null;
+      }
+      if (slot.sourceDropdown && slot.sourceDropdown.style.display === 'flex') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeSlotSourceDropdown(slot);
+        return;
+      }
       if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
         if (slot.monitoredHandle) {
-          slot.handleInput.value = slot.monitoredHandle;
+          slot.handleInput.value = slot.source === SOURCE_THREADS
+            ? formatThreadsSlotInput(slot.monitoredHandle)
+            : slot.monitoredHandle;
           saveHandles(slots);
           updateClearVisibility();
           updateSlotSourceUI(slot);
@@ -1081,22 +1304,77 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
         slot.inputWrapper.style.display = 'none';
         updateSlotUnreadBadge(slot);
       }
+      return;
+    }
+
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && slot.sourceDropdown && slot.sourceDropdown.style.display === 'flex') {
+      e.preventDefault();
+      const items = Array.from(slot.sourceDropdown.querySelectorAll('.source-dropdown-item'));
+      if (items.length > 0) {
+        const currentIdx = items.findIndex(el => el.classList.contains('is-focused'));
+        items.forEach(el => el.classList.remove('is-focused'));
+        const nextIdx = e.key === 'ArrowDown'
+          ? (currentIdx + 1) % items.length
+          : (currentIdx <= 0 ? items.length - 1 : currentIdx - 1);
+        items[nextIdx].classList.add('is-focused');
+      }
     }
   });
 
   // Input changes
   slot.handleInput.addEventListener('input', () => {
+    closeSlotSourceDropdown(slot);
+    if (slot._probeDebounceTimer) {
+      clearTimeout(slot._probeDebounceTimer);
+      slot._probeDebounceTimer = null;
+    }
     if (!slot.loadedTweets || slot.loadedTweets.length === 0) {
       saveHandles(slots);
     }
     updateClearVisibility();
     updateSlotSourceUI(slot);
+
+    const val = slot.handleInput.value.trim();
+    if (isAmbiguousBareHandle(val)) {
+      const cleanHandle = val.replace(/^@+/, '');
+      slot._probeDebounceTimer = setTimeout(async () => {
+        slot._probeDebounceTimer = null;
+        if (!slot.handleInput || slot.handleInput.value.trim() !== val || slot.isFetching) return;
+        const res = await probeHandlePlatforms(cleanHandle);
+        if (!slot.handleInput || slot.handleInput.value.trim() !== val || slot.isFetching) return;
+        if (res && res.twitter && res.twitter.exists && res.threads && res.threads.exists) {
+          showSlotSourceDropdown(slot, {
+            handle: cleanHandle,
+            twitter: res.twitter,
+            threads: res.threads,
+            slots,
+            onSelect: (chosenSource) => {
+              applyPlatformSelectionAndFetch(slot, chosenSource, res, { slots, onFetch });
+            }
+          });
+        }
+      }, 650);
+    }
   });
   slot.handleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && onFetch) {
       e.preventDefault();
-      onFetch(slot.index);
-      slot.handleInput.blur();
+      if (slot._probeDebounceTimer) {
+        clearTimeout(slot._probeDebounceTimer);
+        slot._probeDebounceTimer = null;
+      }
+      if (slot.sourceDropdown && slot.sourceDropdown.style.display === 'flex') {
+        const focusedItem = slot.sourceDropdown.querySelector('.source-dropdown-item.is-focused');
+        if (focusedItem) {
+          focusedItem.click();
+        }
+        return;
+      }
+      const rawVal = slot.handleInput.value.trim();
+      onFetch(slot.index, { fromInputSubmit: true });
+      if (!isAmbiguousBareHandle(rawVal)) {
+        slot.handleInput.blur();
+      }
     }
   });
   updateClearVisibility();
@@ -1105,6 +1383,11 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
   // Clear handle button inside input box
   slot.btnClear.addEventListener('click', (e) => {
     e.stopPropagation();
+    closeSlotSourceDropdown(slot);
+    if (slot._probeDebounceTimer) {
+      clearTimeout(slot._probeDebounceTimer);
+      slot._probeDebounceTimer = null;
+    }
     if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.monitoredHandle) {
       // In edit mode on an active card: only clear the input text so user can type a new handle
       // without wiping already-scraped data.
@@ -1157,6 +1440,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       inputPrefix: el.querySelector(`#slot-input-prefix-${i}`),
       handleInput: el.querySelector(`#handle-input-${i}`),
       btnClear: el.querySelector(`#btn-clear-${i}`),
+      sourceDropdown: el.querySelector(`#slot-source-dropdown-${i}`),
       btnMute: el.querySelector(`#btn-mute-${i}`),
       muteIcon: el.querySelector(`#mute-icon-${i}`),
       btnExpand: el.querySelector(`#btn-expand-${i}`),
@@ -1186,8 +1470,11 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
     if (savedHandles[i]) {
       slot.handleInput.value = savedHandles[i];
     }
-      slot.monitoredHandle = savedHandles[i] || '';
-      slot.source = detectSourceType(savedHandles[i] || '');
+      const savedSource = detectSourceType(savedHandles[i] || '');
+      slot.monitoredHandle = savedHandles[i]
+        ? (savedSource === SOURCE_THREADS ? normalizeThreadsHandle(savedHandles[i]) : savedHandles[i])
+        : '';
+      slot.source = savedSource;
       slot.sourceTitle = '';
       slot.sourceSubtitle = '';
       resetSlotReadTracking(slot);
@@ -1220,18 +1507,22 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
         // If the slot's current input doesn't match its slot-indexed cache (e.g., after handle change or profile import),
         // look up scraped data by target handle/channel key in the per-target cache archive!
         if (currentInput) {
+          const currentSource = detectSourceType(currentInput);
           const currentKey = getCanonicalTargetKey(currentInput);
           const cachedKey = slotEntry && slotEntry.handle
             ? getCanonicalTargetKey(slotEntry.handle, slotEntry.source)
             : '';
           if (!slotEntry || cachedKey !== currentKey) {
-            const targetEntry = getTargetCacheEntry(currentInput);
+            const targetEntry = getTargetCacheEntry(currentInput, currentSource);
             if (targetEntry && Array.isArray(targetEntry.tweets) && targetEntry.tweets.length > 0) {
               slotEntry = {
                 ...targetEntry,
-                handle: detectSourceType(currentInput) === SOURCE_DISCORD
+                source: currentSource,
+                handle: currentSource === SOURCE_DISCORD
                   ? currentInput
-                  : normalizeTwitterHandle(currentInput),
+                  : (currentSource === SOURCE_THREADS
+                      ? normalizeThreadsHandle(currentInput)
+                      : normalizeTwitterHandle(currentInput)),
                 isMuted: slot.isMuted !== false
               };
             } else {
@@ -1246,7 +1537,9 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
         if (slotEntry) {
           let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = slotEntry;
 
-          const isDiscord = (source || detectSourceType(handle)) === SOURCE_DISCORD;
+          const resolvedSource = source || detectSourceType(currentInput || handle);
+          const isDiscord = resolvedSource === SOURCE_DISCORD;
+          const isThreads = resolvedSource === SOURCE_THREADS;
           const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
 
           // Self-heal corrupted Discord cache where messages belong to a different channel
@@ -1356,14 +1649,14 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
             }
           }
 
-          slot.source = isDiscord ? SOURCE_DISCORD : 'twitter';
+          slot.source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
           slot.sourceTitle = sourceTitle || '';
           slot.sourceSubtitle = sourceSubtitle || '';
           updateSlotSourceUI(slot);
           updateSlotMuteUI(slot);
 
           // Auto-correct mismatched OpenAI avatars from past bug
-          if (!isDiscord && cleanHandle && cleanHandle !== 'openai') {
+          if (!isDiscord && !isThreads && cleanHandle && cleanHandle !== 'openai') {
             if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
               if (cleanHandle === 'sama') {
                 avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
@@ -1376,17 +1669,47 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
             }
           }
 
+          if (isThreads && avatarUrl && avatarUrl.includes('unavatar.io')) {
+            avatarUrl = '';
+            slotEntry.avatarUrl = '';
+          }
+
           if (lastFetchedAt) {
             slot.lastFetchedAt = lastFetchedAt;
             updateSlotFetchTimeUI(slot, lastFetchedAt);
           }
           if (avatarUrl) {
             updateSlotAvatar(slot, avatarUrl);
+          } else if (isThreads && cleanHandle) {
+            probeHandlePlatforms(cleanHandle, { threadsOnly: true }).then(res => {
+              if (res && res.threads && res.threads.avatarUrl) {
+                if (slot.source === SOURCE_THREADS && normalizeThreadsHandle(slot.monitoredHandle || '').toLowerCase() === cleanHandle) {
+                  updateSlotAvatar(slot, res.threads.avatarUrl);
+                  if (Array.isArray(slot.loadedTweets)) {
+                    slot.loadedTweets.forEach(t => {
+                      if (!t.avatarUrl || t.avatarUrl.includes('unavatar.io')) {
+                        t.avatarUrl = res.threads.avatarUrl;
+                      }
+                    });
+                  }
+                  persistSlot(slot, {
+                    handle: slot.monitoredHandle || handle,
+                    displayName: slot.authorName ? slot.authorName.innerText : '',
+                    userHandle: slot.authorHandle ? slot.authorHandle.innerText : `threads:@${cleanHandle}`,
+                    tweets: slot.loadedTweets || [],
+                    avatarUrl: res.threads.avatarUrl
+                  }, slots);
+                }
+              }
+            }).catch(() => {});
           }
           if (Array.isArray(tweets) && tweets.length > 0) {
             tweets.forEach(t => {
               if (t.id === '1900000000000000099' || (t.url && t.url.includes('1900000000000000099'))) {
                 t.hasQuote = true;
+              }
+              if (isThreads && t.avatarUrl && t.avatarUrl.includes('unavatar.io')) {
+                t.avatarUrl = avatarUrl || '';
               }
             });
             slot.monitoredHandle = handle;
@@ -1401,7 +1724,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
             const meta = isDiscord
               ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
               : {
-                  source: 'twitter',
+                  source: isThreads ? SOURCE_THREADS : 'twitter',
                   displayName: sanitizeSingleLine(slotEntry.displayName || ''),
                   userHandle: sanitizeSingleLine(slotEntry.userHandle || `@${handle}`)
                 };
@@ -1425,10 +1748,11 @@ function refreshSlotsContent(slots) {
       const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
       const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || null;
       const isDiscord = slot.source === SOURCE_DISCORD;
+      const isThreads = slot.source === SOURCE_THREADS;
       const meta = isDiscord
         ? { source: SOURCE_DISCORD, title: normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel')), subtitle: slot.sourceSubtitle || '' }
         : {
-            source: 'twitter',
+            source: isThreads ? SOURCE_THREADS : 'twitter',
             displayName: slot.authorName ? slot.authorName.innerText : '',
             userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`
           };
@@ -1487,6 +1811,10 @@ module.exports = {
   clearSlot,
   slotHasContent,
   updateSlotSizeUI,
+  closeSlotSourceDropdown,
+  closeAllSourceDropdowns,
+  showSlotSourceDropdown,
+  applyPlatformSelectionAndFetch,
   closeAllSizeMenus,
   toggleSlotSizeMenu,
   bindSlotEvents,

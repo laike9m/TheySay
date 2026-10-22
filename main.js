@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { DISCORD_PARTITION } = require('./src/constants');
+const { DISCORD_PARTITION, THREADS_PARTITION, THREADS_LOGIN_URL } = require('./src/constants');
 const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/tweet_embed');
 const { t, setActiveLanguageOverride } = require('./src/i18n');
 const TICKER_DATA_PATH = path
@@ -142,6 +142,7 @@ app.commandLine.appendSwitch('media-cache-size', '268435456'); // 250MB
 let mainWindow = null;
 let loginWindow = null;
 let discordLoginWindow = null;
+let threadsLoginWindow = null;
 const activeNotifications = new Set();
 
 function createWindow() {
@@ -463,6 +464,225 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   });
 });
 
+// Check Threads login status via persist:threads_session cookies
+ipcMain.handle('check-threads-login-status', async () => {
+  try {
+    const threadsSession = session.fromPartition(THREADS_PARTITION);
+    const sessionCookies = await threadsSession.cookies.get({ name: 'sessionid' });
+    if (sessionCookies.some(c => c && c.value)) return true;
+    const userCookies = await threadsSession.cookies.get({ name: 'ds_user_id' });
+    return userCookies.some(c => c && c.value);
+  } catch (e) {
+    return false;
+  }
+});
+
+function decodeBasicHtmlEntities(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&#0*64;/g, '@')
+    .replace(/&#x0*40;/gi, '@')
+    .replace(/&#x2022;/gi, '•')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+async function probeTwitterHandle(cleanHandle) {
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(cleanHandle)) {
+    return { exists: false };
+  }
+  const endpoints = [
+    `https://api.fxtwitter.com/${encodeURIComponent(cleanHandle)}`,
+    `https://api.vxtwitter.com/${encodeURIComponent(cleanHandle)}`
+  ];
+  for (const url of endpoints) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4500);
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': DISCORD_USER_AGENT,
+          Accept: 'application/json'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (res.status === 404) {
+        return { exists: false };
+      }
+      const data = await res.json().catch(() => null);
+      if (data && data.code === 200 && data.user) {
+        const rawAvatar = data.user.avatar_url || data.user.profile_image_url_https || '';
+        return {
+          exists: true,
+          handle: data.user.screen_name || cleanHandle,
+          displayName: data.user.name || cleanHandle,
+          avatarUrl: rawAvatar.includes('_normal.') ? rawAvatar.replace('_normal.', '_400x400.') : rawAvatar
+        };
+      }
+      if (data && data.screen_name) {
+        const rawAvatar = data.profile_image_url || '';
+        return {
+          exists: true,
+          handle: data.screen_name || cleanHandle,
+          displayName: data.name || cleanHandle,
+          avatarUrl: rawAvatar.includes('_normal.') ? rawAvatar.replace('_normal.', '_400x400.') : rawAvatar
+        };
+      }
+      if (data && (data.code === 404 || data.error)) {
+        return { exists: false };
+      }
+    } catch (e) {
+      clearTimeout(timer);
+    }
+  }
+  return { exists: false };
+}
+
+async function probeThreadsHandle(cleanHandle) {
+  if (!/^[A-Za-z0-9_.]{1,30}$/.test(cleanHandle)) {
+    return { exists: false };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4500);
+  try {
+    const res = await fetch(`https://www.threads.com/@${encodeURIComponent(cleanHandle.toLowerCase())}`, {
+      headers: {
+        'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        Accept: 'text/html'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) return { exists: false };
+    const html = await res.text();
+    const ogTitleMatch =
+      html.match(/property="og:title"\s+content="([^"]+)"/i) ||
+      html.match(/content="([^"]+)"\s+property="og:title"/i);
+    const ogImgMatch =
+      html.match(/property="og:image"\s+content="([^"]+)"/i) ||
+      html.match(/content="([^"]+)"\s+property="og:image"/i);
+    const rawTitle = decodeBasicHtmlEntities(ogTitleMatch ? ogTitleMatch[1] : '');
+    const titleParts = rawTitle.match(/^(.+?)\s*[(（]@([A-Za-z0-9_.]+)[)）]/);
+    if (titleParts) {
+      const rawImg = decodeBasicHtmlEntities(ogImgMatch ? ogImgMatch[1] : '');
+      const isGenericLogo = rawImg.includes('static.cdninstagram.com/rsrc.php');
+      return {
+        exists: true,
+        handle: titleParts[2].toLowerCase(),
+        displayName: titleParts[1].trim(),
+        avatarUrl: isGenericLogo ? '' : rawImg
+      };
+    }
+    return { exists: false };
+  } catch (e) {
+    clearTimeout(timer);
+    return { exists: false };
+  }
+}
+
+ipcMain.handle('probe-handle-platforms', async (event, payload) => {
+  const isObj = typeof payload === 'object' && payload !== null;
+  const rawHandle = isObj ? payload.handle : payload;
+  const threadsOnly = isObj ? Boolean(payload.threadsOnly) : false;
+  const cleanHandle = String(rawHandle || '')
+    .trim()
+    .replace(/^@+/, '')
+    .replace(/^threads:\s*@?/i, '');
+  if (!cleanHandle) {
+    return { twitter: { exists: false }, threads: { exists: false } };
+  }
+  const [twitter, threads] = await Promise.all([
+    threadsOnly ? Promise.resolve({ exists: false }) : probeTwitterHandle(cleanHandle),
+    probeThreadsHandle(cleanHandle)
+  ]);
+  return { twitter, threads };
+});
+
+// Open dedicated Threads login window
+ipcMain.on('open-threads-login-window', async (event, payload = {}) => {
+  if (threadsLoginWindow && !threadsLoginWindow.isDestroyed()) {
+    threadsLoginWindow.focus();
+    return;
+  }
+
+  const threadsSession = session.fromPartition(THREADS_PARTITION);
+  if (payload && payload.wasLoggedIn) {
+    try {
+      await threadsSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'sessionstorage']
+      });
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('threads-login-status-changed', { loggedIn: false });
+      }
+    } catch (e) {}
+  }
+
+  threadsLoginWindow = new BrowserWindow({
+    width: 680,
+    height: 760,
+    title: payload && payload.wasLoggedIn ? t('app.threadsReloginTitle') : t('app.threadsLoginTitle'),
+    icon: ICON_PATH,
+    parent: mainWindow,
+    modal: false,
+    webPreferences: {
+      partition: THREADS_PARTITION,
+      backgroundThrottling: false
+    }
+  });
+
+  threadsLoginWindow.loadURL(THREADS_LOGIN_URL, {
+    userAgent: DISCORD_USER_AGENT
+  });
+
+  let reportedLoggedIn = false;
+  const checkThreadsNavigation = async (url) => {
+    if (reportedLoggedIn) return;
+    try {
+      const sessionCookies = await threadsSession.cookies.get({ name: 'sessionid' });
+      const userCookies = await threadsSession.cookies.get({ name: 'ds_user_id' });
+      const hasSession =
+        sessionCookies.some(c => c && c.value) || userCookies.some(c => c && c.value);
+      const isThreadsHome =
+        (url.includes('threads.com') || url.includes('threads.net')) &&
+        !url.includes('/login');
+
+      if (hasSession && isThreadsHome) {
+        reportedLoggedIn = true;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('threads-login-status-changed', { loggedIn: true });
+        }
+        setTimeout(() => {
+          if (threadsLoginWindow && !threadsLoginWindow.isDestroyed()) {
+            threadsLoginWindow.close();
+          }
+        }, 1200);
+      }
+    } catch (e) {}
+  };
+
+  threadsLoginWindow.webContents.on('did-navigate', (event, url) => checkThreadsNavigation(url));
+  threadsLoginWindow.webContents.on('did-navigate-in-page', (event, url) => checkThreadsNavigation(url));
+
+  threadsLoginWindow.on('closed', async () => {
+    threadsLoginWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        const sessionCookies = await threadsSession.cookies.get({ name: 'sessionid' });
+        const userCookies = await threadsSession.cookies.get({ name: 'ds_user_id' });
+        const loggedIn =
+          reportedLoggedIn ||
+          sessionCookies.some(c => c && c.value) ||
+          userCookies.some(c => c && c.value);
+        mainWindow.webContents.send('threads-login-status-changed', { loggedIn });
+      } catch (e) {}
+    }
+  });
+});
+
 // Sync active language from renderer process
 ipcMain.on('set-language', (event, payload) => {
   const isObj = typeof payload === 'object' && payload !== null;
@@ -683,13 +903,17 @@ app.whenReady().then(() => {
     contents.setBackgroundThrottling(false);
   });
 
-  // The Discord client runs unattended in the background, so silence anything
+  // The Discord & Threads clients run unattended in the background, so silence anything
   // that would try to prompt the user (notifications, mic, camera, ...).
   const discordSession = session.fromPartition(DISCORD_PARTITION);
   discordSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
   discordSession.setPermissionCheckHandler(() => false);
 
-  // Optimize & aggressively cache Twitter/X and Discord static assets and media locally
+  const threadsSession = session.fromPartition(THREADS_PARTITION);
+  threadsSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
+  threadsSession.setPermissionCheckHandler(() => false);
+
+  // Optimize & aggressively cache Twitter/X, Threads, and Discord static assets and media locally
   session.defaultSession.webRequest.onHeadersReceived({
     urls: [
       '*://platform.twitter.com/*',
@@ -698,16 +922,32 @@ app.whenReady().then(() => {
       '*://abs.twimg.com/*',
       '*://cdn.discordapp.com/*',
       '*://media.discordapp.net/*',
-      '*://*.discordapp.net/*'
+      '*://*.discordapp.net/*',
+      '*://*.cdninstagram.com/*',
+      '*://*.fbcdn.net/*'
     ]
   }, (details, callback) => {
     const responseHeaders = Object.assign({}, details.responseHeaders);
     const url = details.url || '';
+    if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
+      for (const key of Object.keys(responseHeaders)) {
+        if (key.toLowerCase() === 'cross-origin-resource-policy') {
+          delete responseHeaders[key];
+        }
+      }
+      responseHeaders['cross-origin-resource-policy'] = ['cross-origin'];
+    }
     if (url.includes('/embed/') || url.includes('widgets.js') || url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.woff2')) {
       responseHeaders['cache-control'] = ['public, max-age=31536000, immutable'];
     } else if (url.includes('tweet-result')) {
       responseHeaders['cache-control'] = ['public, max-age=86400, stale-while-revalidate=604800'];
-    } else if (url.includes('pbs.twimg.com') || url.includes('discordapp.com') || url.includes('discordapp.net')) {
+    } else if (
+      url.includes('pbs.twimg.com') ||
+      url.includes('discordapp.com') ||
+      url.includes('discordapp.net') ||
+      url.includes('cdninstagram.com') ||
+      url.includes('fbcdn.net')
+    ) {
       responseHeaders['cache-control'] = ['public, max-age=2592000'];
     }
     callback({ responseHeaders });

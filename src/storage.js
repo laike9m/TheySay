@@ -10,9 +10,12 @@ const {
   STORAGE_LAST_FETCH_KEY,
   STORAGE_LAST_FETCH_TWITTER_KEY,
   STORAGE_LAST_FETCH_DISCORD_KEY,
+  STORAGE_LAST_FETCH_THREADS_KEY,
   STORAGE_DISCORD_LOGIN_KEY,
+  STORAGE_THREADS_LOGIN_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_DISCORD_INTERVAL_KEY,
+  STORAGE_THREADS_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
   STORAGE_MUTED_SLOTS_KEY,
@@ -23,6 +26,7 @@ const {
   STORAGE_LANGUAGE_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
+  DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_SLOT_MUTED,
@@ -405,6 +409,20 @@ function saveLastFetchTimeDiscord(timestamp) {
   } catch (e) {}
 }
 
+function getLastFetchTimeThreads() {
+  try {
+    return localStorage.getItem(STORAGE_LAST_FETCH_THREADS_KEY);
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveLastFetchTimeThreads(timestamp) {
+  try {
+    localStorage.setItem(STORAGE_LAST_FETCH_THREADS_KEY, String(timestamp));
+  } catch (e) {}
+}
+
 function getTwitterIntervalMinutes() {
   try {
     const raw = localStorage.getItem(STORAGE_TWITTER_INTERVAL_KEY);
@@ -439,6 +457,23 @@ function saveDiscordIntervalMinutes(minutes) {
   } catch (e) {}
 }
 
+function getThreadsIntervalMinutes() {
+  try {
+    const raw = localStorage.getItem(STORAGE_THREADS_INTERVAL_KEY);
+    if (raw !== null && raw !== '') {
+      const val = parseFloat(raw);
+      if (!isNaN(val) && val > 0) return val;
+    }
+  } catch (e) {}
+  return DEFAULT_THREADS_INTERVAL_MINUTES;
+}
+
+function saveThreadsIntervalMinutes(minutes) {
+  try {
+    localStorage.setItem(STORAGE_THREADS_INTERVAL_KEY, String(minutes));
+  } catch (e) {}
+}
+
 // Discord stores its auth token in localStorage instead of cookies, so the main
 // process cannot inspect the session the way it does for X. The flag below is
 // maintained optimistically: the login window sets it, and any scrape that gets
@@ -449,6 +484,14 @@ function getDiscordLoggedIn() {
 
 function saveDiscordLoggedIn(loggedIn) {
   localStorage.setItem(STORAGE_DISCORD_LOGIN_KEY, loggedIn ? '1' : '0');
+}
+
+function getThreadsLoggedIn() {
+  return localStorage.getItem(STORAGE_THREADS_LOGIN_KEY) === '1';
+}
+
+function saveThreadsLoggedIn(loggedIn) {
+  localStorage.setItem(STORAGE_THREADS_LOGIN_KEY, loggedIn ? '1' : '0');
 }
 
 function getShowMemberOnlyTweets() {
@@ -684,6 +727,9 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     discordIntervalMinutes: settingsOverrides.discordIntervalMinutes !== undefined
       ? settingsOverrides.discordIntervalMinutes
       : getDiscordIntervalMinutes(),
+    threadsIntervalMinutes: settingsOverrides.threadsIntervalMinutes !== undefined
+      ? settingsOverrides.threadsIntervalMinutes
+      : getThreadsIntervalMinutes(),
     showMemberOnlyTweets: settingsOverrides.showMemberOnlyTweets !== undefined
       ? settingsOverrides.showMemberOnlyTweets
       : getShowMemberOnlyTweets(),
@@ -741,12 +787,18 @@ module.exports = {
   saveLastFetchTimeTwitter,
   getLastFetchTimeDiscord,
   saveLastFetchTimeDiscord,
+  getLastFetchTimeThreads,
+  saveLastFetchTimeThreads,
   getTwitterIntervalMinutes,
   saveTwitterIntervalMinutes,
   getDiscordIntervalMinutes,
   saveDiscordIntervalMinutes,
+  getThreadsIntervalMinutes,
+  saveThreadsIntervalMinutes,
   getDiscordLoggedIn,
   saveDiscordLoggedIn,
+  getThreadsLoggedIn,
+  saveThreadsLoggedIn,
   getShowMemberOnlyTweets,
   saveShowMemberOnlyTweets,
   getDiscordSoundEnabled,

@@ -1,14 +1,14 @@
 const { shell, ipcRenderer } = require('electron');
-const { getPostId, isMemberOnlyPost } = require('./post');
-const { escapeHtml, stripDiscordEditedText } = require('./utils');
-const { formatTextWithTickers } = require('./ticker');
+const { getPostId, isMemberOnlyPost } = require('../core/post');
+const { escapeHtml, stripDiscordEditedText } = require('../core/utils');
+const { formatTextWithTickers } = require('../core/ticker');
 const { installRendererEmbedHooks } = require('./tweet_embed');
 const {
   t,
   translateAttachmentLabel,
   isImageAttachmentLabel,
   normalizeMediaOnlyText
-} = require('./i18n');
+} = require('../core/i18n');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
 // Each embed is a real iframe, so this is a memory/latency trade-off.

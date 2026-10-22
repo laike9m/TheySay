@@ -6,7 +6,7 @@ const {
   getTickerRemoteCache,
   saveTickerRemoteCache
 } = require('./storage');
-const tickerData = require('../data/ticker-data.json');
+const tickerData = require('../../data/ticker-data.json');
 
 const unambiguousSet = new Set(Array.isArray(tickerData.unambiguous) ? tickerData.unambiguous : []);
 const contextualSet = new Set(Array.isArray(tickerData.contextual) ? tickerData.contextual : []);

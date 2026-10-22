@@ -4,8 +4,8 @@ const {
   saveDiscordLoggedIn,
   getThreadsLoggedIn,
   saveThreadsLoggedIn
-} = require('./storage');
-const { t } = require('./i18n');
+} = require('../core/storage');
+const { t } = require('../core/i18n');
 
 let isTwitterLoggedIn = false;
 let lastTwitterStatus = 'checking';

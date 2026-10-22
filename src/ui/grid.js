@@ -1,8 +1,8 @@
-const { MAX_SLOTS } = require('./constants');
-const { showToast } = require('./utils');
-const { getSavedGridLayout, saveGridLayout } = require('./storage');
+const { MAX_SLOTS } = require('../core/constants');
+const { showToast } = require('../core/utils');
+const { getSavedGridLayout, saveGridLayout } = require('../core/storage');
 const { updateSlotSizeUI, slotHasContent } = require('./slot');
-const { t } = require('./i18n');
+const { t } = require('../core/i18n');
 
 function calculateCellHeight(rows) {
   const availableHeight = window.innerHeight - 62; // top nav (50px) + bottom padding

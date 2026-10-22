@@ -1,13 +1,13 @@
 const { ipcRenderer } = require('electron');
-const { processAndSortPosts, isMemberOnlyPost, isPostWithQuote } = require('./post');
-const { getShowMemberOnlyPosts } = require('./storage');
-const { SOURCE_DISCORD, SOURCE_THREADS, normalizeThreadsHandle } = require('./source');
+const { processAndSortPosts, isMemberOnlyPost, isPostWithQuote } = require('../core/post');
+const { getShowMemberOnlyPosts } = require('../core/storage');
+const { SOURCE_DISCORD, SOURCE_THREADS, normalizeThreadsHandle } = require('../core/source');
 const {
   t,
   translateAttachmentLabel,
   normalizeDiscordChannelFallback,
   normalizeMediaOnlyText
-} = require('./i18n');
+} = require('../core/i18n');
 
 let isNotificationListenerBound = false;
 

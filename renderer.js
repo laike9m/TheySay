@@ -1,5 +1,5 @@
 const { ipcRenderer } = require('electron');
-const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./src/constants');
+const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./src/core/constants');
 const {
   getStoredPreset,
   saveStoredPreset,
@@ -21,10 +21,10 @@ const {
   getLanguage,
   saveLanguage,
   buildProfileData
-} = require('./src/storage');
-const { initTheme, applyTheme, applyHeaderColor } = require('./src/theme');
-const { initAuth, refreshAuthLocaleUI } = require('./src/auth');
-const { initBackgroundWebviews } = require('./src/webview');
+} = require('./src/core/storage');
+const { initTheme, applyTheme, applyHeaderColor } = require('./src/ui/theme');
+const { initAuth, refreshAuthLocaleUI } = require('./src/ui/auth');
+const { initBackgroundWebviews } = require('./src/scrapers/webview');
 const {
   initSlotsRegistry,
   loadSlotCache,
@@ -36,7 +36,7 @@ const {
   localizeSlotsUI,
   archiveSlotScrapedData,
   resetSlotForNewTarget
-} = require('./src/slot');
+} = require('./src/ui/slot');
 const {
   calculateCellHeight,
   parsePreset,
@@ -44,28 +44,28 @@ const {
   applyGridLayout,
   requestSlotResize,
   initColumnHoverEffect
-} = require('./src/grid');
+} = require('./src/ui/grid');
 const {
   fetchSlot,
   runBackgroundFetch,
   runThreadsBackgroundFetch,
   runDiscordBackgroundFetch,
   startPeriodicBackgroundFetch
-} = require('./src/scraper');
-const { initPostPopup } = require('./src/popup');
+} = require('./src/scrapers/scraper');
+const { initPostPopup } = require('./src/ui/popup');
 const {
   initSettings,
   isSettingsModalOpen,
   loadCurrentSettings,
   getFormSettingsOverrides,
   refreshTickerStatsLabel
-} = require('./src/settings');
-const { applyDiscordSoundSetting } = require('./src/discord');
-const { initNotifications } = require('./src/notification');
-const { initTickers, applyTickerColors } = require('./src/ticker');
-const { getCanonicalTargetKey } = require('./src/source');
-const { showToast } = require('./src/utils');
-const { t, applyPageLocalization } = require('./src/i18n');
+} = require('./src/ui/settings');
+const { applyDiscordSoundSetting } = require('./src/scrapers/discord');
+const { initNotifications } = require('./src/ui/notification');
+const { initTickers, applyTickerColors } = require('./src/core/ticker');
+const { getCanonicalTargetKey } = require('./src/core/source');
+const { showToast } = require('./src/core/utils');
+const { t, applyPageLocalization } = require('./src/core/i18n');
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');

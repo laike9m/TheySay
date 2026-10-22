@@ -1,5 +1,5 @@
-const { BACKGROUND_FETCH_INTERVAL_MS } = require('./constants');
-const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
+const { BACKGROUND_FETCH_INTERVAL_MS } = require('../core/constants');
+const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('../core/utils');
 const {
   getPostKey,
   processAndSortPosts,
@@ -7,7 +7,7 @@ const {
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   resetSlotReadTracking
-} = require('./post');
+} = require('../core/post');
 const {
   saveHandles,
   getLastFetchTime,
@@ -21,7 +21,7 @@ const {
   getTwitterIntervalMinutes,
   getDiscordIntervalMinutes,
   getThreadsIntervalMinutes
-} = require('./storage');
+} = require('../core/storage');
 const {
   getOrCreateSlotWebview,
   waitForWebviewReady,
@@ -41,7 +41,7 @@ const {
   closeSlotSourceDropdown,
   showSlotSourceDropdown,
   applyPlatformSelectionAndFetch
-} = require('./slot');
+} = require('../ui/slot');
 const {
   SOURCE_DISCORD,
   SOURCE_THREADS,
@@ -51,11 +51,11 @@ const {
   probeHandlePlatforms,
   formatThreadsSlotInput,
   normalizeTwitterHandle
-} = require('./source');
+} = require('../core/source');
 const { fetchDiscordSlot } = require('./discord');
 const { fetchThreadsSlot } = require('./threads');
-const { notifySlotNewMessages } = require('./notification');
-const { t } = require('./i18n');
+const { notifySlotNewMessages } = require('../ui/notification');
+const { t } = require('../core/i18n');
 
 function buildExtractionScript(handle) {
   const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();

@@ -1,9 +1,9 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { DISCORD_PARTITION, THREADS_PARTITION, THREADS_LOGIN_URL } = require('./src/constants');
-const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/tweet_embed');
-const { t, setActiveLanguageOverride } = require('./src/i18n');
+const { DISCORD_PARTITION, THREADS_PARTITION, THREADS_LOGIN_URL } = require('./src/core/constants');
+const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/ui/tweet_embed');
+const { t, setActiveLanguageOverride } = require('./src/core/i18n');
 const TICKER_DATA_PATH = path
   .join(__dirname, 'data', 'ticker-data.json')
   .replace('app.asar', 'app.asar.unpacked');

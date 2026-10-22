@@ -1,5 +1,5 @@
 const { ipcRenderer } = require('electron');
-const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
+const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('../core/utils');
 const {
   getPostKey,
   processAndSortPosts,
@@ -7,13 +7,13 @@ const {
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   resetSlotReadTracking
-} = require('./post');
+} = require('../core/post');
 const {
   saveHandles,
   saveLastFetchTime,
   saveLastFetchTimeThreads,
   saveThreadsLoggedIn
-} = require('./storage');
+} = require('../core/storage');
 const {
   getOrCreateThreadsSlotWebview,
   waitForWebviewReady,
@@ -29,15 +29,15 @@ const {
   persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
-} = require('./slot');
+} = require('../ui/slot');
 const {
   SOURCE_THREADS,
   normalizeThreadsHandle,
   buildThreadsProfileUrl,
   getCanonicalTargetKey
-} = require('./source');
-const { notifySlotNewMessages } = require('./notification');
-const { t } = require('./i18n');
+} = require('../core/source');
+const { notifySlotNewMessages } = require('../ui/notification');
+const { t } = require('../core/i18n');
 
 function buildThreadsExtractionScript(handle) {
   const cleanHandle = normalizeThreadsHandle(handle).toLowerCase();

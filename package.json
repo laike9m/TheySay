@@ -39,7 +39,7 @@
     ],
     "asarUnpack": [
       "data/**",
-      "src/tweet-embed-frame.html"
+      "src/ui/tweet-embed-frame.html"
     ],
     "afterAllArtifactBuild": "scripts/notarize-mac.js",
     "mac": {

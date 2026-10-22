@@ -11,8 +11,8 @@ const {
   STORAGE_MUTED_SLOTS_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY
-} = require('../src/constants');
-const { isChineseLocale, resolveLanguageCode } = require('../src/i18n');
+} = require('../src/core/constants');
+const { isChineseLocale, resolveLanguageCode } = require('../src/core/i18n');
 
 test.describe.serial('TheySay Electron Integration Tests', () => {
   let electronApp;
@@ -324,7 +324,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     // Verify detectSystemLanguage() inside the renderer with simulated system locales
     const detectedLocales = await page.evaluate(() => {
-      const { detectSystemLanguage } = require('./src/i18n');
+      const { detectSystemLanguage } = require('./src/core/i18n');
       const prev = window.__THEYSAY_SYSTEM_LOCALE;
       const results = {};
       for (const loc of ['en-US', 'fr-FR', 'ja-JP', 'zh-CN', 'zh-TW', 'zh-HK', 'zh-Hant']) {
@@ -570,7 +570,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
         parseThreadsInput,
         buildThreadsProfileUrl,
         getCanonicalTargetKey
-      } = require('./src/source');
+      } = require('./src/core/source');
       return {
         comUrl: detectSourceType('https://www.threads.com/@zuck'),
         netUrl: detectSourceType('https://www.threads.net/@mosseri/post/DVZ8a9bXk12'),

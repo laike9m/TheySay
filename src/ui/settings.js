@@ -8,7 +8,7 @@ const {
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR
-} = require('./constants');
+} = require('../core/constants');
 const {
   getTwitterIntervalMinutes,
   saveTwitterIntervalMinutes,
@@ -29,22 +29,22 @@ const {
   getLanguage,
   saveLanguage,
   clearStoredLanguage
-} = require('./storage');
+} = require('../core/storage');
 const {
   applyTickerColors,
   syncOnlineTickers,
   getTickerStats
-} = require('./ticker');
+} = require('../core/ticker');
 const {
   applyHeaderColor,
   resolveHeaderPalette
 } = require('./theme');
-const { showToast } = require('./utils');
+const { showToast } = require('../core/utils');
 const {
   t,
   detectSystemLanguage,
   setActiveLanguageOverride
-} = require('./i18n');
+} = require('../core/i18n');
 
 let isInitialized = false;
 let onLanguageChangeCallback = null;

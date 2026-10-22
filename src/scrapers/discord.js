@@ -2,8 +2,8 @@ const {
   DISCORD_PARTITION,
   DISCORD_WEBVIEW_ID,
   MAX_DISCORD_MESSAGES
-} = require('./constants');
-const { sleep, showToast, isNetworkOnline, canReachHost, stripDiscordEditedText } = require('./utils');
+} = require('../core/constants');
+const { sleep, showToast, isNetworkOnline, canReachHost, stripDiscordEditedText } = require('../core/utils');
 const {
   processAndSortPosts,
   getPostKey,
@@ -11,14 +11,14 @@ const {
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   resetSlotReadTracking
-} = require('./post');
+} = require('../core/post');
 const {
   saveHandles,
   saveLastFetchTime,
   saveLastFetchTimeDiscord,
   saveDiscordLoggedIn,
   getDiscordSoundEnabled
-} = require('./storage');
+} = require('../core/storage');
 const { waitForWebviewReady, loadWebviewTarget, executeWebviewScript } = require('./webview');
 const {
   parseDiscordChannelUrl,
@@ -26,7 +26,7 @@ const {
   buildDiscordMessageUrl,
   getCanonicalTargetKey,
   SOURCE_DISCORD
-} = require('./source');
+} = require('../core/source');
 const {
   updateSlotAvatar,
   updateSlotHeaderMeta,
@@ -37,9 +37,9 @@ const {
   persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
-} = require('./slot');
-const { notifySlotNewMessages } = require('./notification');
-const { t, normalizeDiscordChannelFallback } = require('./i18n');
+} = require('../ui/slot');
+const { notifySlotNewMessages } = require('../ui/notification');
+const { t, normalizeDiscordChannelFallback } = require('../core/i18n');
 
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';

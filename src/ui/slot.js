@@ -1,6 +1,6 @@
 const { shell } = require('electron');
-const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./constants');
-const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('./utils');
+const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('../core/constants');
+const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('../core/utils');
 const {
   getPostKey,
   processAndSortPosts,
@@ -14,7 +14,7 @@ const {
   recordSlotReadPosts,
   serializeSlotReadTracking,
   resetSlotReadTracking
-} = require('./post');
+} = require('../core/post');
 const { openPostPopup, prefetchPost } = require('./popup');
 const {
   getSavedHandles,
@@ -27,8 +27,8 @@ const {
   saveSlotCache,
   saveAllSlotCache,
   getShowMemberOnlyPosts
-} = require('./storage');
-const { getOrCreateSlotWebview } = require('./webview');
+} = require('../core/storage');
+const { getOrCreateSlotWebview } = require('../scrapers/webview');
 const {
   SOURCE_DISCORD,
   SOURCE_THREADS,
@@ -40,16 +40,16 @@ const {
   formatThreadsSlotInput,
   parseDiscordChannelUrl,
   getCanonicalTargetKey
-} = require('./source');
+} = require('../core/source');
 const { requestNotificationPermission } = require('./notification');
-const { formatTextWithTickers } = require('./ticker');
+const { formatTextWithTickers } = require('../core/ticker');
 const {
   t,
   translateAttachmentLabel,
   isImageAttachmentLabel,
   normalizeDiscordChannelFallback,
   normalizeMediaOnlyText
-} = require('./i18n');
+} = require('../core/i18n');
 
 const BELL_OFF_SVG = `
   <svg class="mute-icon bell-off" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

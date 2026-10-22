@@ -1,5 +1,5 @@
-const { THREADS_PARTITION } = require('./constants');
-const { isNetworkOnline, canReachHost } = require('./utils');
+const { THREADS_PARTITION } = require('../core/constants');
+const { isNetworkOnline, canReachHost } = require('../core/utils');
 
 // Chromium net error codes indicating network disconnection or DNS failure
 const OFFLINE_NET_ERROR_CODES = new Set([-106, -105, -21, -109, -118, -102, -101, -137]);

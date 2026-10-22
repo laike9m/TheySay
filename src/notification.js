@@ -1,6 +1,6 @@
 const { ipcRenderer } = require('electron');
-const { processAndSortTweets, isMemberOnlyTweet, isTweetWithQuote } = require('./tweet');
-const { getShowMemberOnlyTweets } = require('./storage');
+const { processAndSortPosts, isMemberOnlyPost, isPostWithQuote } = require('./post');
+const { getShowMemberOnlyPosts } = require('./storage');
 const { SOURCE_DISCORD, SOURCE_THREADS, normalizeThreadsHandle } = require('./source');
 const {
   t,
@@ -56,7 +56,7 @@ function sendSystemNotification({ title, subtitle = '', body = '', slotIndex = n
 }
 
 /**
- * Triggers a system notification for newly fetched tweets, Threads posts, or Discord messages
+ * Triggers a system notification for newly fetched posts or Discord messages
  * on `slot` when that slot's mute toggle is turned off (`slot.isMuted === false`).
  */
 function notifySlotNewMessages(slot, newItems) {
@@ -65,15 +65,15 @@ function notifySlotNewMessages(slot, newItems) {
 
   const isDiscord = slot.source === SOURCE_DISCORD;
   const isThreads = slot.source === SOURCE_THREADS;
-  const showMemberOnly = getShowMemberOnlyTweets();
+  const showMemberOnly = getShowMemberOnlyPosts();
 
   const visibleItems = (showMemberOnly || isDiscord || isThreads)
     ? newItems
-    : newItems.filter(item => !isMemberOnlyTweet(item));
+    : newItems.filter(item => !isMemberOnlyPost(item));
 
   if (visibleItems.length === 0) return;
 
-  const sorted = processAndSortTweets(visibleItems);
+  const sorted = processAndSortPosts(visibleItems);
   const latest = sorted[sorted.length - 1] || visibleItems[0];
   const count = visibleItems.length;
 
@@ -134,12 +134,12 @@ function notifySlotNewMessages(slot, newItems) {
       : (rawAuthorName || rawAuthorHandle || (isThreads ? 'Threads' : 'Twitter / X'));
     const title = isThreads ? `${baseTitle} · Threads` : baseTitle;
 
-    let tagDesc = t('notification.newTweet');
+    let tagDesc = t('notification.newPost');
     if (latest.isRetweet) tagDesc = t('notification.repost');
-    else if (isTweetWithQuote(latest)) tagDesc = t('notification.quoteTweet');
-    else if (isMemberOnlyTweet(latest)) tagDesc = t('notification.memberOnlyTweet');
+    else if (isPostWithQuote(latest)) tagDesc = t('notification.quotePost');
+    else if (isMemberOnlyPost(latest)) tagDesc = t('notification.memberOnlyPost');
 
-    const subtitle = count > 1 ? t('notification.newTweetsCount', { count }) : tagDesc;
+    const subtitle = count > 1 ? t('notification.newPostsCount', { count }) : tagDesc;
     const body = compactSingleLine(normalizeMediaOnlyText(latest.text || t('notification.mediaContentPlaceholder')));
 
     sendSystemNotification({

@@ -1,13 +1,13 @@
 const { BACKGROUND_FETCH_INTERVAL_MS } = require('./constants');
 const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
 const {
-  getTweetKey,
-  processAndSortTweets,
+  getPostKey,
+  processAndSortPosts,
   ensureSlotReadTracking,
-  recordSlotReadTweets,
+  recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   resetSlotReadTracking
-} = require('./tweet');
+} = require('./post');
 const {
   saveHandles,
   getLastFetchTime,
@@ -34,7 +34,7 @@ const {
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
-  renderSlotTweets,
+  renderSlotPosts,
   persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache,
@@ -107,7 +107,7 @@ function buildExtractionScript(handle) {
         for (const img of photoImgs) {
           const a = img.closest('a');
           const href = a ? (a.getAttribute('href') || '') : '';
-          // Make sure it is the target user's profile photo (e.g. /sama/photo) and not inside a tweet
+          // Make sure it is the target user's profile photo (e.g. /sama/photo) and not inside a post
           if (href.toLowerCase().includes('/' + targetHandle + '/photo') && !img.closest('article')) {
             if (img.src && !img.src.includes('default_profile')) {
               avatarUrl = img.src;
@@ -131,7 +131,7 @@ function buildExtractionScript(handle) {
           }
         }
 
-        // 3. Check author's own tweet avatar: article where the avatar link specifically points to /handle
+        // 3. Check author's own post avatar: article where the avatar link specifically points to /handle
         if (!avatarUrl) {
           for (const article of articles) {
             const authorAvatarImg = article.querySelector(\`[data-testid="Tweet-User-Avatar"] a[href^="/\${targetHandle}" i] img, [data-testid="Tweet-User-Avatar"] a[href="/\${targetHandle}" i] img\`);
@@ -143,7 +143,7 @@ function buildExtractionScript(handle) {
         }
       }
 
-      // 4. Fallback: Generic profile header photo link (only in primaryColumn/header, NEVER in tweets or sidebar)
+      // 4. Fallback: Generic profile header photo link (only in primaryColumn/header, NEVER in posts or sidebar)
       if (!avatarUrl) {
         const headerImg = document.querySelector('header a[href$="/photo"] img, [data-testid="primaryColumn"] a[href$="/photo"] img, a[href$="/photo"] img');
         if (headerImg && !headerImg.closest('article') && !headerImg.closest('aside') && !headerImg.closest('[data-testid="sidebarColumn"]')) {
@@ -160,7 +160,7 @@ function buildExtractionScript(handle) {
         const statusLink = (timeEl && timeEl.closest('a[href*="/status/"]')) ||
           (userNameEl && userNameEl.querySelector('a[href*="/status/"]')) ||
           article.querySelector('a[href*="/status/"]');
-        const tweetUrl = statusLink ? statusLink.getAttribute('href') : '';
+        const postUrl = statusLink ? statusLink.getAttribute('href') : '';
         let textEl = article.querySelector('[data-testid="tweetText"]');
         if (!textEl) {
           textEl = article.querySelector('[class*="whitespace-pre-wrap"]:not(a)');
@@ -212,7 +212,7 @@ function buildExtractionScript(handle) {
         let hasQuote = false;
         let quoteUrl = '';
 
-        // 1. Nested article indicates a quote tweet card
+        // 1. Nested article indicates a quote card
         if (article.querySelector('article')) {
           hasQuote = true;
         }
@@ -227,7 +227,7 @@ function buildExtractionScript(handle) {
 
         // 3. Status links in href or data-href (with properly escaped template regex)
         const allStatusLinks = Array.from(article.querySelectorAll('a[href*="/status/"], [data-href*="/status/"]'));
-        const mainStatusMatch = tweetUrl ? tweetUrl.match(/\\/status\\/(\\d+)/) : null;
+        const mainStatusMatch = postUrl ? postUrl.match(/\\/status\\/(\\d+)/) : null;
         const mainStatusId = mainStatusMatch ? mainStatusMatch[1] : '';
 
         for (const link of allStatusLinks) {
@@ -293,12 +293,12 @@ function buildExtractionScript(handle) {
           }
         }
 
-        if (!isMemberOnly && tweetUrl && tweetUrl.includes('2103181567199687009')) {
+        if (!isMemberOnly && postUrl && postUrl.includes('2103181567199687009')) {
           isMemberOnly = true;
         }
 
         items.push({
-          url: tweetUrl ? ('https://x.com' + tweetUrl) : '',
+          url: postUrl ? ('https://x.com' + postUrl) : '',
           text: text,
           time: displayTime || datetime,
           datetime: datetime,
@@ -344,8 +344,8 @@ async function fetchTwitterSlot(
 
   saveHandles(slots);
 
-  // If the slot was switched to a different handle, archive previous handle's tweets
-  // and immediately restore any previously scraped tweets for the new handle.
+  // If the slot was switched to a different handle, archive previous handle's posts
+  // and immediately restore any previously scraped posts for the new handle.
   const prevMonitored = normalizeTwitterHandle(slot.monitoredHandle || '').toLowerCase();
   const isSameHandle = prevMonitored === handle.toLowerCase();
   if (!isSameHandle) {
@@ -353,27 +353,27 @@ async function fetchTwitterSlot(
     const restored = restoreSlotFromTargetCache(slot, handle, slots);
     if (!restored) {
       resetSlotReadTracking(slot);
-      slot.loadedTweets = [];
+      slot.loadedPosts = [];
       slot.monitoredHandle = handle;
       updateSlotAvatar(slot, null);
     }
-  } else if (!Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) {
+  } else if (!Array.isArray(slot.loadedPosts) || slot.loadedPosts.length === 0) {
     restoreSlotFromTargetCache(slot, handle, slots);
   }
 
-  // Check if we already have existing tweets for this exact handle
+  // Check if we already have existing posts for this exact handle
   const hasExisting = (
     normalizeTwitterHandle(slot.monitoredHandle || '').toLowerCase() === handle.toLowerCase() &&
-    Array.isArray(slot.loadedTweets) &&
-    slot.loadedTweets.length > 0
+    Array.isArray(slot.loadedPosts) &&
+    slot.loadedPosts.length > 0
   );
-  const existingTweets = hasExisting ? slot.loadedTweets : [];
+  const existingPosts = hasExisting ? slot.loadedPosts : [];
   ensureSlotReadTracking(slot);
   if (hasExisting) {
-    recordSlotReadTweets(slot, existingTweets);
+    recordSlotReadPosts(slot, existingPosts);
   }
   const existingKeys = new Set([
-    ...existingTweets.map(t => getTweetKey(t)),
+    ...existingPosts.map(p => getPostKey(p)),
     ...(slot.knownKeys || []),
     ...(slot.readKeys || [])
   ]);
@@ -392,7 +392,7 @@ async function fetchTwitterSlot(
   slot.isFetching = true;
   if (slot.card) slot.card.classList.add('is-fetching');
 
-  // Whenever existing tweets are present, keep them visible on screen while fetching
+  // Whenever existing posts are present, keep them visible on screen while fetching
   if (!hasExisting) {
     showSlotLoading(slot, t('scraper.fetchingHandle', { handle }));
   }
@@ -404,10 +404,10 @@ async function fetchTwitterSlot(
 
   const targetUrl = `https://x.com/${handle}`;
 
-  // Identify newest non-pinned tweet key as our timeline boundary (last element in ascending sort)
-  const existingNonPinned = existingTweets.filter(t => !t.isPinned);
-  const boundaryTweet = existingNonPinned.length > 0 ? existingNonPinned[existingNonPinned.length - 1] : null;
-  const boundaryKey = boundaryTweet ? getTweetKey(boundaryTweet) : null;
+  // Identify newest non-pinned post key as our timeline boundary (last element in ascending sort)
+  const existingNonPinned = existingPosts.filter(p => !p.isPinned);
+  const boundaryPost = existingNonPinned.length > 0 ? existingNonPinned[existingNonPinned.length - 1] : null;
+  const boundaryKey = boundaryPost ? getPostKey(boundaryPost) : null;
 
   let slotOffline = false;
   try {
@@ -423,7 +423,7 @@ async function fetchTwitterSlot(
     }
 
     // Ensure the background webview starts at the very top of the profile timeline
-    // so Chromium scroll restoration never hides new top tweets above the fold.
+    // so Chromium scroll restoration never hides new top posts above the fold.
     await executeWebviewScript(
       bgWebview,
       "try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; window.scrollTo(0, 0); } catch (e) {}",
@@ -434,7 +434,7 @@ async function fetchTwitterSlot(
     await sleep(450);
 
     const INITIAL_TARGET_COUNT = 5;
-    const collectedNewTweets = [];
+    const collectedNewPosts = [];
     const seenInThisRun = new Set();
     const maxAttempts = hasExisting ? 15 : 35;
     let attempts = 0;
@@ -491,11 +491,11 @@ async function fetchTwitterSlot(
           let foundNewOnThisScroll = 0;
 
           for (const item of result.items) {
-            const key = getTweetKey(item);
+            const key = getPostKey(item);
             if (!key || seenInThisRun.has(key)) continue;
             seenInThisRun.add(key);
 
-            // Boundary detection: if this normal tweet was already fetched before
+            // Boundary detection: if this normal post was already fetched before
             if (hasExisting && !item.isPinned && !item.isRetweet) {
               if ((boundaryKey && key === boundaryKey) || existingKeys.has(key)) {
                 reachedBoundary = true;
@@ -505,7 +505,7 @@ async function fetchTwitterSlot(
 
             if (!existingKeys.has(key)) {
               item.isUnread = hasExisting ? shouldMarkScrapedItemUnread(slot, item) : true;
-              collectedNewTweets.push(item);
+              collectedNewPosts.push(item);
               foundNewOnThisScroll++;
             }
           }
@@ -514,7 +514,7 @@ async function fetchTwitterSlot(
             break;
           }
 
-          if (!hasExisting && collectedNewTweets.length >= INITIAL_TARGET_COUNT) {
+          if (!hasExisting && collectedNewPosts.length >= INITIAL_TARGET_COUNT) {
             break;
           }
 
@@ -522,7 +522,7 @@ async function fetchTwitterSlot(
             consecutiveEmptyScrolls = 0;
             if (!hasExisting) {
               slot.loadingText.innerText = t('scraper.fetchedProgress', {
-                count: collectedNewTweets.length,
+                count: collectedNewPosts.length,
                 target: INITIAL_TARGET_COUNT
               });
             }
@@ -547,7 +547,7 @@ async function fetchTwitterSlot(
       }
     }
 
-    if (slotOffline && collectedNewTweets.length === 0) {
+    if (slotOffline && collectedNewPosts.length === 0) {
       if (!isBackground && !hasExisting) {
         showSlotError(slot, t('scraper.offlineError'));
       }
@@ -573,62 +573,62 @@ async function fetchTwitterSlot(
     saveLastFetchTimeTwitter(slot.lastFetchedAt);
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 
-    // Always read the live slot.loadedTweets right at merge time so any mark-as-read
+    // Always read the live slot.loadedPosts right at merge time so any mark-as-read
     // action performed by the user while the scrape was running is preserved.
-    const liveExistingTweets = (
+    const liveExistingPosts = (
       hasExisting &&
-      Array.isArray(slot.loadedTweets) &&
-      slot.loadedTweets.length > 0
+      Array.isArray(slot.loadedPosts) &&
+      slot.loadedPosts.length > 0
     )
-      ? slot.loadedTweets
-      : existingTweets;
-    if (liveExistingTweets.length > 0) {
-      recordSlotReadTweets(slot, liveExistingTweets);
+      ? slot.loadedPosts
+      : existingPosts;
+    if (liveExistingPosts.length > 0) {
+      recordSlotReadPosts(slot, liveExistingPosts);
     }
 
     if (hasExisting) {
-      if (collectedNewTweets.length === 0) {
+      if (collectedNewPosts.length === 0) {
         if (!isBackground) {
           showToast(t('scraper.upToDateToast', { handle }), 'info', 2000);
         }
-        if (slot.tweetsList && slot.tweetsList.children.length > 0 && liveExistingTweets.length > 0) {
+        if (slot.postsList && slot.postsList.children.length > 0 && liveExistingPosts.length > 0) {
           persistSlot(slot, {
             handle,
             displayName: slot.authorName ? slot.authorName.innerText : '',
             userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
-            tweets: liveExistingTweets,
+            posts: liveExistingPosts,
             avatarUrl: latestAvatarUrl || (slot.avatarImg && slot.avatarImg.src) || ''
           }, slots);
         } else {
-          const sortedExisting = processAndSortTweets(liveExistingTweets);
-          recordSlotReadTweets(slot, sortedExisting);
-          renderSlotTweets(slot, sortedExisting, handle, latestAvatarUrl, slots);
+          const sortedExisting = processAndSortPosts(liveExistingPosts);
+          recordSlotReadPosts(slot, sortedExisting);
+          renderSlotPosts(slot, sortedExisting, handle, latestAvatarUrl, slots);
         }
       } else {
-        collectedNewTweets.forEach(item => {
+        collectedNewPosts.forEach(item => {
           if (!shouldMarkScrapedItemUnread(slot, item)) {
             item.isUnread = false;
           }
         });
-        const unreadNewTweets = collectedNewTweets.filter(t => t.isUnread);
-        const merged = [...liveExistingTweets, ...collectedNewTweets];
-        const sorted = processAndSortTweets(merged);
-        const finalTweets = sorted.slice(-Math.max(20, liveExistingTweets.length));
-        recordSlotReadTweets(slot, finalTweets);
-        renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
-        if (unreadNewTweets.length > 0) {
-          showToast(t('scraper.newTweetsToast', { handle, count: unreadNewTweets.length }), 'success', 2500);
-          notifySlotNewMessages(slot, unreadNewTweets);
+        const unreadNewPosts = collectedNewPosts.filter(p => p.isUnread);
+        const merged = [...liveExistingPosts, ...collectedNewPosts];
+        const sorted = processAndSortPosts(merged);
+        const finalPosts = sorted.slice(-Math.max(20, liveExistingPosts.length));
+        recordSlotReadPosts(slot, finalPosts);
+        renderSlotPosts(slot, finalPosts, handle, latestAvatarUrl, slots);
+        if (unreadNewPosts.length > 0) {
+          showToast(t('scraper.newPostsToast', { handle, count: unreadNewPosts.length }), 'success', 2500);
+          notifySlotNewMessages(slot, unreadNewPosts);
         } else if (!isBackground) {
           showToast(t('scraper.upToDateToast', { handle }), 'info', 2000);
         }
       }
     } else {
-      if (collectedNewTweets.length > 0) {
-        const sorted = processAndSortTweets(collectedNewTweets);
-        const finalTweets = sorted.slice(-20);
-        recordSlotReadTweets(slot, finalTweets);
-        renderSlotTweets(slot, finalTweets, handle, latestAvatarUrl, slots);
+      if (collectedNewPosts.length > 0) {
+        const sorted = processAndSortPosts(collectedNewPosts);
+        const finalPosts = sorted.slice(-20);
+        recordSlotReadPosts(slot, finalPosts);
+        renderSlotPosts(slot, finalPosts, handle, latestAvatarUrl, slots);
       } else {
         showSlotError(slot, t('scraper.fetchTimeoutError'));
       }
@@ -663,8 +663,8 @@ async function fetchSlot(slotIndex, options = {}, context) {
   const raw = slot.handleInput ? slot.handleInput.value.trim() : '';
   const cleanBare = isAmbiguousBareHandle(raw) ? raw.replace(/^@+/, '') : '';
   const alreadyLoadedSameHandle =
-    Array.isArray(slot.loadedTweets) &&
-    slot.loadedTweets.length > 0 &&
+    Array.isArray(slot.loadedPosts) &&
+    slot.loadedPosts.length > 0 &&
     slot.monitoredHandle &&
     normalizeTwitterHandle(slot.monitoredHandle).toLowerCase() === cleanBare.toLowerCase();
 
@@ -691,8 +691,8 @@ async function fetchSlot(slotIndex, options = {}, context) {
 
     if (twExists && thExists) {
       slot.loading.style.display = 'none';
-      if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
-        slot.tweetsList.style.display = 'flex';
+      if (Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
+        slot.postsList.style.display = 'flex';
       } else {
         slot.placeholder.style.display = 'flex';
       }

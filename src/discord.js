@@ -5,13 +5,13 @@ const {
 } = require('./constants');
 const { sleep, showToast, isNetworkOnline, canReachHost, stripDiscordEditedText } = require('./utils');
 const {
-  processAndSortTweets,
-  getTweetKey,
+  processAndSortPosts,
+  getPostKey,
   ensureSlotReadTracking,
-  recordSlotReadTweets,
+  recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   resetSlotReadTracking
-} = require('./tweet');
+} = require('./post');
 const {
   saveHandles,
   saveLastFetchTime,
@@ -33,7 +33,7 @@ const {
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
-  renderSlotTweets,
+  renderSlotPosts,
   persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
@@ -1012,12 +1012,12 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     archiveSlotScrapedData(slot);
     const restored = restoreSlotFromTargetCache(slot, rawInput, slots);
     if (!restored) {
-      slot.loadedTweets = [];
+      slot.loadedPosts = [];
       resetSlotReadTracking(slot);
       slot.monitoredHandle = rawInput;
       updateSlotAvatar(slot, null);
     }
-  } else if (!Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) {
+  } else if (!Array.isArray(slot.loadedPosts) || slot.loadedPosts.length === 0) {
     restoreSlotFromTargetCache(slot, rawInput, slots);
   }
 
@@ -1025,9 +1025,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
   const hasExisting = (
     getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
-    Array.isArray(slot.loadedTweets) &&
-    slot.loadedTweets.length > 0 &&
-    slot.loadedTweets.every(m => {
+    Array.isArray(slot.loadedPosts) &&
+    slot.loadedPosts.length > 0 &&
+    slot.loadedPosts.every(m => {
       const p = parseDiscordChannelUrl(m.url);
       return !p || !p.channelId || p.channelId === channelId;
     })
@@ -1097,11 +1097,11 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       // Snapshot existing messages after lock acquisition & navigation so we see
       // any read-state updates the user made while waiting.
       ensureSlotReadTracking(slot);
-      const existingMessages = hasExisting && Array.isArray(slot.loadedTweets) ? slot.loadedTweets : [];
+      const existingMessages = hasExisting && Array.isArray(slot.loadedPosts) ? slot.loadedPosts : [];
       if (hasExisting) {
-        recordSlotReadTweets(slot, existingMessages);
+        recordSlotReadPosts(slot, existingMessages);
       }
-      const existingKeys = new Set(existingMessages.map(m => getTweetKey(m)).filter(Boolean));
+      const existingKeys = new Set(existingMessages.map(m => getPostKey(m)).filter(Boolean));
       for (const k of slot.knownKeys) existingKeys.add(k);
       for (const k of slot.readKeys) existingKeys.add(k);
       const backfilledByKey = new Map();
@@ -1145,7 +1145,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           // Record fresh fields for any already-cached messages visible on screen
           for (let i = 0; i < result.items.length; i++) {
             const freshMsg = toSlotMessage(result.items[i], guildId, channelId);
-            const freshKey = getTweetKey(freshMsg);
+            const freshKey = getPostKey(freshMsg);
             if (freshKey && existingKeys.has(freshKey)) {
               backfilledByKey.set(freshKey, freshMsg);
             }
@@ -1155,7 +1155,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           // meet the previous crawl's newest message as early as possible.
           for (let i = result.items.length - 1; i >= 0; i--) {
             const msg = toSlotMessage(result.items[i], guildId, channelId);
-            const key = getTweetKey(msg);
+            const key = getPostKey(msg);
             if (seen.has(key)) continue;
             seen.add(key);
 
@@ -1185,9 +1185,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       const liveExistingMessages = (
         hasExisting &&
         getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
-        Array.isArray(slot.loadedTweets) &&
-        slot.loadedTweets.length > 0
-      ) ? slot.loadedTweets : existingMessages;
+        Array.isArray(slot.loadedPosts) &&
+        slot.loadedPosts.length > 0
+      ) ? slot.loadedPosts : existingMessages;
 
       let backfillChanged = false;
       if (hasExisting) {
@@ -1196,7 +1196,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           if (typeof m.text === 'string') m.text = stripDiscordEditedText(m.text);
           if (typeof m.replyText === 'string') m.replyText = stripDiscordEditedText(m.replyText);
 
-          const freshMsg = backfilledByKey.get(getTweetKey(m));
+          const freshMsg = backfilledByKey.get(getPostKey(m));
           if (freshMsg) {
             if (freshMsg.text && freshMsg.text !== m.text) {
               m.text = freshMsg.text;
@@ -1224,7 +1224,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
             }
           }
         });
-        recordSlotReadTweets(slot, liveExistingMessages);
+        recordSlotReadPosts(slot, liveExistingMessages);
       }
 
       slot.monitoredHandle = rawInput;
@@ -1263,9 +1263,9 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       if (collected.length === 0 && hasExisting) {
         if (!isBackground) showToast(t('discord.upToDateToast', { channelLabel }), 'info', 2000);
         if (backfillChanged) {
-          renderSlotTweets(
+          renderSlotPosts(
             slot,
-            processAndSortTweets(liveExistingMessages),
+            processAndSortPosts(liveExistingMessages),
             rawInput,
             meta.iconUrl || null,
             slots,
@@ -1289,8 +1289,8 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         showToast(t('discord.newMessagesToast', { channelLabel, count: newUnreadItems.length }), 'success', 2500);
       }
 
-      const merged = processAndSortTweets([...liveExistingMessages, ...collected]);
-      renderSlotTweets(
+      const merged = processAndSortPosts([...liveExistingMessages, ...collected]);
+      renderSlotPosts(
         slot,
         merged.slice(-Math.max(MAX_DISCORD_MESSAGES, liveExistingMessages.length)),
         rawInput,

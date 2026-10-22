@@ -1,6 +1,6 @@
 const { DEFAULT_HEADER_BG_COLOR, HEADER_COLOR_PRESETS } = require('./constants');
 const { getStoredTheme, saveStoredTheme, getHeaderBgColor } = require('./storage');
-const { clearTweetWidgetCache } = require('./popup');
+const { clearPostWidgetCache } = require('./popup');
 const { t } = require('./i18n');
 
 function normalizeHex(val, fallback = DEFAULT_HEADER_BG_COLOR) {
@@ -75,8 +75,8 @@ function applyHeaderColor(bgHex) {
 function applyTheme(theme, btnThemeToggle) {
   document.documentElement.setAttribute('data-theme', theme);
   saveStoredTheme(theme);
-  if (typeof clearTweetWidgetCache === 'function') {
-    clearTweetWidgetCache();
+  if (typeof clearPostWidgetCache === 'function') {
+    clearPostWidgetCache();
   }
   const toggleEl = btnThemeToggle || document.getElementById('btn-theme-toggle');
   if (toggleEl) {

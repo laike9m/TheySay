@@ -35,10 +35,17 @@ const {
   DEFAULT_HEADER_BG_COLOR
 } = require('./constants');
 const { detectSourceType, getCanonicalTargetKey } = require('./source');
-const { getTweetKey, getTweetTimestamp } = require('./tweet');
+const { getPostKey, getPostTimestamp } = require('./post');
 const { getCurrentLanguage, setActiveLanguageOverride } = require('./i18n');
 
 const MAX_CACHE_TRACKED_KEYS = 500;
+
+function getEntryPosts(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  if (Array.isArray(entry.posts)) return entry.posts;
+  if (Array.isArray(entry.tweets)) return entry.tweets;
+  return null;
+}
 
 function mergeCacheEntryReadState(prevEntry, nextEntry) {
   if (!nextEntry || typeof nextEntry !== 'object') return nextEntry;
@@ -57,15 +64,16 @@ function mergeCacheEntryReadState(prevEntry, nextEntry) {
     if (typeof entry.maxReadTimestamp === 'number' && entry.maxReadTimestamp > maxReadTs) {
       maxReadTs = entry.maxReadTimestamp;
     }
-    if (Array.isArray(entry.tweets)) {
-      entry.tweets.forEach(t => {
-        if (!t) return;
-        const k = getTweetKey(t);
+    const entryPosts = getEntryPosts(entry);
+    if (Array.isArray(entryPosts)) {
+      entryPosts.forEach(p => {
+        if (!p) return;
+        const k = getPostKey(p);
         if (k) knownSet.add(k);
-        if (!t.isUnread) {
+        if (!p.isUnread) {
           if (k) readSet.add(k);
-          const ts = getTweetTimestamp(t);
-          if (!t.isPinned && ts > maxReadTs) {
+          const ts = getPostTimestamp(p);
+          if (!p.isPinned && ts > maxReadTs) {
             maxReadTs = ts;
           }
         }
@@ -76,24 +84,27 @@ function mergeCacheEntryReadState(prevEntry, nextEntry) {
   ingestEntry(prevEntry);
   ingestEntry(nextEntry);
 
-  const mergedTweets = Array.isArray(nextEntry.tweets)
-    ? nextEntry.tweets.map(t => {
-        if (!t) return t;
-        const k = getTweetKey(t);
-        if (k && readSet.has(k) && t.isUnread) {
-          return { ...t, isUnread: false };
+  const nextPosts = getEntryPosts(nextEntry);
+  const mergedPosts = Array.isArray(nextPosts)
+    ? nextPosts.map(p => {
+        if (!p) return p;
+        const k = getPostKey(p);
+        if (k && readSet.has(k) && p.isUnread) {
+          return { ...p, isUnread: false };
         }
-        return t;
+        return p;
       })
-    : nextEntry.tweets;
+    : nextPosts;
 
-  return {
+  const result = {
     ...nextEntry,
-    tweets: mergedTweets,
+    posts: mergedPosts,
     readKeys: Array.from(readSet).slice(-MAX_CACHE_TRACKED_KEYS),
     knownKeys: Array.from(knownSet).slice(-MAX_CACHE_TRACKED_KEYS),
     maxReadTimestamp: maxReadTs
   };
+  delete result.tweets;
+  return result;
 }
 
 function getSavedHandles() {
@@ -111,7 +122,7 @@ function saveHandles(slots) {
   if (!Array.isArray(slots)) return;
   const current = slots.map(s => {
     if (!s) return '';
-    // If the user is mid-edit on a slot that already has loaded tweets for a monitored handle,
+    // If the user is mid-edit on a slot that already has loaded posts for a monitored handle,
     // prefer the committed handle Input or monitoredHandle appropriately.
     return s.handleInput ? s.handleInput.value.trim() : (s.monitoredHandle || '');
   });
@@ -180,7 +191,8 @@ function saveTargetCache(targetCache) {
 
 function saveTargetCacheEntry(handleOrUrl, data) {
   try {
-    if (!data || !Array.isArray(data.tweets) || data.tweets.length === 0) return;
+    const posts = getEntryPosts(data);
+    if (!data || !Array.isArray(posts) || posts.length === 0) return;
     const rawTarget = handleOrUrl || data.handle || '';
     const key = getCanonicalTargetKey(rawTarget, data.source);
     if (!key) return;
@@ -189,6 +201,7 @@ function saveTargetCacheEntry(handleOrUrl, data) {
     const prev = targetCache[key] || null;
     const merged = mergeCacheEntryReadState(prev, {
       ...data,
+      posts,
       handle: data.handle || rawTarget,
       lastFetchedAt: data.lastFetchedAt || (prev && prev.lastFetchedAt) || Date.now()
     });
@@ -203,19 +216,22 @@ function getTargetCacheEntry(handleOrUrl, sourceHint) {
     if (!key) return null;
 
     const targetCache = getTargetCache();
-    if (targetCache[key] && Array.isArray(targetCache[key].tweets) && targetCache[key].tweets.length > 0) {
-      return targetCache[key];
+    const cachedPosts = getEntryPosts(targetCache[key]);
+    if (targetCache[key] && Array.isArray(cachedPosts) && cachedPosts.length > 0) {
+      return { ...targetCache[key], posts: cachedPosts };
     }
 
     // Fallback: scan slot cache in case an entry exists there that hasn't been indexed yet
     const slotCache = getSlotCache();
     for (const slotKey of Object.keys(slotCache)) {
       const entry = slotCache[slotKey];
-      if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0) {
+      const entryPosts = getEntryPosts(entry);
+      if (entry && Array.isArray(entryPosts) && entryPosts.length > 0) {
         const entryTargetKey = getCanonicalTargetKey(entry.handle, entry.source);
         if (entryTargetKey === key) {
-          saveTargetCacheEntry(entry.handle, entry);
-          return entry;
+          const normalized = { ...entry, posts: entryPosts };
+          saveTargetCacheEntry(entry.handle, normalized);
+          return normalized;
         }
       }
     }
@@ -256,7 +272,8 @@ function saveSlotCache(slotIndex, data, slots = []) {
       saveTargetCacheEntry(entry.handle, entry);
     } else {
       // Preserve existing scraped data in per-target cache before removing slot binding
-      if (cache[slotIndex] && Array.isArray(cache[slotIndex].tweets) && cache[slotIndex].tweets.length > 0) {
+      const prevPosts = getEntryPosts(cache[slotIndex]);
+      if (cache[slotIndex] && Array.isArray(prevPosts) && prevPosts.length > 0) {
         saveTargetCacheEntry(cache[slotIndex].handle, cache[slotIndex]);
       }
       delete cache[slotIndex];
@@ -273,7 +290,8 @@ function saveAllSlotCache(cache) {
       let updatedTarget = false;
       for (const slotKey of Object.keys(cache)) {
         const entry = cache[slotKey];
-        if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0) {
+        const entryPosts = getEntryPosts(entry);
+        if (entry && Array.isArray(entryPosts) && entryPosts.length > 0) {
           const prevSlot = existingSlotCache[slotKey];
           const key = getCanonicalTargetKey(entry.handle, entry.source);
           const prevTarget = key ? targetCache[key] : null;
@@ -494,7 +512,7 @@ function saveThreadsLoggedIn(loggedIn) {
   localStorage.setItem(STORAGE_THREADS_LOGIN_KEY, loggedIn ? '1' : '0');
 }
 
-function getShowMemberOnlyTweets() {
+function getShowMemberOnlyPosts() {
   try {
     const raw = localStorage.getItem(STORAGE_SHOW_MEMBER_ONLY_KEY);
     if (raw !== null && raw !== '') {
@@ -504,7 +522,7 @@ function getShowMemberOnlyTweets() {
   return DEFAULT_SHOW_MEMBER_ONLY;
 }
 
-function saveShowMemberOnlyTweets(show) {
+function saveShowMemberOnlyPosts(show) {
   try {
     localStorage.setItem(STORAGE_SHOW_MEMBER_ONLY_KEY, show ? '1' : '0');
   } catch (e) {}
@@ -730,9 +748,9 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     threadsIntervalMinutes: settingsOverrides.threadsIntervalMinutes !== undefined
       ? settingsOverrides.threadsIntervalMinutes
       : getThreadsIntervalMinutes(),
-    showMemberOnlyTweets: settingsOverrides.showMemberOnlyTweets !== undefined
-      ? settingsOverrides.showMemberOnlyTweets
-      : getShowMemberOnlyTweets(),
+    showMemberOnlyPosts: settingsOverrides.showMemberOnlyPosts !== undefined
+      ? settingsOverrides.showMemberOnlyPosts
+      : getShowMemberOnlyPosts(),
     discordSoundEnabled: settingsOverrides.discordSoundEnabled !== undefined
       ? settingsOverrides.discordSoundEnabled
       : getDiscordSoundEnabled(),
@@ -799,8 +817,8 @@ module.exports = {
   saveDiscordLoggedIn,
   getThreadsLoggedIn,
   saveThreadsLoggedIn,
-  getShowMemberOnlyTweets,
-  saveShowMemberOnlyTweets,
+  getShowMemberOnlyPosts,
+  saveShowMemberOnlyPosts,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
   getTickerFgColor,
@@ -816,3 +834,4 @@ module.exports = {
   clearStoredLanguage,
   buildProfileData
 };
+

@@ -509,8 +509,8 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
   if (!gridContainer || !Array.isArray(slots)) return;
 
   const isAnyOverlayOpen = () => {
-    const tweetPopup = document.getElementById('tweet-popup-overlay');
-    if (tweetPopup && !tweetPopup.classList.contains('is-closed')) return true;
+    const postPopup = document.getElementById('tweet-popup-overlay');
+    if (postPopup && !postPopup.classList.contains('is-closed')) return true;
     const settingsModal = document.getElementById('settings-modal-overlay');
     if (settingsModal && !settingsModal.classList.contains('is-closed')) return true;
     return false;

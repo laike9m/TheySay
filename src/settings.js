@@ -16,8 +16,8 @@ const {
   saveThreadsIntervalMinutes,
   getDiscordIntervalMinutes,
   saveDiscordIntervalMinutes,
-  getShowMemberOnlyTweets,
-  saveShowMemberOnlyTweets,
+  getShowMemberOnlyPosts,
+  saveShowMemberOnlyPosts,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
   getTickerFgColor,
@@ -210,7 +210,7 @@ function loadCurrentSettings() {
 
   const memberOnlySelect = document.getElementById('setting-show-member-only');
   if (memberOnlySelect) {
-    const showMemberOnly = getShowMemberOnlyTweets();
+    const showMemberOnly = getShowMemberOnlyPosts();
     memberOnlySelect.value = showMemberOnly ? 'true' : 'false';
   }
 
@@ -301,9 +301,9 @@ function getFormSettingsOverrides() {
     }
   }
 
-  const showMemberOnlyTweets = memberOnlySelect
+  const showMemberOnlyPosts = memberOnlySelect
     ? memberOnlySelect.value === 'true'
-    : getShowMemberOnlyTweets();
+    : getShowMemberOnlyPosts();
   const discordSoundEnabled = discordSoundSelect
     ? discordSoundSelect.value === 'true'
     : getDiscordSoundEnabled();
@@ -325,7 +325,7 @@ function getFormSettingsOverrides() {
     twitterIntervalMinutes,
     threadsIntervalMinutes,
     discordIntervalMinutes,
-    showMemberOnlyTweets,
+    showMemberOnlyPosts,
     discordSoundEnabled,
     headerBgColor,
     tickerFgColor,
@@ -380,7 +380,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         twitterMinutes: getTwitterIntervalMinutes(),
         threadsMinutes: getThreadsIntervalMinutes(),
         discordMinutes: getDiscordIntervalMinutes(),
-        showMemberOnly: getShowMemberOnlyTweets(),
+        showMemberOnly: getShowMemberOnlyPosts(),
         discordSoundEnabled: getDiscordSoundEnabled(),
         headerBgColor: getHeaderBgColor(),
         tickerFgColor: getTickerFgColor(),
@@ -559,7 +559,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   if (memberOnlySelect) {
     memberOnlySelect.addEventListener('change', () => {
       const showMemberOnly = memberOnlySelect.value === 'true';
-      saveShowMemberOnlyTweets(showMemberOnly);
+      saveShowMemberOnlyPosts(showMemberOnly);
       notifySaved();
     });
   }
@@ -719,7 +719,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       saveTwitterIntervalMinutes(DEFAULT_TWITTER_INTERVAL_MINUTES);
       saveThreadsIntervalMinutes(DEFAULT_THREADS_INTERVAL_MINUTES);
       saveDiscordIntervalMinutes(DEFAULT_DISCORD_INTERVAL_MINUTES);
-      saveShowMemberOnlyTweets(DEFAULT_SHOW_MEMBER_ONLY);
+      saveShowMemberOnlyPosts(DEFAULT_SHOW_MEMBER_ONLY);
       saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
       saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
       applyHeaderColor(DEFAULT_HEADER_BG_COLOR);

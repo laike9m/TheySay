@@ -1,10 +1,10 @@
-function getTweetId(tweet) {
-  if (!tweet) return '';
-  if (tweet.id) return String(tweet.id);
-  if (tweet.url) {
-    const m = String(tweet.url).match(/\/status\/(\d+)/);
+function getPostId(post) {
+  if (!post) return '';
+  if (post.id) return String(post.id);
+  if (post.url) {
+    const m = String(post.url).match(/\/status\/(\d+)/);
     if (m) return m[1];
-    const tm = String(tweet.url).match(/\/post\/([A-Za-z0-9_-]+)/);
+    const tm = String(post.url).match(/\/post\/([A-Za-z0-9_-]+)/);
     if (tm) return tm[1];
   }
   return '';
@@ -14,83 +14,83 @@ function getTweetId(tweet) {
 const TWITTER_EPOCH = 1288834974657n;
 const DISCORD_EPOCH = 1420070400000n;
 
-function getTweetTimestamp(tweet) {
-  if (typeof tweet.timestamp === 'number' && tweet.timestamp > 0) {
-    return tweet.timestamp;
+function getPostTimestamp(post) {
+  if (typeof post.timestamp === 'number' && post.timestamp > 0) {
+    return post.timestamp;
   }
-  if (tweet.datetime) {
-    const parsed = Date.parse(tweet.datetime);
+  if (post.datetime) {
+    const parsed = Date.parse(post.datetime);
     if (!isNaN(parsed) && parsed > 0) return parsed;
   }
-  const id = getTweetId(tweet);
+  const id = getPostId(post);
   if (id && /^\d+$/.test(id)) {
     try {
-      const epoch = tweet.source === 'discord' ? DISCORD_EPOCH : TWITTER_EPOCH;
+      const epoch = post.source === 'discord' ? DISCORD_EPOCH : TWITTER_EPOCH;
       return Number((BigInt(id) >> 22n) + epoch);
     } catch (e) {}
   }
   return 0;
 }
 
-function getTweetKey(tweet) {
-  if (!tweet) return '';
-  const prefix = tweet.source === 'discord'
+function getPostKey(post) {
+  if (!post) return '';
+  const prefix = post.source === 'discord'
     ? 'discord_'
-    : (tweet.source === 'threads' ? 'threads_' : '');
-  const id = getTweetId(tweet);
+    : (post.source === 'threads' ? 'threads_' : '');
+  const id = getPostId(post);
   if (id) return `${prefix}id_${id}`;
-  if (tweet.url) return `${prefix}url_${tweet.url}`;
-  return `${prefix}txt_${(tweet.text || '').slice(0, 40)}_${tweet.datetime || tweet.time || ''}`;
+  if (post.url) return `${prefix}url_${post.url}`;
+  return `${prefix}txt_${(post.text || '').slice(0, 40)}_${post.datetime || post.time || ''}`;
 }
 
-function processAndSortTweets(tweets) {
-  if (!Array.isArray(tweets) || tweets.length === 0) return [];
+function processAndSortPosts(posts) {
+  if (!Array.isArray(posts) || posts.length === 0) return [];
 
   // 1. Ensure id, timestamp, and isMemberOnly are calculated
-  const normalized = tweets.map(t => ({
-    ...t,
-    id: getTweetId(t),
-    timestamp: getTweetTimestamp(t),
-    isMemberOnly: isMemberOnlyTweet(t)
+  const normalized = posts.map(p => ({
+    ...p,
+    id: getPostId(p),
+    timestamp: getPostTimestamp(p),
+    isMemberOnly: isMemberOnlyPost(p)
   }));
 
   // 2. Deduplicate by unique key (preserving isUnread: false and backfilled fields)
   const uniqueMap = new Map();
-  for (const t of normalized) {
-    const key = getTweetKey(t);
+  for (const p of normalized) {
+    const key = getPostKey(p);
     if (!uniqueMap.has(key)) {
-      uniqueMap.set(key, t);
+      uniqueMap.set(key, p);
     } else {
       const prev = uniqueMap.get(key);
-      if (prev.isUnread === false || t.isUnread === false) {
+      if (prev.isUnread === false || p.isUnread === false) {
         prev.isUnread = false;
       }
-      if (!prev.avatarUrl && t.avatarUrl) prev.avatarUrl = t.avatarUrl;
-      if (t.hasQuote && !prev.hasQuote) prev.hasQuote = true;
-      if (t.quoteUrl && !prev.quoteUrl) prev.quoteUrl = t.quoteUrl;
-      if (t.quoteAuthor && !prev.quoteAuthor) prev.quoteAuthor = t.quoteAuthor;
-      if (t.quoteText && !prev.quoteText) prev.quoteText = t.quoteText;
-      if (Array.isArray(t.images) && t.images.length > 0 && (!Array.isArray(prev.images) || prev.images.length === 0)) {
-        prev.images = t.images;
+      if (!prev.avatarUrl && p.avatarUrl) prev.avatarUrl = p.avatarUrl;
+      if (p.hasQuote && !prev.hasQuote) prev.hasQuote = true;
+      if (p.quoteUrl && !prev.quoteUrl) prev.quoteUrl = p.quoteUrl;
+      if (p.quoteAuthor && !prev.quoteAuthor) prev.quoteAuthor = p.quoteAuthor;
+      if (p.quoteText && !prev.quoteText) prev.quoteText = p.quoteText;
+      if (Array.isArray(p.images) && p.images.length > 0 && (!Array.isArray(prev.images) || prev.images.length === 0)) {
+        prev.images = p.images;
       }
-      if (Array.isArray(t.attachments) && t.attachments.length > 0 && (!Array.isArray(prev.attachments) || prev.attachments.length === 0)) {
-        prev.attachments = t.attachments;
+      if (Array.isArray(p.attachments) && p.attachments.length > 0 && (!Array.isArray(prev.attachments) || prev.attachments.length === 0)) {
+        prev.attachments = p.attachments;
       }
     }
   }
-  const uniqueTweets = Array.from(uniqueMap.values());
+  const uniquePosts = Array.from(uniqueMap.values());
 
-  // 3. Separate non-pinned and pinned tweets
-  const nonPinned = uniqueTweets.filter(t => !t.isPinned);
-  const pinned = uniqueTweets.filter(t => t.isPinned);
+  // 3. Separate non-pinned and pinned posts
+  const nonPinned = uniquePosts.filter(p => !p.isPinned);
+  const pinned = uniquePosts.filter(p => p.isPinned);
 
   // 4. "如果置顶的帖子比最老的帖子还老，那就不显示它"
   let validPinned = [];
   if (nonPinned.length > 0) {
     let oldestNonPinnedTime = Infinity;
-    for (const t of nonPinned) {
-      if (t.timestamp > 0 && t.timestamp < oldestNonPinnedTime) {
-        oldestNonPinnedTime = t.timestamp;
+    for (const p of nonPinned) {
+      if (p.timestamp > 0 && p.timestamp < oldestNonPinnedTime) {
+        oldestNonPinnedTime = p.timestamp;
       }
     }
 
@@ -105,7 +105,7 @@ function processAndSortTweets(tweets) {
     validPinned = pinned;
   }
 
-  // 5. "从上到下是从旧到新（升序排序，最新推文在最下面）"
+  // 5. "从上到下是从旧到新（升序排序，最新帖子在最下面）"
   const combined = [...validPinned, ...nonPinned];
   combined.sort((a, b) => {
     const timeA = a.timestamp || 0;
@@ -129,24 +129,24 @@ function processAndSortTweets(tweets) {
   return combined;
 }
 
-function getTweetDateObj(tweet) {
-  if (tweet.datetime) {
+function getPostDateObj(post) {
+  if (post.datetime) {
     try {
-      const d = new Date(tweet.datetime);
+      const d = new Date(post.datetime);
       if (!isNaN(d.getTime())) return d;
     } catch (e) {}
   }
-  if (typeof tweet.timestamp === 'number' && tweet.timestamp > 0) {
-    const d = new Date(tweet.timestamp);
+  if (typeof post.timestamp === 'number' && post.timestamp > 0) {
+    const d = new Date(post.timestamp);
     if (!isNaN(d.getTime())) return d;
   }
-  const ts = getTweetTimestamp(tweet);
+  const ts = getPostTimestamp(post);
   if (ts && ts > 0) {
     const d = new Date(ts);
     if (!isNaN(d.getTime())) return d;
   }
-  if (tweet.time) {
-    const parsed = Date.parse(tweet.time);
+  if (post.time) {
+    const parsed = Date.parse(post.time);
     if (!isNaN(parsed) && parsed > 0) {
       return new Date(parsed);
     }
@@ -154,8 +154,8 @@ function getTweetDateObj(tweet) {
   return null;
 }
 
-function getTweetDateKey(tweet) {
-  const d = getTweetDateObj(tweet);
+function getPostDateKey(post) {
+  const d = getPostDateObj(post);
   if (!d) return '';
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -163,8 +163,8 @@ function getTweetDateKey(tweet) {
   return `${year}-${month}-${day}`;
 }
 
-function getTweetDateLabel(tweet) {
-  const d = getTweetDateObj(tweet);
+function getPostDateLabel(post) {
+  const d = getPostDateObj(post);
   if (!d) return '';
   return d.toLocaleDateString('en-US', {
     month: 'long',
@@ -173,56 +173,56 @@ function getTweetDateLabel(tweet) {
   });
 }
 
-function formatTelegramTime(tweet) {
-  const d = getTweetDateObj(tweet);
+function formatTelegramTime(post) {
+  const d = getPostDateObj(post);
   if (d) {
     return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
-  return tweet.time || '';
+  return post.time || '';
 }
 
-function isTweetTruncated(tweet) {
-  if (!tweet) return false;
-  const rawText = (tweet.text || '').trim();
+function isPostTruncated(post) {
+  if (!post) return false;
+  const rawText = (post.text || '').trim();
   const chars = Array.from(rawText);
   if (chars.length > 100) return true;
-  if (tweet.isTruncated) return true;
+  if (post.isTruncated) return true;
   if (rawText.endsWith('…') || rawText.endsWith('...')) return true;
   return false;
 }
 
-function isTweetWithQuote(tweet) {
-  if (!tweet) return false;
-  if (tweet.hasQuote) return true;
-  if (tweet.quoteUrl) return true;
-  if (tweet.isQuote) return true;
-  const tweetId = getTweetId(tweet);
-  if (tweet.text) {
-    const m = tweet.text.match(/(?:twitter|x)\.com\/[^/]+\/status\/(\d+)/);
+function isPostWithQuote(post) {
+  if (!post) return false;
+  if (post.hasQuote) return true;
+  if (post.quoteUrl) return true;
+  if (post.isQuote) return true;
+  const postId = getPostId(post);
+  if (post.text) {
+    const m = post.text.match(/(?:twitter|x)\.com\/[^/]+\/status\/(\d+)/);
     if (m && m[1]) {
-      if (tweetId && m[1] !== tweetId) return true;
+      if (postId && m[1] !== postId) return true;
     }
   }
   return false;
 }
 
-function shouldShowTweetPopup(tweet) {
-  if (!tweet) return false;
-  return !!(tweet.url || tweet.id);
+function shouldShowPostPopup(post) {
+  if (!post) return false;
+  return !!(post.url || post.id);
 }
 
-function isMemberOnlyTweet(tweet) {
-  if (!tweet) return false;
-  if (tweet.isMemberOnly === true || tweet.isSubscriberOnly === true) return true;
-  const tweetId = getTweetId(tweet);
-  if (tweetId === '2103181567199687009') return true;
-  if (tweet.url && tweet.url.includes('2103181567199687009')) return true;
-  if (tweet.text) {
-    if (tweet.text.includes('Subscribe to unlock') ||
-        tweet.text.includes('Subscribe to view') ||
-        tweet.text.includes('订阅以解锁') ||
-        tweet.text.includes('订阅即可解锁') ||
-        tweet.text.includes('订阅以查看')) {
+function isMemberOnlyPost(post) {
+  if (!post) return false;
+  if (post.isMemberOnly === true || post.isSubscriberOnly === true) return true;
+  const postId = getPostId(post);
+  if (postId === '2103181567199687009') return true;
+  if (post.url && post.url.includes('2103181567199687009')) return true;
+  if (post.text) {
+    if (post.text.includes('Subscribe to unlock') ||
+        post.text.includes('Subscribe to view') ||
+        post.text.includes('订阅以解锁') ||
+        post.text.includes('订阅即可解锁') ||
+        post.text.includes('订阅以查看')) {
       return true;
     }
   }
@@ -256,15 +256,18 @@ function ensureSlotReadTracking(slot, cachedEntry = null) {
     if (typeof cachedEntry.maxReadTimestamp === 'number' && cachedEntry.maxReadTimestamp > slot.maxReadTimestamp) {
       slot.maxReadTimestamp = cachedEntry.maxReadTimestamp;
     }
-    if (Array.isArray(cachedEntry.tweets)) {
-      cachedEntry.tweets.forEach(t => {
-        if (!t) return;
-        const k = getTweetKey(t);
+    const cachedPosts = Array.isArray(cachedEntry.posts)
+      ? cachedEntry.posts
+      : (Array.isArray(cachedEntry.tweets) ? cachedEntry.tweets : []);
+    if (cachedPosts.length > 0) {
+      cachedPosts.forEach(p => {
+        if (!p) return;
+        const k = getPostKey(p);
         if (k) slot.knownKeys.add(k);
-        if (!t.isUnread) {
+        if (!p.isUnread) {
           if (k) slot.readKeys.add(k);
-          const ts = getTweetTimestamp(t);
-          if (!t.isPinned && ts > slot.maxReadTimestamp) {
+          const ts = getPostTimestamp(p);
+          if (!p.isPinned && ts > slot.maxReadTimestamp) {
             slot.maxReadTimestamp = ts;
           }
         }
@@ -273,23 +276,23 @@ function ensureSlotReadTracking(slot, cachedEntry = null) {
   }
 }
 
-function recordSlotReadTweets(slot, tweets = null) {
+function recordSlotReadPosts(slot, posts = null) {
   if (!slot) return;
   ensureSlotReadTracking(slot);
-  const list = Array.isArray(tweets) ? tweets : (Array.isArray(slot.loadedTweets) ? slot.loadedTweets : []);
-  for (const t of list) {
-    if (!t) continue;
-    const key = getTweetKey(t);
-    const ts = getTweetTimestamp(t);
+  const list = Array.isArray(posts) ? posts : (Array.isArray(slot.loadedPosts) ? slot.loadedPosts : []);
+  for (const p of list) {
+    if (!p) continue;
+    const key = getPostKey(p);
+    const ts = getPostTimestamp(p);
     if (key) {
       slot.knownKeys.add(key);
     }
     if (key && slot.readKeys.has(key)) {
-      t.isUnread = false;
+      p.isUnread = false;
     }
-    if (!t.isUnread) {
+    if (!p.isUnread) {
       if (key) slot.readKeys.add(key);
-      if (!t.isPinned && ts > slot.maxReadTimestamp) {
+      if (!p.isPinned && ts > slot.maxReadTimestamp) {
         slot.maxReadTimestamp = ts;
       }
     }
@@ -300,11 +303,11 @@ function shouldMarkScrapedItemUnread(slot, item) {
   if (!item) return false;
   if (!slot) return true;
   ensureSlotReadTracking(slot);
-  const key = getTweetKey(item);
+  const key = getPostKey(item);
   if (key && (slot.readKeys.has(key) || slot.knownKeys.has(key))) {
     return false;
   }
-  const ts = getTweetTimestamp(item);
+  const ts = getPostTimestamp(item);
   if (ts > 0 && slot.maxReadTimestamp > 0 && ts <= slot.maxReadTimestamp) {
     return false;
   }
@@ -331,22 +334,23 @@ function resetSlotReadTracking(slot) {
 }
 
 module.exports = {
-  getTweetId,
-  getTweetTimestamp,
-  getTweetKey,
-  processAndSortTweets,
-  getTweetDateObj,
-  getTweetDateKey,
-  getTweetDateLabel,
+  getPostId,
+  getPostTimestamp,
+  getPostKey,
+  processAndSortPosts,
+  getPostDateObj,
+  getPostDateKey,
+  getPostDateLabel,
   formatTelegramTime,
-  isTweetTruncated,
-  isTweetWithQuote,
-  shouldShowTweetPopup,
-  isMemberOnlyTweet,
+  isPostTruncated,
+  isPostWithQuote,
+  shouldShowPostPopup,
+  isMemberOnlyPost,
   ensureSlotReadTracking,
-  recordSlotReadTweets,
+  recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   serializeSlotReadTracking,
   resetSlotReadTracking
 };
+
 

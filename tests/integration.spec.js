@@ -189,7 +189,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
             userHandle: '@elonmusk',
             avatarUrl: '',
             lastFetchedAt: Date.now(),
-            tweets: [
+            posts: [
               {
                 id: '1900000000000000001',
                 text: 'Watching $NVDA and AAPL earnings closely today!',
@@ -219,19 +219,19 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#slot-unread-badge-0')).toBeVisible();
     await expect(page.locator('#slot-unread-badge-0')).toContainText('1');
 
-    // Verify tweet bubble and stock ticker highlights ($NVDA and AAPL)
-    const tweetBubble = page.locator('#slot-content-0 .im-bubble').first();
-    await expect(tweetBubble).toBeVisible();
-    await expect(tweetBubble).toHaveClass(/unread/);
+    // Verify post bubble and stock ticker highlights ($NVDA and AAPL)
+    const postBubble = page.locator('#slot-content-0 .im-bubble').first();
+    await expect(postBubble).toBeVisible();
+    await expect(postBubble).toHaveClass(/unread/);
 
-    const tickerChips = tweetBubble.locator('.ticker-highlight');
+    const tickerChips = postBubble.locator('.ticker-highlight');
     await expect(tickerChips).toHaveCount(2);
     await expect(tickerChips.nth(0)).toHaveText('$NVDA');
     await expect(tickerChips.nth(1)).toHaveText('AAPL');
 
     // Click Mark All Read and verify unread state clears
     await page.locator('#btn-mark-all-read').click();
-    await expect(tweetBubble).not.toHaveClass(/unread/);
+    await expect(postBubble).not.toHaveClass(/unread/);
     await expect(page.locator('#slot-unread-badge-0')).toBeHidden();
   });
 
@@ -271,7 +271,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.locator('#btn-login-menu').click();
     await page.locator('#item-import-profile').click();
 
-    // Verify state is restored to exported 2x2 preset and cached tweets remain intact
+    // Verify state is restored to exported 2x2 preset and cached posts remain intact
     await expect(page.locator('#layout-select')).toHaveValue('2x2');
     await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(4);
     await expect(page.locator('#author-name-0')).toHaveText('Elon Musk');
@@ -423,7 +423,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
           userHandle: `@${handle}`,
           avatarUrl: '',
           lastFetchedAt: Date.now(),
-          tweets: Array.from({ length: 40 }, (_, i) => {
+          posts: Array.from({ length: 40 }, (_, i) => {
             const id = `19000000000000${String(i).padStart(5, '0')}`;
             return {
               id,
@@ -501,6 +501,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     // swapping with slot-6 (originally y=2) — previously reverted on restart due to out-of-order packing
     await page.selectOption('#layout-select', '3x3');
     await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(9);
+    await page.waitForTimeout(350);
 
     const handle0 = page.locator('.grid-stack-item[data-slot-index="0"] .slot-drag-handle');
     const slot6 = page.locator('.grid-stack-item[data-slot-index="6"]');
@@ -509,7 +510,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     await page.mouse.move(box0.x + box0.width / 2, box0.y + box0.height / 2);
     await page.mouse.down();
+    await page.mouse.move(box0.x + box0.width / 2, box0.y + box0.height / 2 + 12, { steps: 3 });
     await page.mouse.move(box6.x + box6.width / 2, box6.y + box6.height / 2, { steps: 15 });
+    await page.waitForTimeout(300);
     await page.mouse.up();
 
     const posAfter3x3Drag = await readGridPositions();
@@ -524,6 +527,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     // 2. Switch to 2x2, perform a diagonal drag (slot-0 onto slot-3) AND close + reopen the Electron app
     await page.selectOption('#layout-select', '2x2');
     await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(4);
+    await page.waitForTimeout(350);
 
     const h0 = page.locator('.grid-stack-item[data-slot-index="0"] .slot-drag-handle');
     const s3 = page.locator('.grid-stack-item[data-slot-index="3"]');
@@ -532,7 +536,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
     await page.mouse.down();
+    await page.mouse.move(b0.x + b0.width / 2 + 12, b0.y + b0.height / 2 + 12, { steps: 3 });
     await page.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2, { steps: 15 });
+    await page.waitForTimeout(300);
     await page.mouse.up();
 
     const posBeforeRestart = await readGridPositions();
@@ -602,7 +608,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
             userHandle: 'threads:@zuck',
             avatarUrl: '',
             lastFetchedAt: Date.now(),
-            tweets: [
+            posts: [
               {
                 id: 'DVZ8a9bXk12',
                 text: 'Shipping Llama 4 and tracking $META and NVDA compute clusters!',

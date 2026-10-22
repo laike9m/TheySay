@@ -1255,7 +1255,8 @@ body {
   margin: 3px 0;
 }
 
-/* Tweets List (IM Chat Timeline) */
+/* Posts List (IM Chat Timeline) */
+.slot-posts-list,
 .slot-tweets-list {
   display: flex;
   flex-direction: column;

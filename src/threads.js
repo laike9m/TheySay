@@ -1,13 +1,13 @@
 const { ipcRenderer } = require('electron');
 const { randomBetween, sleep, showToast, isNetworkOnline, canReachHost } = require('./utils');
 const {
-  getTweetKey,
-  processAndSortTweets,
+  getPostKey,
+  processAndSortPosts,
   ensureSlotReadTracking,
-  recordSlotReadTweets,
+  recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
   resetSlotReadTracking
-} = require('./tweet');
+} = require('./post');
 const {
   saveHandles,
   saveLastFetchTime,
@@ -25,7 +25,7 @@ const {
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
-  renderSlotTweets,
+  renderSlotPosts,
   persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
@@ -383,27 +383,27 @@ async function fetchThreadsSlot(
     const restored = restoreSlotFromTargetCache(slot, rawInput, slots);
     if (!restored) {
       resetSlotReadTracking(slot);
-      slot.loadedTweets = [];
+      slot.loadedPosts = [];
       slot.monitoredHandle = rawInput;
       slot.source = SOURCE_THREADS;
       updateSlotAvatar(slot, null);
     }
-  } else if (!Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) {
+  } else if (!Array.isArray(slot.loadedPosts) || slot.loadedPosts.length === 0) {
     restoreSlotFromTargetCache(slot, rawInput, slots);
   }
 
   const hasExisting = (
     getCanonicalTargetKey(slot.monitoredHandle || '', slot.source) === currKey &&
-    Array.isArray(slot.loadedTweets) &&
-    slot.loadedTweets.length > 0
+    Array.isArray(slot.loadedPosts) &&
+    slot.loadedPosts.length > 0
   );
-  const existingTweets = hasExisting ? slot.loadedTweets : [];
+  const existingPosts = hasExisting ? slot.loadedPosts : [];
   ensureSlotReadTracking(slot);
   if (hasExisting) {
-    recordSlotReadTweets(slot, existingTweets);
+    recordSlotReadPosts(slot, existingPosts);
   }
   const existingKeys = new Set([
-    ...existingTweets.map(t => getTweetKey(t)),
+    ...existingPosts.map(p => getPostKey(p)),
     ...(slot.knownKeys || []),
     ...(slot.readKeys || [])
   ]);
@@ -438,9 +438,9 @@ async function fetchThreadsSlot(
 
   const targetUrl = buildThreadsProfileUrl(handle);
 
-  const existingNonPinned = existingTweets.filter(t => !t.isPinned);
-  const boundaryTweet = existingNonPinned.length > 0 ? existingNonPinned[existingNonPinned.length - 1] : null;
-  const boundaryKey = boundaryTweet ? getTweetKey(boundaryTweet) : null;
+  const existingNonPinned = existingPosts.filter(p => !p.isPinned);
+  const boundaryPost = existingNonPinned.length > 0 ? existingNonPinned[existingNonPinned.length - 1] : null;
+  const boundaryKey = boundaryPost ? getPostKey(boundaryPost) : null;
 
   let slotOffline = false;
   try {
@@ -527,7 +527,7 @@ async function fetchThreadsSlot(
 
           for (const item of result.items) {
             item.source = SOURCE_THREADS;
-            const key = getTweetKey(item);
+            const key = getPostKey(item);
             if (!key) continue;
 
             if (existingKeys.has(key)) {
@@ -627,17 +627,17 @@ async function fetchThreadsSlot(
     saveLastFetchTimeThreads(slot.lastFetchedAt);
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 
-    const liveExistingTweets = (
+    const liveExistingPosts = (
       hasExisting &&
-      Array.isArray(slot.loadedTweets) &&
-      slot.loadedTweets.length > 0
+      Array.isArray(slot.loadedPosts) &&
+      slot.loadedPosts.length > 0
     )
-      ? slot.loadedTweets
-      : existingTweets;
+      ? slot.loadedPosts
+      : existingPosts;
 
-    if (liveExistingTweets.length > 0) {
-      liveExistingTweets.forEach(m => {
-        const fresh = backfilledByKey.get(getTweetKey(m));
+    if (liveExistingPosts.length > 0) {
+      liveExistingPosts.forEach(m => {
+        const fresh = backfilledByKey.get(getPostKey(m));
         if (fresh) {
           if (Array.isArray(fresh.images) && fresh.images.length > 0 && (!Array.isArray(m.images) || m.images.length === 0)) {
             m.images = fresh.images;
@@ -646,7 +646,7 @@ async function fetchThreadsSlot(
           if (fresh.quoteAuthor && !m.quoteAuthor) m.quoteAuthor = fresh.quoteAuthor;
         }
       });
-      recordSlotReadTweets(slot, liveExistingTweets);
+      recordSlotReadPosts(slot, liveExistingPosts);
     }
 
     const renderMeta = {
@@ -660,21 +660,21 @@ async function fetchThreadsSlot(
         if (!isBackground) {
           showToast(t('threads.upToDateToast', { handle }), 'info', 2000);
         }
-        const sortedExisting = processAndSortTweets(liveExistingTweets);
-        recordSlotReadTweets(slot, sortedExisting);
-        renderSlotTweets(slot, sortedExisting, rawInput, latestAvatarUrl, slots, renderMeta);
+        const sortedExisting = processAndSortPosts(liveExistingPosts);
+        recordSlotReadPosts(slot, sortedExisting);
+        renderSlotPosts(slot, sortedExisting, rawInput, latestAvatarUrl, slots, renderMeta);
       } else {
         collectedNewPosts.forEach(item => {
           if (!shouldMarkScrapedItemUnread(slot, item)) {
             item.isUnread = false;
           }
         });
-        const unreadNewPosts = collectedNewPosts.filter(t => t.isUnread);
-        const merged = [...liveExistingTweets, ...collectedNewPosts];
-        const sorted = processAndSortTweets(merged);
-        const finalPosts = sorted.slice(-Math.max(20, liveExistingTweets.length));
-        recordSlotReadTweets(slot, finalPosts);
-        renderSlotTweets(slot, finalPosts, rawInput, latestAvatarUrl, slots, renderMeta);
+        const unreadNewPosts = collectedNewPosts.filter(p => p.isUnread);
+        const merged = [...liveExistingPosts, ...collectedNewPosts];
+        const sorted = processAndSortPosts(merged);
+        const finalPosts = sorted.slice(-Math.max(20, liveExistingPosts.length));
+        recordSlotReadPosts(slot, finalPosts);
+        renderSlotPosts(slot, finalPosts, rawInput, latestAvatarUrl, slots, renderMeta);
         if (unreadNewPosts.length > 0) {
           showToast(t('threads.newPostsToast', { handle, count: unreadNewPosts.length }), 'success', 2500);
           notifySlotNewMessages(slot, unreadNewPosts);
@@ -684,10 +684,10 @@ async function fetchThreadsSlot(
       }
     } else {
       if (collectedNewPosts.length > 0) {
-        const sorted = processAndSortTweets(collectedNewPosts);
+        const sorted = processAndSortPosts(collectedNewPosts);
         const finalPosts = sorted.slice(-20);
-        recordSlotReadTweets(slot, finalPosts);
-        renderSlotTweets(slot, finalPosts, rawInput, latestAvatarUrl, slots, renderMeta);
+        recordSlotReadPosts(slot, finalPosts);
+        renderSlotPosts(slot, finalPosts, rawInput, latestAvatarUrl, slots, renderMeta);
       } else {
         showSlotError(slot, t('threads.fetchTimeoutError'));
       }

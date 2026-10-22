@@ -1,5 +1,5 @@
 const { shell, ipcRenderer } = require('electron');
-const { getTweetId, isMemberOnlyTweet } = require('./tweet');
+const { getPostId, isMemberOnlyPost } = require('./post');
 const { escapeHtml, stripDiscordEditedText } = require('./utils');
 const { formatTextWithTickers } = require('./ticker');
 const { installRendererEmbedHooks } = require('./tweet_embed');
@@ -18,12 +18,12 @@ const MAX_CONCURRENT_RENDERS = 2;
 // Give up on an embed after this long and show the fallback card instead.
 const RENDER_TIMEOUT_MS = 15000;
 
-// tweetId -> { el, status, promise, job, tweet }
+// postId -> { el, status, promise, job, post }
 //   status: 'idle' | 'pending' | 'ready' | 'failed'
 const embedSlots = new Map();
 
-let activeTweetId = null;
-let currentTweet = null;
+let activePostId = null;
+let currentPost = null;
 let renderQueue = [];
 let activeRenders = 0;
 
@@ -43,7 +43,7 @@ function getCurrentTheme() {
   return document.documentElement.getAttribute('data-theme') || 'dark';
 }
 
-function isTweetPopupOpen() {
+function isPostPopupOpen() {
   const overlay = getOverlay();
   return !!(overlay && !overlay.classList.contains('is-closed'));
 }
@@ -59,7 +59,7 @@ function pumpRenderQueue() {
   }
 }
 
-// Move a queued job to the front so a tweet the user is actually waiting on
+// Move a queued job to the front so a post the user is actually waiting on
 // jumps ahead of background prefetch work.
 function prioritizeSlot(entry) {
   if (!entry || !entry.job) return;
@@ -80,7 +80,7 @@ function evictStaleSlots() {
   for (const [id, entry] of embedSlots) {
     if (embedSlots.size <= MAX_PRERENDERED) break;
     // Never evict what's on screen or still being built.
-    if (id === activeTweetId || entry.status === 'pending') continue;
+    if (id === activePostId || entry.status === 'pending') continue;
     if (entry.el && entry.el.parentNode) {
       entry.el.parentNode.removeChild(entry.el);
     }
@@ -88,30 +88,30 @@ function evictStaleSlots() {
   }
 }
 
-function ensureSlot(tweetId, tweet) {
-  let entry = embedSlots.get(tweetId);
+function ensureSlot(postId, post) {
+  let entry = embedSlots.get(postId);
   if (entry) {
-    if (tweet) entry.tweet = tweet;
+    if (post) entry.post = post;
     return entry;
   }
 
   const container = getEmbedContainer();
   if (!container) return null;
 
-  // Each tweet keeps its own persistent host element. It is created once and
+  // Each post keeps its own persistent host element. It is created once and
   // never re-parented, because moving an iframe in the DOM forces it to reload.
   const el = document.createElement('div');
   el.className = 'tweet-embed-slot';
-  el.setAttribute('data-tweet-id', tweetId);
+  el.setAttribute('data-tweet-id', postId);
   container.appendChild(el);
 
-  entry = { el, status: 'idle', promise: null, job: null, tweet: tweet || null };
-  embedSlots.set(tweetId, entry);
+  entry = { el, status: 'idle', promise: null, job: null, post: post || null };
+  embedSlots.set(postId, entry);
   evictStaleSlots();
   return entry;
 }
 
-function renderSlot(entry, tweetId) {
+function renderSlot(entry, postId) {
   if (entry.promise) return entry.promise;
 
   entry.status = 'pending';
@@ -143,7 +143,7 @@ function renderSlot(entry, tweetId) {
       // The slot must have a real, non-zero layout width here: Twitter's widget
       // factory measures the host element to size its iframe, and a zero-width
       // host makes it silently bail out.
-      twttr.widgets.createTweet(tweetId, entry.el, {
+      twttr.widgets.createTweet(postId, entry.el, {
         theme: getCurrentTheme(),
         align: 'center',
         dnt: true
@@ -160,30 +160,30 @@ function renderSlot(entry, tweetId) {
   return entry.promise;
 }
 
-function deactivateSlot(tweetId) {
-  const entry = embedSlots.get(tweetId);
+function deactivateSlot(postId) {
+  const entry = embedSlots.get(postId);
   if (entry && entry.el) entry.el.classList.remove('is-active');
 }
 
 /* ----------------------------------------------------------------
-   Fallback card (offline / deleted / protected tweets)
+   Fallback card (offline / deleted / protected posts)
    ---------------------------------------------------------------- */
 
 function renderFallbackInto(entry) {
-  const tweet = entry.tweet;
-  if (!entry.el || !tweet) return;
+  const post = entry.post;
+  if (!entry.el || !post) return;
 
-  const rawText = normalizeMediaOnlyText((tweet.text || '').trim());
-  const timeDisplay = tweet.time || (tweet.datetime ? new Date(tweet.datetime).toLocaleString() : '');
-  const displayName = tweet.displayName || tweet.userHandle || '';
-  const userHandle = tweet.userHandle || '';
-  const avatarUrl = tweet.avatarUrl || '';
+  const rawText = normalizeMediaOnlyText((post.text || '').trim());
+  const timeDisplay = post.time || (post.datetime ? new Date(post.datetime).toLocaleString() : '');
+  const displayName = post.displayName || post.userHandle || '';
+  const userHandle = post.userHandle || '';
+  const avatarUrl = post.avatarUrl || '';
 
   const fallbackDiv = document.createElement('div');
   fallbackDiv.className = 'tweet-popup-fallback';
 
   let memberInfoHtml = '';
-  if (isMemberOnlyTweet(tweet)) {
+  if (isMemberOnlyPost(post)) {
     memberInfoHtml = `
       <div class="tweet-popup-fallback-member">
         <span class="tweet-tag member">${escapeHtml(t('popup.memberOnlyTag'))}</span>
@@ -193,11 +193,11 @@ function renderFallbackInto(entry) {
   }
 
   let quoteInfoHtml = '';
-  if (tweet.hasQuote || tweet.quoteUrl) {
+  if (post.hasQuote || post.quoteUrl) {
     quoteInfoHtml = `
       <div class="tweet-popup-fallback-quote">
         <span class="tweet-tag quote">${escapeHtml(t('popup.quoteTag'))}</span>
-        ${tweet.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(tweet.quoteUrl)}">${escapeHtml(t('popup.viewQuotedTweet'))}</a>` : ''}
+        ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedPost'))}</a>` : ''}
       </div>
     `;
   }
@@ -215,7 +215,7 @@ function renderFallbackInto(entry) {
     ${quoteInfoHtml}
     <div class="tweet-popup-fallback-footer">
       <span class="tweet-popup-fallback-time">${escapeHtml(timeDisplay)}</span>
-      ${tweet.url ? `<button class="tweet-popup-fallback-btn" data-url="${escapeHtml(tweet.url)}">${escapeHtml(t('popup.openOnTwitter'))}</button>` : ''}
+      ${post.url ? `<button class="tweet-popup-fallback-btn" data-url="${escapeHtml(post.url)}">${escapeHtml(t('popup.openOnTwitter'))}</button>` : ''}
     </div>
   `;
 
@@ -235,20 +235,20 @@ function renderFallbackInto(entry) {
    Public API
    ---------------------------------------------------------------- */
 
-// Warm a tweet's embed in the background so a later click is instant.
-function prefetchTweet(tweet, { priority = false } = {}) {
-  // Discord messages, Threads posts, and member-only tweets are rendered locally from data we already hold;
+// Warm a post's embed in the background so a later click is instant.
+function prefetchPost(post, { priority = false } = {}) {
+  // Discord messages, Threads posts, and member-only posts are rendered locally from data we already hold;
   // there is no third-party widget to warm up.
-  if (!tweet || tweet.source === 'discord' || tweet.source === 'threads' || isMemberOnlyTweet(tweet)) return;
+  if (!post || post.source === 'discord' || post.source === 'threads' || isMemberOnlyPost(post)) return;
 
-  const tweetId = getTweetId(tweet);
-  if (!tweetId) return;
+  const postId = getPostId(post);
+  if (!postId) return;
 
-  const existing = embedSlots.get(tweetId);
+  const existing = embedSlots.get(postId);
   if (existing) {
-    if (tweet) existing.tweet = tweet;
+    if (post) existing.post = post;
     if (priority) prioritizeSlot(existing);
-    if (!existing.promise) renderSlot(existing, tweetId);
+    if (!existing.promise) renderSlot(existing, postId);
     return;
   }
 
@@ -256,9 +256,9 @@ function prefetchTweet(tweet, { priority = false } = {}) {
   // (hover/click) request is allowed to evict something older.
   if (!priority && embedSlots.size >= MAX_PRERENDERED) return;
 
-  const entry = ensureSlot(tweetId, tweet);
+  const entry = ensureSlot(postId, post);
   if (!entry) return;
-  renderSlot(entry, tweetId);
+  renderSlot(entry, postId);
   if (priority) prioritizeSlot(entry);
 }
 
@@ -378,10 +378,10 @@ function openDiscordPopup(msg) {
   const el = getDiscordSlotEl();
   if (!el) return;
 
-  if (activeTweetId) deactivateSlot(activeTweetId);
+  if (activePostId) deactivateSlot(activePostId);
   if (threadsSlotEl) threadsSlotEl.classList.remove('is-active');
-  activeTweetId = null;
-  currentTweet = msg;
+  activePostId = null;
+  currentPost = msg;
 
   renderDiscordCardInto(el, msg);
   el.classList.add('is-active');
@@ -432,7 +432,7 @@ function renderThreadsCardInto(el, post) {
         <div class="threads-popup-quote-header">
           <span class="tweet-tag quote">${escapeHtml(t('popup.quoteTag'))}</span>
           ${qAuthor ? `<span class="threads-popup-quote-author">${escapeHtml(qAuthor)}</span>` : ''}
-          ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedTweet'))}</a>` : ''}
+          ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedPost'))}</a>` : ''}
         </div>
         ${qText ? `<div class="threads-popup-quote-text">${formatTextWithTickers(qText, undefined, { linkifyUrls: true })}</div>` : ''}
       </div>
@@ -498,10 +498,10 @@ function openThreadsPopup(post) {
   const el = getThreadsSlotEl();
   if (!el) return;
 
-  if (activeTweetId) deactivateSlot(activeTweetId);
+  if (activePostId) deactivateSlot(activePostId);
   if (discordSlotEl) discordSlotEl.classList.remove('is-active');
-  activeTweetId = null;
-  currentTweet = post;
+  activePostId = null;
+  currentPost = post;
 
   renderThreadsCardInto(el, post);
   el.classList.add('is-active');
@@ -511,14 +511,14 @@ function openThreadsPopup(post) {
   openOverlay();
 }
 
-function openTweetPopup(tweet) {
-  if (!tweet) return;
-  if (tweet.source === 'discord') {
-    openDiscordPopup(tweet);
+function openPostPopup(post) {
+  if (!post) return;
+  if (post.source === 'discord') {
+    openDiscordPopup(post);
     return;
   }
-  if (tweet.source === 'threads') {
-    openThreadsPopup(tweet);
+  if (post.source === 'threads') {
+    openThreadsPopup(post);
     return;
   }
 
@@ -526,32 +526,32 @@ function openTweetPopup(tweet) {
   const loadingEl = getLoadingEl();
   if (!overlay) return;
 
-  const tweetId = getTweetId(tweet);
-  currentTweet = tweet;
+  const postId = getPostId(post);
+  currentPost = post;
 
   // Hide whatever was shown before.
   if (discordSlotEl) discordSlotEl.classList.remove('is-active');
   if (threadsSlotEl) threadsSlotEl.classList.remove('is-active');
-  if (activeTweetId && activeTweetId !== tweetId) {
-    deactivateSlot(activeTweetId);
+  if (activePostId && activePostId !== postId) {
+    deactivateSlot(activePostId);
   }
 
-  if (!tweetId) {
+  if (!postId) {
     if (loadingEl) loadingEl.style.display = 'none';
     openOverlay();
     return;
   }
 
-  const entry = ensureSlot(tweetId, tweet);
+  const entry = ensureSlot(postId, post);
   if (!entry) return;
 
-  activeTweetId = tweetId;
+  activePostId = postId;
   entry.el.classList.add('is-active');
   openOverlay();
 
-  // If this is a member-only tweet, Twitter's public embed iframe cannot render it.
+  // If this is a member-only post, Twitter's public embed iframe cannot render it.
   // Immediately render the rich fallback card with "仅会员可见" notice without waiting for widget timeout.
-  if (isMemberOnlyTweet(tweet)) {
+  if (isMemberOnlyPost(post)) {
     if (loadingEl) loadingEl.style.display = 'none';
     renderFallbackInto(entry);
     return;
@@ -568,8 +568,8 @@ function openTweetPopup(tweet) {
   if (loadingEl) loadingEl.style.display = 'flex';
   prioritizeSlot(entry);
 
-  renderSlot(entry, tweetId).then(() => {
-    if (activeTweetId !== tweetId) return;
+  renderSlot(entry, postId).then(() => {
+    if (activePostId !== postId) return;
     if (loadingEl) loadingEl.style.display = 'none';
   });
 }
@@ -582,7 +582,7 @@ function openOverlay() {
   overlay.focus();
 }
 
-function closeTweetPopup() {
+function closePostPopup() {
   const overlay = getOverlay();
   const loadingEl = getLoadingEl();
 
@@ -592,21 +592,21 @@ function closeTweetPopup() {
   }
 
   // Only hide the active slot; the rendered iframe stays in the DOM so that
-  // reopening the same tweet is instant.
-  if (activeTweetId) deactivateSlot(activeTweetId);
+  // reopening the same post is instant.
+  if (activePostId) deactivateSlot(activePostId);
   if (discordSlotEl) discordSlotEl.classList.remove('is-active');
   if (threadsSlotEl) threadsSlotEl.classList.remove('is-active');
-  activeTweetId = null;
+  activePostId = null;
 
   if (loadingEl) loadingEl.style.display = 'none';
-  currentTweet = null;
+  currentPost = null;
 }
 
 // Twitter bakes the colour scheme into the embed at creation time, so every
 // pre-rendered card has to be thrown away when the theme flips.
-function clearTweetWidgetCache() {
-  const wasOpen = isTweetPopupOpen();
-  const tweet = currentTweet;
+function clearPostWidgetCache() {
+  const wasOpen = isPostPopupOpen();
+  const post = currentPost;
 
   renderQueue = [];
   for (const entry of embedSlots.values()) {
@@ -615,10 +615,10 @@ function clearTweetWidgetCache() {
     }
   }
   embedSlots.clear();
-  activeTweetId = null;
+  activePostId = null;
 
-  if (wasOpen && tweet) {
-    openTweetPopup(tweet);
+  if (wasOpen && post) {
+    openPostPopup(post);
   }
 }
 
@@ -645,7 +645,7 @@ function setupEmbedIntegration() {
 
 setupEmbedIntegration();
 
-function initTweetPopup() {
+function initPostPopup() {
   setupEmbedIntegration();
   const overlay = getOverlay();
 
@@ -654,15 +654,15 @@ function initTweetPopup() {
       // Clicking the card itself shouldn't dismiss the popup.
       if (e.target.closest('.tweet-embed-slot')) return;
       if (e.target.closest('.tweet-popup-loading')) return;
-      closeTweetPopup();
+      closePostPopup();
     });
   }
 
   const handleEscKey = (e) => {
-    if (e.key === 'Escape' && isTweetPopupOpen()) {
+    if (e.key === 'Escape' && isPostPopupOpen()) {
       e.preventDefault();
       e.stopPropagation();
-      closeTweetPopup();
+      closePostPopup();
     }
   };
 
@@ -673,16 +673,16 @@ function initTweetPopup() {
   // which the renderer can't observe directly.
   if (ipcRenderer) {
     ipcRenderer.on('global-escape', () => {
-      if (isTweetPopupOpen()) closeTweetPopup();
+      if (isPostPopupOpen()) closePostPopup();
     });
   }
 }
 
 module.exports = {
-  initTweetPopup,
-  openTweetPopup,
-  closeTweetPopup,
-  isTweetPopupOpen,
-  prefetchTweet,
-  clearTweetWidgetCache
+  initPostPopup,
+  openPostPopup,
+  closePostPopup,
+  isPostPopupOpen,
+  prefetchPost,
+  clearPostWidgetCache
 };

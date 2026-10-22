@@ -11,7 +11,7 @@ const {
   saveTwitterIntervalMinutes,
   saveThreadsIntervalMinutes,
   saveDiscordIntervalMinutes,
-  saveShowMemberOnlyTweets,
+  saveShowMemberOnlyPosts,
   saveDiscordSoundEnabled,
   saveHeaderBgColor,
   saveTickerFgColor,
@@ -31,7 +31,7 @@ const {
   closeAllSizeMenus,
   updateSlotSizeUI,
   updateSlotMuteUI,
-  markAllTweetsAsRead,
+  markAllPostsAsRead,
   refreshSlotsContent,
   localizeSlotsUI,
   archiveSlotScrapedData,
@@ -52,7 +52,7 @@ const {
   runDiscordBackgroundFetch,
   startPeriodicBackgroundFetch
 } = require('./src/scraper');
-const { initTweetPopup } = require('./src/popup');
+const { initPostPopup } = require('./src/popup');
 const {
   initSettings,
   isSettingsModalOpen,
@@ -181,8 +181,10 @@ async function handleImportProfile() {
     if (typeof settings.discordIntervalMinutes === 'number' && settings.discordIntervalMinutes > 0) {
       saveDiscordIntervalMinutes(settings.discordIntervalMinutes);
     }
-    if (typeof settings.showMemberOnlyTweets === 'boolean') {
-      saveShowMemberOnlyTweets(settings.showMemberOnlyTweets);
+    if (typeof settings.showMemberOnlyPosts === 'boolean') {
+      saveShowMemberOnlyPosts(settings.showMemberOnlyPosts);
+    } else if (typeof settings.showMemberOnlyTweets === 'boolean') {
+      saveShowMemberOnlyPosts(settings.showMemberOnlyTweets);
     }
     if (typeof settings.discordSoundEnabled === 'boolean') {
       saveDiscordSoundEnabled(settings.discordSoundEnabled);
@@ -336,13 +338,13 @@ async function handleImportProfile() {
     // Trigger background fetch for any active slot that has a handle/channel but no cached data yet
     const activeSlots = slots.slice(0, getActiveSlotCount());
     const hasUncachedTwitter = activeSlots.some(
-      s => s && s.handleInput && s.handleInput.value.trim() && s.source !== 'discord' && s.source !== 'threads' && (!s.loadedTweets || s.loadedTweets.length === 0)
+      s => s && s.handleInput && s.handleInput.value.trim() && s.source !== 'discord' && s.source !== 'threads' && (!s.loadedPosts || s.loadedPosts.length === 0)
     );
     const hasUncachedThreads = activeSlots.some(
-      s => s && s.handleInput && s.handleInput.value.trim() && s.source === 'threads' && (!s.loadedTweets || s.loadedTweets.length === 0)
+      s => s && s.handleInput && s.handleInput.value.trim() && s.source === 'threads' && (!s.loadedPosts || s.loadedPosts.length === 0)
     );
     const hasUncachedDiscord = activeSlots.some(
-      s => s && s.handleInput && s.handleInput.value.trim() && s.source === 'discord' && (!s.loadedTweets || s.loadedTweets.length === 0)
+      s => s && s.handleInput && s.handleInput.value.trim() && s.source === 'discord' && (!s.loadedPosts || s.loadedPosts.length === 0)
     );
     if (hasUncachedTwitter) {
       setTimeout(() => {
@@ -382,7 +384,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   initTheme(btnThemeToggle);
-  initTweetPopup();
+  initPostPopup();
   initBackgroundWebviews(bgWebviewsContainer, slots, MAX_SLOTS);
 
   slots = initSlotsRegistry({
@@ -463,13 +465,13 @@ window.addEventListener('DOMContentLoaded', () => {
     getGridDimensions
   });
 
-  // Restore cached tweets
+  // Restore cached posts
   loadSlotCache(slots);
 
   // If any active Discord slot has legacy cached messages from before image URL extraction,
   // automatically refresh Discord in the background once to populate inline images.
   const hasLegacyDiscordCache = slots.slice(0, getActiveSlotCount()).some(
-    s => s && s.source === 'discord' && Array.isArray(s.loadedTweets) && s.loadedTweets.some(m => !Array.isArray(m.images))
+    s => s && s.source === 'discord' && Array.isArray(s.loadedPosts) && s.loadedPosts.some(m => !Array.isArray(m.images))
   );
   if (hasLegacyDiscordCache) {
     setTimeout(() => {
@@ -514,9 +516,9 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Mark all tweets as read button
+  // Mark all posts as read button
   if (btnMarkAllRead) {
-    btnMarkAllRead.addEventListener('click', () => markAllTweetsAsRead(slots));
+    btnMarkAllRead.addEventListener('click', () => markAllPostsAsRead(slots));
   }
 
   // Responsive dynamic cellHeight on window resize

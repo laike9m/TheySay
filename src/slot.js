@@ -2,20 +2,20 @@ const { shell } = require('electron');
 const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('./constants');
 const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('./utils');
 const {
-  getTweetKey,
-  processAndSortTweets,
-  getTweetDateKey,
-  getTweetDateLabel,
+  getPostKey,
+  processAndSortPosts,
+  getPostDateKey,
+  getPostDateLabel,
   formatTelegramTime,
-  shouldShowTweetPopup,
-  isTweetWithQuote,
-  isMemberOnlyTweet,
+  shouldShowPostPopup,
+  isPostWithQuote,
+  isMemberOnlyPost,
   ensureSlotReadTracking,
-  recordSlotReadTweets,
+  recordSlotReadPosts,
   serializeSlotReadTracking,
   resetSlotReadTracking
-} = require('./tweet');
-const { openTweetPopup, prefetchTweet } = require('./popup');
+} = require('./post');
+const { openPostPopup, prefetchPost } = require('./popup');
 const {
   getSavedHandles,
   saveHandles,
@@ -26,7 +26,7 @@ const {
   getSlotCache,
   saveSlotCache,
   saveAllSlotCache,
-  getShowMemberOnlyTweets
+  getShowMemberOnlyPosts
 } = require('./storage');
 const { getOrCreateSlotWebview } = require('./webview');
 const {
@@ -89,7 +89,7 @@ function createSlotWidget(index) {
 
           <!-- Identity Area: Displays Author Name / Handle next to Avatar, or Input Field -->
           <div class="slot-identity-area" id="slot-identity-${index}">
-            <!-- Author display badge next to avatar (shown when tweets loaded) -->
+            <!-- Author display badge next to avatar (shown when posts loaded) -->
             <div class="slot-author-header" id="slot-author-header-${index}" style="display: none;" title="${escapeHtml(t('slot.clickEditAccount'))}">
               <span class="slot-author-name" id="author-name-${index}"></span>
               <span class="slot-author-handle" id="author-handle-${index}"></span>
@@ -134,7 +134,7 @@ function createSlotWidget(index) {
             <span class="slot-loading-text" id="slot-loading-text-${index}">${escapeHtml(t('slot.loadingText'))}</span>
           </div>
           <div class="slot-error" id="slot-error-${index}" style="display: none;"></div>
-          <div class="slot-tweets-list" id="slot-tweets-list-${index}" style="display: none;"></div>
+          <div class="slot-posts-list" id="slot-posts-list-${index}" style="display: none;"></div>
         </div>
       </div>
     </div>
@@ -208,12 +208,12 @@ function toggleSlotMute(slot, slots = []) {
   updateSlotMuteUI(slot);
   saveMutedSlots(slots);
 
-  if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+  if (Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
     persistSlot(slot, {
       handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
       displayName: slot.authorName ? slot.authorName.innerText : '',
       userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
-      tweets: slot.loadedTweets,
+      posts: slot.loadedPosts,
       avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
     }, slots);
   }
@@ -266,13 +266,33 @@ function updateSlotSourceUI(slot) {
  * Single funnel for slot persistence so that the source and the resolved
  * channel / server names are never dropped on the way into localStorage.
  */
-function persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl }, slots = []) {
-  recordSlotReadTweets(slot, tweets);
+function persistSlot(slot, payloadOrSlots = {}, maybeSlots = []) {
+  const isDirectSlots = Array.isArray(payloadOrSlots);
+  const payload = isDirectSlots ? {} : (payloadOrSlots || {});
+  const slots = isDirectSlots ? payloadOrSlots : maybeSlots;
+
+  const handle = payload.handle !== undefined
+    ? payload.handle
+    : (slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''));
+  const displayName = payload.displayName !== undefined
+    ? payload.displayName
+    : (slot.authorName ? slot.authorName.innerText : '');
+  const userHandle = payload.userHandle !== undefined
+    ? payload.userHandle
+    : (slot.authorHandle ? slot.authorHandle.innerText : '');
+  const posts = Array.isArray(payload.posts)
+    ? payload.posts
+    : (Array.isArray(slot.loadedPosts) ? slot.loadedPosts : []);
+  const avatarUrl = payload.avatarUrl !== undefined
+    ? payload.avatarUrl
+    : ((slot.avatarImg && slot.avatarImg.src) || '');
+
+  recordSlotReadPosts(slot, posts);
   saveSlotCache(slot.index, {
     handle,
     displayName,
     userHandle,
-    tweets,
+    posts,
     avatarUrl,
     isMuted: slot.isMuted !== false,
     source: slot.source || 'twitter',
@@ -315,13 +335,13 @@ function updateSlotFetchTimeUI(slot, timestamp) {
 }
 
 function getSlotUnreadCount(slot) {
-  if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return 0;
+  if (!slot || !Array.isArray(slot.loadedPosts) || slot.loadedPosts.length === 0) return 0;
   const isDiscord = isDiscordSlot(slot);
   const isThreads = isThreadsSlot(slot);
-  const showMemberOnly = getShowMemberOnlyTweets();
+  const showMemberOnly = getShowMemberOnlyPosts();
   const visible = (showMemberOnly || isDiscord || isThreads)
-    ? slot.loadedTweets
-    : slot.loadedTweets.filter(t => !isMemberOnlyTweet(t));
+    ? slot.loadedPosts
+    : slot.loadedPosts.filter(p => !isMemberOnlyPost(p));
   let count = 0;
   for (let i = 0; i < visible.length; i++) {
     if (visible[i] && visible[i].isUnread) count++;
@@ -343,31 +363,31 @@ function updateSlotUnreadBadge(slot) {
   }
 }
 
-function markSlotTweetsAsRead(slot, slots = []) {
+function markSlotPostsAsRead(slot, slots = []) {
   if (!slot) return false;
   let updated = false;
-  if (Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
-    slot.loadedTweets.forEach(t => {
-      if (t && t.isUnread) {
-        t.isUnread = false;
+  if (Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
+    slot.loadedPosts.forEach(p => {
+      if (p && p.isUnread) {
+        p.isUnread = false;
         updated = true;
       }
     });
-    recordSlotReadTweets(slot, slot.loadedTweets);
+    recordSlotReadPosts(slot, slot.loadedPosts);
   }
-  if (slot.tweetsList) {
-    const unreadBubbles = slot.tweetsList.querySelectorAll('.im-bubble.unread');
+  if (slot.postsList) {
+    const unreadBubbles = slot.postsList.querySelectorAll('.im-bubble.unread');
     if (unreadBubbles.length > 0) {
       unreadBubbles.forEach(b => b.classList.remove('unread'));
       updated = true;
     }
   }
-  if (updated && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+  if (updated && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
     persistSlot(slot, {
       handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
       displayName: slot.authorName ? slot.authorName.innerText : '',
       userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
-      tweets: slot.loadedTweets,
+      posts: slot.loadedPosts,
       avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
     }, slots);
   }
@@ -380,7 +400,7 @@ function showSlotLoading(slot, text) {
   slot.loading.style.display = 'flex';
   slot.loadingText.innerText = text;
   slot.error.style.display = 'none';
-  slot.tweetsList.style.display = 'none';
+  slot.postsList.style.display = 'none';
 }
 
 function showSlotError(slot, errorMsg) {
@@ -388,7 +408,7 @@ function showSlotError(slot, errorMsg) {
   slot.loading.style.display = 'none';
   slot.error.style.display = 'block';
   slot.error.innerHTML = `⚠️ ${errorMsg}`;
-  slot.tweetsList.style.display = 'none';
+  slot.postsList.style.display = 'none';
 }
 
 // Stable per-author tint, so the same person keeps the same colour across
@@ -457,9 +477,9 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
   return html;
 }
 
-function buildTweetBubbleHtml(tweet) {
-  const images = Array.isArray(tweet.images) ? tweet.images.filter(Boolean) : [];
-  const rawText = normalizeMediaOnlyText((tweet.text || '').trim());
+function buildPostBubbleHtml(post) {
+  const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
+  const rawText = normalizeMediaOnlyText((post.text || '').trim());
   const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
   const effectiveText = isMediaFallbackOnly ? '' : rawText;
   const chars = Array.from(effectiveText);
@@ -467,10 +487,10 @@ function buildTweetBubbleHtml(tweet) {
   const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
 
   let tagHtml = '';
-  if (tweet.isPinned) tagHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
-  if (tweet.isRetweet) tagHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
-  if (isTweetWithQuote(tweet)) tagHtml += `<span class="tweet-tag quote">${escapeHtml(t('slot.tagQuote'))}</span>`;
-  if (isMemberOnlyTweet(tweet)) tagHtml += `<span class="tweet-tag member" title="${escapeHtml(t('slot.tagMemberOnlyTitle'))}">${escapeHtml(t('slot.tagMemberOnly'))}</span>`;
+  if (post.isPinned) tagHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
+  if (post.isRetweet) tagHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
+  if (isPostWithQuote(post)) tagHtml += `<span class="tweet-tag quote">${escapeHtml(t('slot.tagQuote'))}</span>`;
+  if (isMemberOnlyPost(post)) tagHtml += `<span class="tweet-tag member" title="${escapeHtml(t('slot.tagMemberOnlyTitle'))}">${escapeHtml(t('slot.tagMemberOnly'))}</span>`;
 
   let textHtml = '';
   if (effectiveText) {
@@ -496,23 +516,23 @@ function buildTweetBubbleHtml(tweet) {
  * Renders a slot's feed.
  *
  * `meta` is only supplied by non-Twitter sources; when it is omitted the header
- * keeps deriving its identity from the first tweet, exactly as before.
+ * keeps deriving its identity from the first post, exactly as before.
  */
-function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], meta = null) {
+function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta = null) {
   slot.placeholder.style.display = 'none';
   slot.loading.style.display = 'none';
   slot.error.style.display = 'none';
-  slot.tweetsList.style.display = 'flex';
+  slot.postsList.style.display = 'flex';
 
   ensureSlotReadTracking(slot);
-  recordSlotReadTweets(slot, tweets);
-  slot.loadedTweets = tweets;
+  recordSlotReadPosts(slot, posts);
+  slot.loadedPosts = posts;
 
   const isDiscord = !!(meta && meta.source === SOURCE_DISCORD);
   const isThreads = !!(meta && meta.source === SOURCE_THREADS);
   slot.source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
 
-  const firstTweet = tweets[0] || {};
+  const firstPost = posts[0] || {};
 
   let displayName;
   let userHandle;
@@ -576,9 +596,9 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     let rawHandle = sanitizeSingleLine(meta && meta.userHandle ? meta.userHandle : '');
 
     if (!rawName) {
-      for (const t of tweets) {
-        if (t.displayName) {
-          const cleaned = sanitizeSingleLine(t.displayName);
+      for (const p of posts) {
+        if (p.displayName) {
+          const cleaned = sanitizeSingleLine(p.displayName);
           if (cleaned && cleaned.toLowerCase() !== handle.toLowerCase()) {
             rawName = cleaned;
             break;
@@ -587,14 +607,14 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       }
     }
 
-    if (!rawName && firstTweet.displayName) {
-      rawName = sanitizeSingleLine(firstTweet.displayName);
+    if (!rawName && firstPost.displayName) {
+      rawName = sanitizeSingleLine(firstPost.displayName);
     }
 
     if (!rawHandle) {
-      for (const t of tweets) {
-        if (t.userHandle) {
-          const cleanedH = sanitizeSingleLine(t.userHandle);
+      for (const p of posts) {
+        if (p.userHandle) {
+          const cleanedH = sanitizeSingleLine(p.userHandle);
           if (cleanedH) {
             rawHandle = cleanedH;
             break;
@@ -604,7 +624,7 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     }
 
     if (!rawHandle) {
-      rawHandle = sanitizeSingleLine(firstTweet.userHandle || (isThreads ? `threads:@${handle}` : `@${handle}`));
+      rawHandle = sanitizeSingleLine(firstPost.userHandle || (isThreads ? `threads:@${handle}` : `@${handle}`));
     }
     if (isThreads) {
       const bare = rawHandle.replace(/^@?threads:\s*@?/i, '').replace(/^@/, '');
@@ -645,51 +665,51 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     updateSlotAvatar(slot, avatarUrl);
   }
 
-  slot.tweetsList.innerHTML = '';
+  slot.postsList.innerHTML = '';
 
   const finalAvatar = avatarUrl || (slot.avatarImg && slot.avatarImg.src) || '';
 
-  const markBubbleAsRead = (tweetObj, bubbleEl) => {
+  const markBubbleAsRead = (postObj, bubbleEl) => {
     let changed = false;
     if (bubbleEl && bubbleEl.classList.contains('unread')) {
       bubbleEl.classList.remove('unread');
       changed = true;
     }
-    if (tweetObj && tweetObj.isUnread) {
-      tweetObj.isUnread = false;
+    if (postObj && postObj.isUnread) {
+      postObj.isUnread = false;
       changed = true;
     }
-    const targetKey = getTweetKey(tweetObj);
-    if (targetKey && Array.isArray(slot.loadedTweets)) {
-      slot.loadedTweets.forEach(t => {
-        if (t && getTweetKey(t) === targetKey && t.isUnread) {
-          t.isUnread = false;
+    const targetKey = getPostKey(postObj);
+    if (targetKey && Array.isArray(slot.loadedPosts)) {
+      slot.loadedPosts.forEach(p => {
+        if (p && getPostKey(p) === targetKey && p.isUnread) {
+          p.isUnread = false;
           changed = true;
         }
       });
     }
     if (changed) {
-      recordSlotReadTweets(slot, slot.loadedTweets);
+      recordSlotReadPosts(slot, slot.loadedPosts);
       updateSlotUnreadBadge(slot);
-      persistSlot(slot, { handle, displayName, userHandle, tweets: slot.loadedTweets, avatarUrl: finalAvatar }, slots);
+      persistSlot(slot, { handle, displayName, userHandle, posts: slot.loadedPosts, avatarUrl: finalAvatar }, slots);
     }
   };
 
-  const showMemberOnly = getShowMemberOnlyTweets();
-  const displayTweets = (showMemberOnly || isDiscord || isThreads)
-    ? tweets
-    : tweets.filter(t => !isMemberOnlyTweet(t));
+  const showMemberOnly = getShowMemberOnlyPosts();
+  const displayPosts = (showMemberOnly || isDiscord || isThreads)
+    ? posts
+    : posts.filter(p => !isMemberOnlyPost(p));
 
   let lastDateKey = null;
   let lastAuthorName = null;
 
-  displayTweets.forEach((tweet) => {
-    if (!tweet.source && slot.source) {
-      tweet.source = slot.source;
+  displayPosts.forEach((post) => {
+    if (!post.source && slot.source) {
+      post.source = slot.source;
     }
 
-    const dateKey = getTweetDateKey(tweet);
-    const dateLabel = getTweetDateLabel(tweet);
+    const dateKey = getPostDateKey(post);
+    const dateLabel = getPostDateLabel(post);
     let startedNewDay = false;
 
     if (dateKey && dateKey !== lastDateKey) {
@@ -698,52 +718,52 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       const dateDivider = document.createElement('div');
       dateDivider.className = 'im-date-divider';
       dateDivider.innerHTML = `<span class="im-date-pill">${escapeHtml(dateLabel)}</span>`;
-      slot.tweetsList.appendChild(dateDivider);
+      slot.postsList.appendChild(dateDivider);
     }
 
     const bubble = document.createElement('div');
     bubble.className = 'im-bubble';
-    if (tweet.isUnread) {
+    if (post.isUnread) {
       bubble.classList.add('unread');
     }
-    if (isMemberOnlyTweet(tweet)) {
+    if (isMemberOnlyPost(post)) {
       bubble.classList.add('is-member-only');
     }
 
     // Restore to normal bubble color once hovered or clicked
     bubble.addEventListener('mouseenter', () => {
-      markBubbleAsRead(tweet, bubble);
+      markBubbleAsRead(post, bubble);
     });
 
-    // Store avatar and author reference on tweet object if available
-    if (!tweet.avatarUrl && finalAvatar) {
-      tweet.avatarUrl = finalAvatar;
+    // Store avatar and author reference on post object if available
+    if (!post.avatarUrl && finalAvatar) {
+      post.avatarUrl = finalAvatar;
     }
     if (!isDiscord) {
-      if (!tweet.displayName && displayName) tweet.displayName = displayName;
-      if (!tweet.userHandle && userHandle) tweet.userHandle = userHandle;
+      if (!post.displayName && displayName) post.displayName = displayName;
+      if (!post.userHandle && userHandle) post.userHandle = userHandle;
     }
 
-    const timeDisplay = formatTelegramTime(tweet);
+    const timeDisplay = formatTelegramTime(post);
     const linkTitle = isDiscord
       ? t('slot.openOriginalDiscord')
-      : (isThreads ? t('slot.openOriginalThreads') : t('slot.openOriginalTweet'));
+      : (isThreads ? t('slot.openOriginalThreads') : t('slot.openOriginalPost'));
 
     let bodyHtml;
     if (isDiscord) {
       // Consecutive messages from the same person collapse into one visual
       // group, the way every chat client renders them.
-      const showAuthor = startedNewDay || tweet.displayName !== lastAuthorName;
-      bodyHtml = buildDiscordBubbleHtml(tweet, { showAuthor });
+      const showAuthor = startedNewDay || post.displayName !== lastAuthorName;
+      bodyHtml = buildDiscordBubbleHtml(post, { showAuthor });
       bubble.classList.add('discord');
       if (!showAuthor) bubble.classList.add('grouped');
-      lastAuthorName = tweet.displayName;
+      lastAuthorName = post.displayName;
     } else {
-      bodyHtml = buildTweetBubbleHtml(tweet);
+      bodyHtml = buildPostBubbleHtml(post);
       if (isThreads) bubble.classList.add('threads');
     }
 
-    bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${tweet.url ? `<a class="im-btn-link" data-url="${escapeHtml(tweet.url)}" title="${escapeHtml(linkTitle)}">↗</a>` : ''}`;
+    bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${post.url ? `<a class="im-btn-link" data-url="${escapeHtml(post.url)}" title="${escapeHtml(linkTitle)}">↗</a>` : ''}`;
 
     // Handle inline image load (keep bottom scroll alignment) and error fallback
     const mediaImgs = bubble.querySelectorAll('.im-media-img');
@@ -779,50 +799,50 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
       });
     }
 
-    // Open external tweet link (hover button in top-right)
-    if (tweet.url) {
+    // Open external post link (hover button in top-right)
+    if (post.url) {
       const linkBtn = bubble.querySelector('.im-btn-link');
       if (linkBtn) {
         linkBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          markBubbleAsRead(tweet, bubble);
-          shell.openExternal(tweet.url);
+          markBubbleAsRead(post, bubble);
+          shell.openExternal(post.url);
         });
       }
     }
 
     // Click on bubble to open centered popup (click-to-open, no hover trigger)
-    const hasPopup = shouldShowTweetPopup(tweet);
+    const hasPopup = shouldShowPostPopup(post);
     if (hasPopup) {
       bubble.classList.add('has-popup');
       if (!isDiscord && !isThreads) {
         // Hovering is a strong hint the user is about to click, so jump this
-        // tweet to the front of the embed render queue. Discord and Threads messages
+        // post to the front of the embed render queue. Discord and Threads messages
         // are rendered locally and need no warm-up.
         bubble.addEventListener('mouseenter', () => {
-          prefetchTweet(tweet, { priority: true });
+          prefetchPost(post, { priority: true });
         });
       }
       bubble.addEventListener('click', (e) => {
         if (e.target.closest('.im-btn-link')) return;
-        markBubbleAsRead(tweet, bubble);
-        openTweetPopup(tweet);
+        markBubbleAsRead(post, bubble);
+        openPostPopup(post);
       });
     } else {
       bubble.addEventListener('click', () => {
-        markBubbleAsRead(tweet, bubble);
+        markBubbleAsRead(post, bubble);
       });
     }
 
-    slot.tweetsList.appendChild(bubble);
+    slot.postsList.appendChild(bubble);
   });
 
-  if (displayTweets.length === 0 && tweets.length > 0 && !isDiscord && !isThreads) {
+  if (displayPosts.length === 0 && posts.length > 0 && !isDiscord && !isThreads) {
     const emptyNotice = document.createElement('div');
     emptyNotice.className = 'im-filtered-empty-notice';
-    emptyNotice.innerText = t('slot.hiddenMemberTweets', { count: tweets.length });
-    slot.tweetsList.appendChild(emptyNotice);
+    emptyNotice.innerText = t('slot.hiddenMemberPosts', { count: posts.length });
+    slot.postsList.appendChild(emptyNotice);
   }
 
   // Auto-scroll to bottom to show the latest messages (Telegram style)
@@ -832,16 +852,16 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
     }
   });
 
-  persistSlot(slot, { handle, displayName, userHandle, tweets, avatarUrl: finalAvatar }, slots);
+  persistSlot(slot, { handle, displayName, userHandle, posts, avatarUrl: finalAvatar }, slots);
 
-  // Background idle prefetch for tweets eligible for popups.
-  // The list auto-scrolls to the bottom, so the newest tweets are the ones on
+  // Background idle prefetch for posts eligible for popups.
+  // The list auto-scrolls to the bottom, so the newest posts are the ones on
   // screen and the most likely to be clicked.
-  if (!isDiscord && !isThreads && Array.isArray(tweets) && tweets.length > 0) {
-    const popTweets = tweets.filter(shouldShowTweetPopup);
-    if (popTweets.length > 0) {
+  if (!isDiscord && !isThreads && Array.isArray(posts) && posts.length > 0) {
+    const popPosts = posts.filter(shouldShowPostPopup);
+    if (popPosts.length > 0) {
       setTimeout(() => {
-        popTweets.slice(-4).reverse().forEach((t) => prefetchTweet(t));
+        popPosts.slice(-4).reverse().forEach((p) => prefetchPost(p));
       }, 1000);
     }
   }
@@ -849,17 +869,17 @@ function renderSlotTweets(slot, tweets, handle, avatarUrl = null, slots = [], me
 
 
 function archiveSlotScrapedData(slot) {
-  if (!slot || !Array.isArray(slot.loadedTweets) || slot.loadedTweets.length === 0) return;
+  if (!slot || !Array.isArray(slot.loadedPosts) || slot.loadedPosts.length === 0) return;
   const rawInput = slot.handleInput ? slot.handleInput.value.trim() : '';
   const handle = slot.monitoredHandle || rawInput;
   if (!handle) return;
   const source = slot.source || detectSourceType(rawInput || handle);
-  recordSlotReadTweets(slot, slot.loadedTweets);
+  recordSlotReadPosts(slot, slot.loadedPosts);
   saveTargetCacheEntry(handle, {
     handle,
     displayName: slot.authorName ? slot.authorName.innerText : '',
     userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
-    tweets: slot.loadedTweets,
+    posts: slot.loadedPosts,
     avatarUrl: (slot.avatarImg && slot.avatarImg.src) || '',
     isMuted: slot.isMuted !== false,
     source,
@@ -880,7 +900,8 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = [], sourceOverride =
   const isThreads = detected === SOURCE_THREADS;
   const source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
   const cached = getTargetCacheEntry(trimmed, source);
-  if (!cached || !Array.isArray(cached.tweets) || cached.tweets.length === 0) {
+  const cachedPosts = cached && (Array.isArray(cached.posts) ? cached.posts : cached.tweets);
+  if (!cached || !Array.isArray(cachedPosts) || cachedPosts.length === 0) {
     return false;
   }
 
@@ -903,8 +924,8 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = [], sourceOverride =
     updateSlotAvatar(slot, null);
   }
 
-  const sorted = processAndSortTweets(cached.tweets);
-  recordSlotReadTweets(slot, sorted);
+  const sorted = processAndSortPosts(cachedPosts);
+  recordSlotReadPosts(slot, sorted);
   const meta = isDiscord
     ? {
         source: SOURCE_DISCORD,
@@ -917,7 +938,7 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = [], sourceOverride =
         userHandle: sanitizeSingleLine(cached.userHandle || `@${targetHandle}`)
       };
 
-  renderSlotTweets(slot, sorted, targetHandle, cached.avatarUrl || null, slots, meta);
+  renderSlotPosts(slot, sorted, targetHandle, cached.avatarUrl || null, slots, meta);
   return true;
 }
 
@@ -933,7 +954,7 @@ function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
     slot.btnClear.style.display = trimmed.length > 0 ? 'flex' : 'none';
   }
   updateSlotAvatar(slot, null);
-  slot.loadedTweets = [];
+  slot.loadedPosts = [];
   const nextSource = detectSourceType(trimmed);
   slot.monitoredHandle = trimmed
     ? (nextSource === SOURCE_DISCORD
@@ -944,8 +965,8 @@ function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
   slot.sourceTitle = '';
   slot.sourceSubtitle = '';
   slot.lastFetchedAt = null;
-  slot.tweetsList.innerHTML = '';
-  slot.tweetsList.style.display = 'none';
+  slot.postsList.innerHTML = '';
+  slot.postsList.style.display = 'none';
   slot.loading.style.display = 'none';
   slot.error.style.display = 'none';
   slot.placeholder.style.display = 'flex';
@@ -971,13 +992,13 @@ function clearSlot(slot, { slots } = {}) {
     saveMutedSlots(slots);
   }
   saveSlotCache(slot.index, null, slots);
-  slot.loadedTweets = [];
+  slot.loadedPosts = [];
   slot.monitoredHandle = '';
   slot.source = '';
   slot.sourceTitle = '';
   slot.sourceSubtitle = '';
-  slot.tweetsList.innerHTML = '';
-  slot.tweetsList.style.display = 'none';
+  slot.postsList.innerHTML = '';
+  slot.postsList.style.display = 'none';
   slot.loading.style.display = 'none';
   slot.error.style.display = 'none';
   slot.placeholder.style.display = 'flex';
@@ -993,8 +1014,8 @@ function clearSlot(slot, { slots } = {}) {
 function slotHasContent(slot) {
   if (!slot) return false;
   const handle = slot.handleInput ? slot.handleInput.value.trim() : '';
-  const hasTweets = (slot.loadedTweets && slot.loadedTweets.length > 0);
-  return handle.length > 0 || hasTweets;
+  const hasPosts = (slot.loadedPosts && slot.loadedPosts.length > 0);
+  return handle.length > 0 || hasPosts;
 }
 
 function updateSlotSizeUI(slot, w, h) {
@@ -1255,11 +1276,11 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
   if (slot.unreadBadge) {
     slot.unreadBadge.addEventListener('click', (e) => {
       e.stopPropagation();
-      markSlotTweetsAsRead(slot, slots);
+      markSlotPostsAsRead(slot, slots);
     });
   }
 
-  // When handleInput loses focus or escape is pressed, revert to author badge if tweets exist for same handle (or if left empty)
+  // When handleInput loses focus or escape is pressed, revert to author badge if posts exist for same handle (or if left empty)
   slot.handleInput.addEventListener('blur', () => {
     if (slot.sourceDropdown && slot.sourceDropdown.style.display === 'flex') {
       return;
@@ -1267,7 +1288,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     const val = slot.handleInput.value.trim();
     const monitored = (slot.monitoredHandle || '').trim();
     const isSameOrEmpty = !val || (monitored && getCanonicalTargetKey(val) === getCanonicalTargetKey(monitored, slot.source));
-    if (isSameOrEmpty && slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
+    if (isSameOrEmpty && slot.loadedPosts && slot.loadedPosts.length > 0 && slot.authorName.innerText.trim()) {
       if (!val && monitored) {
         slot.handleInput.value = slot.source === SOURCE_THREADS ? formatThreadsSlotInput(monitored) : monitored;
         updateClearVisibility();
@@ -1291,7 +1312,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
         closeSlotSourceDropdown(slot);
         return;
       }
-      if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.authorName.innerText.trim()) {
+      if (slot.loadedPosts && slot.loadedPosts.length > 0 && slot.authorName.innerText.trim()) {
         if (slot.monitoredHandle) {
           slot.handleInput.value = slot.source === SOURCE_THREADS
             ? formatThreadsSlotInput(slot.monitoredHandle)
@@ -1328,7 +1349,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
       clearTimeout(slot._probeDebounceTimer);
       slot._probeDebounceTimer = null;
     }
-    if (!slot.loadedTweets || slot.loadedTweets.length === 0) {
+    if (!slot.loadedPosts || slot.loadedPosts.length === 0) {
       saveHandles(slots);
     }
     updateClearVisibility();
@@ -1388,7 +1409,7 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
       clearTimeout(slot._probeDebounceTimer);
       slot._probeDebounceTimer = null;
     }
-    if (slot.loadedTweets && slot.loadedTweets.length > 0 && slot.monitoredHandle) {
+    if (slot.loadedPosts && slot.loadedPosts.length > 0 && slot.monitoredHandle) {
       // In edit mode on an active card: only clear the input text so user can type a new handle
       // without wiping already-scraped data.
       archiveSlotScrapedData(slot);
@@ -1451,10 +1472,10 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       loading: el.querySelector(`#slot-loading-${i}`),
       loadingText: el.querySelector(`#slot-loading-text-${i}`),
       error: el.querySelector(`#slot-error-${i}`),
-      tweetsList: el.querySelector(`#slot-tweets-list-${i}`),
+      postsList: el.querySelector(`#slot-posts-list-${i}`),
       isFetching: false,
       isMuted: typeof savedMuted[i] === 'boolean' ? savedMuted[i] : DEFAULT_SLOT_MUTED,
-      loadedTweets: []
+      loadedPosts: []
     };
 
     slot.avatarImg.addEventListener('error', () => {
@@ -1470,281 +1491,282 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
     if (savedHandles[i]) {
       slot.handleInput.value = savedHandles[i];
     }
-      const savedSource = detectSourceType(savedHandles[i] || '');
-      slot.monitoredHandle = savedHandles[i]
-        ? (savedSource === SOURCE_THREADS ? normalizeThreadsHandle(savedHandles[i]) : savedHandles[i])
-        : '';
-      slot.source = savedSource;
-      slot.sourceTitle = '';
-      slot.sourceSubtitle = '';
-      resetSlotReadTracking(slot);
+    const savedSource = detectSourceType(savedHandles[i] || '');
+    slot.monitoredHandle = savedHandles[i]
+      ? (savedSource === SOURCE_THREADS ? normalizeThreadsHandle(savedHandles[i]) : savedHandles[i])
+      : '';
+    slot.source = savedSource;
+    slot.sourceTitle = '';
+    slot.sourceSubtitle = '';
+    resetSlotReadTracking(slot);
 
-      updateSlotMuteUI(slot);
+    updateSlotMuteUI(slot);
 
-      slots.push(slot);
-      bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
+    slots.push(slot);
+    bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
+  }
+
+  return slots;
+}
+
+function loadSlotCache(slots) {
+  try {
+    const cache = getSlotCache();
+
+    // First, ensure every existing slot cache entry is indexed in per-target cache
+    for (const slotKey of Object.keys(cache)) {
+      const entry = cache[slotKey];
+      const entryPosts = entry && (Array.isArray(entry.posts) ? entry.posts : entry.tweets);
+      if (entry && Array.isArray(entryPosts) && entryPosts.length > 0 && entry.handle) {
+        saveTargetCacheEntry(entry.handle, entry);
+      }
     }
 
-    return slots;
-  }
+    slots.forEach(slot => {
+      const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
+      let slotEntry = cache[slot.index];
 
-  function loadSlotCache(slots) {
-    try {
-      const cache = getSlotCache();
-
-      // First, ensure every existing slot cache entry is indexed in per-target cache
-      for (const slotKey of Object.keys(cache)) {
-        const entry = cache[slotKey];
-        if (entry && Array.isArray(entry.tweets) && entry.tweets.length > 0 && entry.handle) {
-          saveTargetCacheEntry(entry.handle, entry);
+      // If the slot's current input doesn't match its slot-indexed cache (e.g., after handle change or profile import),
+      // look up scraped data by target handle/channel key in the per-target cache archive!
+      if (currentInput) {
+        const currentSource = detectSourceType(currentInput);
+        const currentKey = getCanonicalTargetKey(currentInput);
+        const cachedKey = slotEntry && slotEntry.handle
+          ? getCanonicalTargetKey(slotEntry.handle, slotEntry.source)
+          : '';
+        if (!slotEntry || cachedKey !== currentKey) {
+          const targetEntry = getTargetCacheEntry(currentInput, currentSource);
+          const targetPosts = targetEntry && (Array.isArray(targetEntry.posts) ? targetEntry.posts : targetEntry.tweets);
+          if (targetEntry && Array.isArray(targetPosts) && targetPosts.length > 0) {
+            slotEntry = {
+              ...targetEntry,
+              posts: targetPosts,
+              source: currentSource,
+              handle: currentSource === SOURCE_DISCORD
+                ? currentInput
+                : (currentSource === SOURCE_THREADS
+                    ? normalizeThreadsHandle(currentInput)
+                    : normalizeTwitterHandle(currentInput)),
+              isMuted: slot.isMuted !== false
+            };
+          } else {
+            slotEntry = null;
+          }
         }
+      } else if (slotEntry && slotEntry.handle) {
+        // Slot input was cleared, do not render stale slot cache
+        slotEntry = null;
       }
 
-      slots.forEach(slot => {
-        const currentInput = slot.handleInput ? slot.handleInput.value.trim() : '';
-        let slotEntry = cache[slot.index];
+      if (slotEntry) {
+        let { handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = slotEntry;
+        const posts = Array.isArray(slotEntry.posts) ? slotEntry.posts : slotEntry.tweets;
 
-        // If the slot's current input doesn't match its slot-indexed cache (e.g., after handle change or profile import),
-        // look up scraped data by target handle/channel key in the per-target cache archive!
-        if (currentInput) {
-          const currentSource = detectSourceType(currentInput);
-          const currentKey = getCanonicalTargetKey(currentInput);
-          const cachedKey = slotEntry && slotEntry.handle
-            ? getCanonicalTargetKey(slotEntry.handle, slotEntry.source)
-            : '';
-          if (!slotEntry || cachedKey !== currentKey) {
-            const targetEntry = getTargetCacheEntry(currentInput, currentSource);
-            if (targetEntry && Array.isArray(targetEntry.tweets) && targetEntry.tweets.length > 0) {
-              slotEntry = {
-                ...targetEntry,
-                source: currentSource,
-                handle: currentSource === SOURCE_DISCORD
-                  ? currentInput
-                  : (currentSource === SOURCE_THREADS
-                      ? normalizeThreadsHandle(currentInput)
-                      : normalizeTwitterHandle(currentInput)),
-                isMuted: slot.isMuted !== false
-              };
-            } else {
-              slotEntry = null;
+        const resolvedSource = source || detectSourceType(currentInput || handle);
+        const isDiscord = resolvedSource === SOURCE_DISCORD;
+        const isThreads = resolvedSource === SOURCE_THREADS;
+        const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
+
+        // Self-heal corrupted Discord cache where messages belong to a different channel
+        if (isDiscord && handle) {
+          const slotParsed = parseDiscordChannelUrl(handle);
+          if (slotParsed && slotParsed.channelId && Array.isArray(posts) && posts.length > 0) {
+            const firstMsgUrl = posts[0].url || '';
+            const msgParsed = parseDiscordChannelUrl(firstMsgUrl);
+            if (msgParsed && msgParsed.channelId && msgParsed.channelId !== slotParsed.channelId) {
+              saveSlotCache(slot.index, null, slots);
+              return;
             }
           }
-        } else if (slotEntry && slotEntry.handle) {
-          // Slot input was cleared, do not render stale slot cache
-          slotEntry = null;
         }
 
-        if (slotEntry) {
-          let { tweets, handle, avatarUrl, lastFetchedAt, source, sourceTitle, sourceSubtitle } = slotEntry;
+        if (isDiscord) {
+          let rawTitle = (slotEntry.displayName && (slotEntry.displayName.includes('\n') || slotEntry.displayName.includes(':')))
+            ? slotEntry.displayName
+            : (sourceTitle || slotEntry.displayName || '#频道');
+          let chan = '';
+          let guild = sourceSubtitle || slotEntry.userHandle || '';
 
-          const resolvedSource = source || detectSourceType(currentInput || handle);
-          const isDiscord = resolvedSource === SOURCE_DISCORD;
-          const isThreads = resolvedSource === SOURCE_THREADS;
-          const cleanHandle = String(handle || '').replace(/^@/, '').toLowerCase().trim();
-
-          // Self-heal corrupted Discord cache where messages belong to a different channel
-          if (isDiscord && handle) {
-            const slotParsed = parseDiscordChannelUrl(handle);
-            if (slotParsed && slotParsed.channelId && Array.isArray(tweets) && tweets.length > 0) {
-              const firstMsgUrl = tweets[0].url || '';
-              const msgParsed = parseDiscordChannelUrl(firstMsgUrl);
-              if (msgParsed && msgParsed.channelId && msgParsed.channelId !== slotParsed.channelId) {
-                saveSlotCache(slot.index, null, slots);
-                return;
-              }
+          const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+          if (rawLines.length >= 2) {
+            const l0 = rawLines[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+            const l1 = rawLines[1].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
+            if (l1) {
+              chan = l1;
+              if (!guild || guild === l1) guild = l0;
             }
           }
 
-          if (isDiscord) {
-            let rawTitle = (slotEntry.displayName && (slotEntry.displayName.includes('\n') || slotEntry.displayName.includes(':')))
-              ? slotEntry.displayName
-              : (sourceTitle || slotEntry.displayName || '#频道');
-            let chan = '';
-            let guild = sourceSubtitle || slotEntry.userHandle || '';
-
-            const rawLines = String(rawTitle).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
-            if (rawLines.length >= 2) {
-              const l0 = rawLines[0].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
-              const l1 = rawLines[1].replace(/^[#@]+/, '').replace(/[:：\s]+$/, '').trim();
-              if (l1) {
-                chan = l1;
-                if (!guild || guild === l1) guild = l0;
-              }
-            }
-
-            if (!chan && (rawTitle.includes(':') || rawTitle.includes('：'))) {
-              const cparts = rawTitle.split(/[:：]/);
-              const p0 = cparts[0].replace(/^[#@]+/, '').trim();
-              const p1 = cparts.slice(1).join(':').replace(/^[#@]+/, '').trim();
-              if (p1) {
-                chan = p1;
-                if (!guild || guild === p1) guild = p0;
-              }
-            }
-
-            if (!chan) {
-              chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@\s]+/, '').replace(/[:：\s]+$/, '').trim();
-            }
-            chan = chan.split(/[,，(（]/)[0].trim();
-
-            if (guild) {
-              guild = String(guild).split(/[\r\n]+/)[0].replace(/\s*[-|]\s*Discord$/i, '').trim();
-              if (guild.toLowerCase() === chan.toLowerCase()) guild = '';
-            }
-
-            sourceTitle = chan ? ('#' + chan) : '#频道';
-            sourceSubtitle = guild;
-
-            if (slotEntry.sourceTitle !== sourceTitle || slotEntry.sourceSubtitle !== sourceSubtitle || slotEntry.displayName !== sourceTitle) {
-              slotEntry.sourceTitle = sourceTitle;
-              slotEntry.sourceSubtitle = sourceSubtitle;
-              slotEntry.displayName = sourceTitle;
-              slotEntry.userHandle = sourceSubtitle;
-            }
-            if (Array.isArray(tweets) && tweets.length > 0) {
-              tweets.forEach(t => {
-                if (!t) return;
-                if (typeof t.text === 'string') {
-                  const cleanedText = stripDiscordEditedText(t.text);
-                  if (cleanedText !== t.text) {
-                    t.text = cleanedText;
-                  }
-                }
-                if (typeof t.replyText === 'string') {
-                  const cleanedReply = stripDiscordEditedText(t.replyText);
-                  if (cleanedReply !== t.replyText) {
-                    t.replyText = cleanedReply;
-                  }
-                }
-              });
-            }
-          } else {
-            if (slotEntry.displayName) {
-              const cleanedDisp = sanitizeSingleLine(slotEntry.displayName);
-              if (cleanedDisp !== slotEntry.displayName) {
-                slotEntry.displayName = cleanedDisp;
-              }
-            }
-            if (slotEntry.userHandle) {
-              const cleanedH = sanitizeSingleLine(slotEntry.userHandle);
-              if (cleanedH !== slotEntry.userHandle) {
-                slotEntry.userHandle = cleanedH;
-              }
-            }
-            if (Array.isArray(tweets) && tweets.length > 0) {
-              tweets.forEach(t => {
-                if (t.displayName) {
-                  const cleanedDisp = sanitizeSingleLine(t.displayName);
-                  if (cleanedDisp !== t.displayName) {
-                    t.displayName = cleanedDisp;
-                  }
-                }
-                if (t.userHandle) {
-                  const cleanedH = sanitizeSingleLine(t.userHandle);
-                  if (cleanedH !== t.userHandle) {
-                    t.userHandle = cleanedH;
-                  }
-                }
-              });
+          if (!chan && (rawTitle.includes(':') || rawTitle.includes('：'))) {
+            const cparts = rawTitle.split(/[:：]/);
+            const p0 = cparts[0].replace(/^[#@]+/, '').trim();
+            const p1 = cparts.slice(1).join(':').replace(/^[#@]+/, '').trim();
+            if (p1) {
+              chan = p1;
+              if (!guild || guild === p1) guild = p0;
             }
           }
 
-          slot.source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
-          slot.sourceTitle = sourceTitle || '';
-          slot.sourceSubtitle = sourceSubtitle || '';
-          updateSlotSourceUI(slot);
-          updateSlotMuteUI(slot);
+          if (!chan) {
+            chan = String(rawTitle).split(/[\r\n]+/)[0].replace(/^[#@\s]+/, '').replace(/[:：\s]+$/, '').trim();
+          }
+          chan = chan.split(/[,，(（]/)[0].trim();
 
-          // Auto-correct mismatched OpenAI avatars from past bug
-          if (!isDiscord && !isThreads && cleanHandle && cleanHandle !== 'openai') {
-            if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
-              if (cleanHandle === 'sama') {
-                avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
-              } else if (cleanHandle === 'karpathy') {
-                avatarUrl = 'https://pbs.twimg.com/profile_images/1296667294148382721/9Pr6XrPB_400x400.jpg';
-              } else {
-                avatarUrl = `https://unavatar.io/x/${cleanHandle}`;
-              }
-              slotEntry.avatarUrl = avatarUrl;
-            }
+          if (guild) {
+            guild = String(guild).split(/[\r\n]+/)[0].replace(/\s*[-|]\s*Discord$/i, '').trim();
+            if (guild.toLowerCase() === chan.toLowerCase()) guild = '';
           }
 
-          if (isThreads && avatarUrl && avatarUrl.includes('unavatar.io')) {
-            avatarUrl = '';
-            slotEntry.avatarUrl = '';
-          }
+          sourceTitle = chan ? ('#' + chan) : '#频道';
+          sourceSubtitle = guild;
 
-          if (lastFetchedAt) {
-            slot.lastFetchedAt = lastFetchedAt;
-            updateSlotFetchTimeUI(slot, lastFetchedAt);
+          if (slotEntry.sourceTitle !== sourceTitle || slotEntry.sourceSubtitle !== sourceSubtitle || slotEntry.displayName !== sourceTitle) {
+            slotEntry.sourceTitle = sourceTitle;
+            slotEntry.sourceSubtitle = sourceSubtitle;
+            slotEntry.displayName = sourceTitle;
+            slotEntry.userHandle = sourceSubtitle;
           }
-          if (avatarUrl) {
-            updateSlotAvatar(slot, avatarUrl);
-          } else if (isThreads && cleanHandle) {
-            probeHandlePlatforms(cleanHandle, { threadsOnly: true }).then(res => {
-              if (res && res.threads && res.threads.avatarUrl) {
-                if (slot.source === SOURCE_THREADS && normalizeThreadsHandle(slot.monitoredHandle || '').toLowerCase() === cleanHandle) {
-                  updateSlotAvatar(slot, res.threads.avatarUrl);
-                  if (Array.isArray(slot.loadedTweets)) {
-                    slot.loadedTweets.forEach(t => {
-                      if (!t.avatarUrl || t.avatarUrl.includes('unavatar.io')) {
-                        t.avatarUrl = res.threads.avatarUrl;
-                      }
-                    });
-                  }
-                  persistSlot(slot, {
-                    handle: slot.monitoredHandle || handle,
-                    displayName: slot.authorName ? slot.authorName.innerText : '',
-                    userHandle: slot.authorHandle ? slot.authorHandle.innerText : `threads:@${cleanHandle}`,
-                    tweets: slot.loadedTweets || [],
-                    avatarUrl: res.threads.avatarUrl
-                  }, slots);
+          if (Array.isArray(posts) && posts.length > 0) {
+            posts.forEach(p => {
+              if (!p) return;
+              if (typeof p.text === 'string') {
+                const cleanedText = stripDiscordEditedText(p.text);
+                if (cleanedText !== p.text) {
+                  p.text = cleanedText;
                 }
               }
-            }).catch(() => {});
-          }
-          if (Array.isArray(tweets) && tweets.length > 0) {
-            tweets.forEach(t => {
-              if (t.id === '1900000000000000099' || (t.url && t.url.includes('1900000000000000099'))) {
-                t.hasQuote = true;
-              }
-              if (isThreads && t.avatarUrl && t.avatarUrl.includes('unavatar.io')) {
-                t.avatarUrl = avatarUrl || '';
+              if (typeof p.replyText === 'string') {
+                const cleanedReply = stripDiscordEditedText(p.replyText);
+                if (cleanedReply !== p.replyText) {
+                  p.replyText = cleanedReply;
+                }
               }
             });
-            slot.monitoredHandle = handle;
-            resetSlotReadTracking(slot);
-            ensureSlotReadTracking(slot, slotEntry);
-            const targetArch = getTargetCacheEntry(handle, slot.source);
-            if (targetArch) {
-              ensureSlotReadTracking(slot, targetArch);
+          }
+        } else {
+          if (slotEntry.displayName) {
+            const cleanedDisp = sanitizeSingleLine(slotEntry.displayName);
+            if (cleanedDisp !== slotEntry.displayName) {
+              slotEntry.displayName = cleanedDisp;
             }
-            const sorted = processAndSortTweets(tweets);
-            recordSlotReadTweets(slot, sorted);
-            const meta = isDiscord
-              ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
-              : {
-                  source: isThreads ? SOURCE_THREADS : 'twitter',
-                  displayName: sanitizeSingleLine(slotEntry.displayName || ''),
-                  userHandle: sanitizeSingleLine(slotEntry.userHandle || `@${handle}`)
-                };
-            renderSlotTweets(slot, sorted, handle, avatarUrl, slots, meta);
+          }
+          if (slotEntry.userHandle) {
+            const cleanedH = sanitizeSingleLine(slotEntry.userHandle);
+            if (cleanedH !== slotEntry.userHandle) {
+              slotEntry.userHandle = cleanedH;
+            }
+          }
+          if (Array.isArray(posts) && posts.length > 0) {
+            posts.forEach(p => {
+              if (p.displayName) {
+                const cleanedDisp = sanitizeSingleLine(p.displayName);
+                if (cleanedDisp !== p.displayName) {
+                  p.displayName = cleanedDisp;
+                }
+              }
+              if (p.userHandle) {
+                const cleanedH = sanitizeSingleLine(p.userHandle);
+                if (cleanedH !== p.userHandle) {
+                  p.userHandle = cleanedH;
+                }
+              }
+            });
           }
         }
-      });
-    } catch (e) {}
-  }
 
-function markAllTweetsAsRead(slots) {
+        slot.source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
+        slot.sourceTitle = sourceTitle || '';
+        slot.sourceSubtitle = sourceSubtitle || '';
+        updateSlotSourceUI(slot);
+        updateSlotMuteUI(slot);
+
+        // Auto-correct mismatched OpenAI avatars from past bug
+        if (!isDiscord && !isThreads && cleanHandle && cleanHandle !== 'openai') {
+          if (avatarUrl && (avatarUrl.includes('ztsaR0JW') || avatarUrl.includes('1885410181409820672'))) {
+            if (cleanHandle === 'sama') {
+              avatarUrl = 'https://pbs.twimg.com/profile_images/2046764873200394240/r7BxVezs_400x400.jpg';
+            } else if (cleanHandle === 'karpathy') {
+              avatarUrl = 'https://pbs.twimg.com/profile_images/1296667294148382721/9Pr6XrPB_400x400.jpg';
+            } else {
+              avatarUrl = `https://unavatar.io/x/${cleanHandle}`;
+            }
+            slotEntry.avatarUrl = avatarUrl;
+          }
+        }
+
+        if (isThreads && avatarUrl && avatarUrl.includes('unavatar.io')) {
+          avatarUrl = '';
+          slotEntry.avatarUrl = '';
+        }
+
+        if (lastFetchedAt) {
+          slot.lastFetchedAt = lastFetchedAt;
+          updateSlotFetchTimeUI(slot, lastFetchedAt);
+        }
+        if (avatarUrl) {
+          updateSlotAvatar(slot, avatarUrl);
+        } else if (isThreads && cleanHandle) {
+          probeHandlePlatforms(cleanHandle, { threadsOnly: true }).then(res => {
+            if (res && res.threads && res.threads.avatarUrl) {
+              if (slot.source === SOURCE_THREADS && normalizeThreadsHandle(slot.monitoredHandle || '').toLowerCase() === cleanHandle) {
+                updateSlotAvatar(slot, res.threads.avatarUrl);
+                if (Array.isArray(slot.loadedPosts)) {
+                  slot.loadedPosts.forEach(p => {
+                    if (!p.avatarUrl || p.avatarUrl.includes('unavatar.io')) {
+                      p.avatarUrl = res.threads.avatarUrl;
+                    }
+                  });
+                }
+                persistSlot(slot, {
+                  handle: slot.monitoredHandle || handle,
+                  displayName: slot.authorName ? slot.authorName.innerText : '',
+                  userHandle: slot.authorHandle ? slot.authorHandle.innerText : `threads:@${cleanHandle}`,
+                  posts: slot.loadedPosts || [],
+                  avatarUrl: res.threads.avatarUrl
+                }, slots);
+              }
+            }
+          }).catch(() => {});
+        }
+        if (Array.isArray(posts) && posts.length > 0) {
+          posts.forEach(p => {
+            if (isThreads && p.avatarUrl && p.avatarUrl.includes('unavatar.io')) {
+              p.avatarUrl = avatarUrl || '';
+            }
+          });
+          slot.monitoredHandle = handle;
+          resetSlotReadTracking(slot);
+          ensureSlotReadTracking(slot, slotEntry);
+          const targetArch = getTargetCacheEntry(handle, slot.source);
+          if (targetArch) {
+            ensureSlotReadTracking(slot, targetArch);
+          }
+          const sorted = processAndSortPosts(posts);
+          recordSlotReadPosts(slot, sorted);
+          const meta = isDiscord
+            ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
+            : {
+                source: isThreads ? SOURCE_THREADS : 'twitter',
+                displayName: sanitizeSingleLine(slotEntry.displayName || ''),
+                userHandle: sanitizeSingleLine(slotEntry.userHandle || `@${handle}`)
+              };
+          renderSlotPosts(slot, sorted, handle, avatarUrl, slots, meta);
+        }
+      }
+    });
+  } catch (e) {}
+}
+
+function markAllPostsAsRead(slots) {
   slots.forEach(slot => {
-    markSlotTweetsAsRead(slot, slots);
+    markSlotPostsAsRead(slot, slots);
   });
 }
 
 function refreshSlotsContent(slots) {
   if (!Array.isArray(slots)) return;
   slots.forEach(slot => {
-    if (slot && Array.isArray(slot.loadedTweets) && slot.loadedTweets.length > 0) {
+    if (slot && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
       const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
       const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || null;
       const isDiscord = slot.source === SOURCE_DISCORD;
@@ -1756,7 +1778,7 @@ function refreshSlotsContent(slots) {
             displayName: slot.authorName ? slot.authorName.innerText : '',
             userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`
           };
-      renderSlotTweets(slot, slot.loadedTweets, handle, avatarUrl, slots, meta);
+      renderSlotPosts(slot, slot.loadedPosts, handle, avatarUrl, slots, meta);
     }
   });
 }
@@ -1800,10 +1822,10 @@ module.exports = {
   updateSlotSourceUI,
   updateSlotFetchTimeUI,
   updateSlotUnreadBadge,
-  markSlotTweetsAsRead,
+  markSlotPostsAsRead,
   showSlotLoading,
   showSlotError,
-  renderSlotTweets,
+  renderSlotPosts,
   persistSlot,
   archiveSlotScrapedData,
   restoreSlotFromTargetCache,
@@ -1820,7 +1842,7 @@ module.exports = {
   bindSlotEvents,
   initSlotsRegistry,
   loadSlotCache,
-  markAllTweetsAsRead,
+  markAllPostsAsRead,
   refreshSlotsContent,
   localizeSlotsUI
 };

@@ -28,7 +28,7 @@ const {
   saveAllSlotCache,
   getShowMemberOnlyPosts
 } = require('../core/storage');
-const { getOrCreateSlotWebview } = require('../scrapers/webview');
+const { getOrCreateSlotWebview } = require('../data/webview');
 const {
   SOURCE_DISCORD,
   SOURCE_THREADS,

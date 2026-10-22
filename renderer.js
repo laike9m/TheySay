@@ -24,7 +24,7 @@ const {
 } = require('./src/core/storage');
 const { initTheme, applyTheme, applyHeaderColor } = require('./src/ui/theme');
 const { initAuth, refreshAuthLocaleUI } = require('./src/ui/auth');
-const { initBackgroundWebviews } = require('./src/scrapers/webview');
+const { initBackgroundWebviews } = require('./src/data/webview');
 const {
   initSlotsRegistry,
   loadSlotCache,
@@ -51,7 +51,7 @@ const {
   runThreadsBackgroundFetch,
   runDiscordBackgroundFetch,
   startPeriodicBackgroundFetch
-} = require('./src/scrapers/scraper');
+} = require('./src/data/scraper');
 const { initPostPopup } = require('./src/ui/popup');
 const {
   initSettings,
@@ -60,7 +60,7 @@ const {
   getFormSettingsOverrides,
   refreshTickerStatsLabel
 } = require('./src/ui/settings');
-const { applyDiscordSoundSetting } = require('./src/scrapers/discord');
+const { applyDiscordSoundSetting } = require('./src/data/discord');
 const { initNotifications } = require('./src/ui/notification');
 const { initTickers, applyTickerColors } = require('./src/core/ticker');
 const { getCanonicalTargetKey } = require('./src/core/source');

@@ -28,7 +28,8 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       args: [path.join(__dirname, '..', 'main.js')],
       env: {
         ...process.env,
-        THEYSAY_USER_DATA_DIR: userDataDir
+        THEYSAY_USER_DATA_DIR: userDataDir,
+        THEYSAY_BACKGROUND_TEST: '1'
       }
     });
 
@@ -58,6 +59,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
         platform: process.platform,
         windowCount: BrowserWindow.getAllWindows().length,
         isVisible: win ? win.isVisible() : false,
+        dockVisible: process.platform === 'darwin' && app.dock ? app.dock.isVisible() : null,
         bounds
       };
     });
@@ -67,6 +69,10 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     expect(appInfo.windowCount).toBeGreaterThanOrEqual(1);
     expect(appInfo.bounds.width).toBeGreaterThanOrEqual(850);
     expect(appInfo.bounds.height).toBeGreaterThanOrEqual(650);
+    if (process.platform === 'darwin') {
+      expect(appInfo.isVisible).toBe(false);
+      expect(appInfo.dockVisible).toBe(false);
+    }
 
     await expect(page).toHaveTitle(/TheySay/);
     await expect(page.locator('.brand-title')).toHaveText('TheySay');
@@ -551,7 +557,8 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       args: [path.join(__dirname, '..', 'main.js')],
       env: {
         ...process.env,
-        THEYSAY_USER_DATA_DIR: userDataDir
+        THEYSAY_USER_DATA_DIR: userDataDir,
+        THEYSAY_BACKGROUND_TEST: '1'
       }
     });
     page = await electronApp.firstWindow();

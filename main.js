@@ -10,6 +10,18 @@ const TICKER_DATA_PATH = path
 const tickerData = require('./data/ticker-data.json');
 
 app.name = 'TheySay';
+const IS_BACKGROUND_TEST =
+  process.env.THEYSAY_BACKGROUND_TEST === '1' && process.platform === 'darwin';
+if (IS_BACKGROUND_TEST) {
+  if (typeof app.setActivationPolicy === 'function') {
+    try {
+      app.setActivationPolicy('accessory');
+    } catch (_) {}
+  }
+  if (app.dock) {
+    app.dock.hide();
+  }
+}
 if (process.env.THEYSAY_USER_DATA_DIR) {
   app.setPath('userData', process.env.THEYSAY_USER_DATA_DIR);
 }
@@ -153,6 +165,8 @@ function createWindow() {
     height: windowState.height,
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
+    show: !IS_BACKGROUND_TEST,
+    paintWhenInitiallyHidden: true,
     title: t('app.mainWindowTitle'),
     icon: ICON_PATH,
     webPreferences: {
@@ -170,10 +184,12 @@ function createWindow() {
 
   mainWindow = new BrowserWindow(windowOptions);
 
-  if (windowState.isFullScreen) {
-    mainWindow.setFullScreen(true);
-  } else if (windowState.isMaximized && process.platform !== 'darwin') {
-    mainWindow.maximize();
+  if (!IS_BACKGROUND_TEST) {
+    if (windowState.isFullScreen) {
+      mainWindow.setFullScreen(true);
+    } else if (windowState.isMaximized && process.platform !== 'darwin') {
+      mainWindow.maximize();
+    }
   }
 
   let currentWindowState = {
@@ -953,9 +969,13 @@ app.whenReady().then(() => {
     callback({ responseHeaders });
   });
 
-  // Set macOS dock icon
+  // Set macOS dock icon (or keep hidden during background integration tests)
   if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(ICON_PATH);
+    if (IS_BACKGROUND_TEST) {
+      app.dock.hide();
+    } else {
+      app.dock.setIcon(ICON_PATH);
+    }
   }
 
   if (!process.env.THEYSAY_SYSTEM_LOCALE) {

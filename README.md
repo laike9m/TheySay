@@ -8,8 +8,8 @@
 - **Multi-Platform Grid Dashboard & Smart Handle Search**: Monitor Twitter / X accounts, Threads profiles, and Discord channels (public or private) side by side in a drag-and-drop, resizable grid. Enter any handle to automatically search both Twitter / X and Threads—if the handle exists on both platforms, a dropdown lets you choose which one to track; if it exists on only one, scraping starts automatically.  
   **多平台网格看板与智能账号检索**：支持在可自由拖拽、调整尺寸的网格中并排监控多个 Twitter / X 博主、Threads 账号与 Discord 频道（含私有频道）。输入普通用户名时会自动检索 Twitter / X 与 Threads：若两边均有该账号则弹出下拉框供选择，若仅一侧存在则自动开始抓取。
 
-- **Telegram-Style Feed & Popup Reader**: Read updates in clean chronological chat bubbles, and click any post to view the full text, quoted posts, or high-resolution images in a centered popup.  
-  **Telegram 风格对话流与弹窗阅读**：以清爽的对话气泡按时间流展示最新消息，点击任意气泡即可居中弹出详情卡片阅读全文、引用内容或查看高清大图。
+- **Telegram-Style Feed & Popup Reader**: Read updates in clean chronological chat bubbles (posts with images expand to full slot width with text on the left and compact height-matched thumbnails on the right), and click any post to view the full text, quoted posts, or high-resolution images in a centered popup.  
+  **Telegram 风格对话流与弹窗阅读**：以清爽的对话气泡按时间流展示最新消息（含图消息自动占满卡片宽度，左侧显示文字、右侧显示与气泡等高的小缩略图），点击任意气泡即可居中弹出详情卡片阅读全文、引用内容或查看高清大图。
 
 - **Smart Stock & ETF Ticker Highlighting**: Automatically detects and highlights US stock, ETF, and crypto tickers (with or without `$`) with customizable badge colors and NASDAQ symbol sync.  
   **股票与 ETF 代码智能高亮**：自动识别并高亮消息中的美股、ETF 及加密货币代码（无论是否带 `$` 前缀），支持自定义配色与 NASDAQ 词库在线同步。

@@ -73,6 +73,9 @@ function processAndSortPosts(posts) {
       if (Array.isArray(p.images) && p.images.length > 0 && (!Array.isArray(prev.images) || prev.images.length === 0)) {
         prev.images = p.images;
       }
+      if (p.imagesBackfilled && !prev.imagesBackfilled) {
+        prev.imagesBackfilled = true;
+      }
       if (Array.isArray(p.attachments) && p.attachments.length > 0 && (!Array.isArray(prev.attachments) || prev.attachments.length === 0)) {
         prev.attachments = p.attachments;
       }

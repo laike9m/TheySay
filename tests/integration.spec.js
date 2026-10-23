@@ -724,5 +724,165 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(dropdown1).toBeHidden();
     await expect(input1).toHaveValue('threads.com/@mosseri');
   });
+
+  test('11. Image post bubbles: full-width layout, 50% right image split, height matching & cached post backfill', async () => {
+    const nowIso = new Date().toISOString();
+    const dummySvgDataUri =
+      'data:image/svg+xml;utf8,' +
+      encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="100%" height="100%" fill="#2563eb"/></svg>'
+      );
+
+    await page.evaluate(
+      ({ timestamp, imgUri, handlesKey, cacheKey }) => {
+        localStorage.setItem(
+          'theysay_mock_tweet_data',
+          JSON.stringify({
+            '998877665544332211': {
+              id: '998877665544332211',
+              text: 'Cached legacy tweet that originally had no images field saved.',
+              images: [imgUri]
+            }
+          })
+        );
+
+        const handles = ['threads:@zuck', '@VitalikButerin', '', ''];
+        while (handles.length < 16) handles.push('');
+        localStorage.setItem(handlesKey, JSON.stringify(handles));
+
+        const cache = {
+          0: {
+            handle: 'threads:@zuck',
+            source: 'threads',
+            displayName: 'Mark Zuckerberg',
+            userHandle: 'threads:@zuck',
+            avatarUrl: '',
+            lastFetchedAt: Date.now(),
+            posts: [
+              {
+                id: 'post_text_only_1',
+                text: 'Short one-line update.',
+                time: timestamp,
+                url: 'https://www.threads.com/@zuck/post/post_text_only_1',
+                author: 'zuck',
+                isPinned: false,
+                isRetweet: false,
+                isUnread: false,
+                images: []
+              },
+              {
+                id: 'post_with_img_1',
+                text: 'Short one-line update.',
+                time: timestamp,
+                url: 'https://www.threads.com/@zuck/post/post_with_img_1',
+                author: 'zuck',
+                isPinned: false,
+                isRetweet: false,
+                isUnread: false,
+                images: [imgUri]
+              }
+            ]
+          },
+          1: {
+            handle: '@VitalikButerin',
+            source: 'twitter',
+            displayName: 'vitalik.eth',
+            userHandle: '@VitalikButerin',
+            avatarUrl: '',
+            lastFetchedAt: Date.now(),
+            posts: [
+              {
+                id: '998877665544332211',
+                text: 'Cached legacy tweet that originally had no images field saved.',
+                time: timestamp,
+                url: 'https://x.com/VitalikButerin/status/998877665544332211',
+                author: 'VitalikButerin',
+                isPinned: false,
+                isRetweet: false,
+                isUnread: false
+                // Intentionally omit `images` and `imagesBackfilled` to simulate old cached posts
+              }
+            ]
+          }
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      },
+      {
+        timestamp: nowIso,
+        imgUri: dummySvgDataUri,
+        handlesKey: STORAGE_HANDLES_KEY,
+        cacheKey: STORAGE_CACHE_KEY
+      }
+    );
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    const bubbles = page.locator('#slot-content-0 .im-bubble');
+    await expect(bubbles).toHaveCount(2);
+
+    const textOnlyBubble = bubbles.nth(0);
+    const mediaBubble = bubbles.nth(1);
+
+    await expect(textOnlyBubble).not.toHaveClass(/has-media/);
+    await expect(mediaBubble).toHaveClass(/has-media/);
+    await expect(mediaBubble.locator('.im-bubble-left')).toBeVisible();
+    await expect(mediaBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
+
+    const metrics = await page.evaluate(() => {
+      const listEl = document.getElementById('slot-posts-list-0');
+      const listStyle = getComputedStyle(listEl);
+      const listInnerWidth =
+        listEl.clientWidth -
+        parseFloat(listStyle.paddingLeft || '0') -
+        parseFloat(listStyle.paddingRight || '0');
+
+      const [bText, bMedia] = Array.from(listEl.querySelectorAll('.im-bubble'));
+      const bMediaStyle = getComputedStyle(bMedia);
+      const mediaInnerWidth =
+        bMedia.clientWidth -
+        parseFloat(bMediaStyle.paddingLeft || '0') -
+        parseFloat(bMediaStyle.paddingRight || '0');
+
+      const leftCol = bMedia.querySelector('.im-bubble-left');
+      const rightMedia = bMedia.querySelector('.im-media-grid');
+
+      const bTextRect = bText.getBoundingClientRect();
+      const bMediaRect = bMedia.getBoundingClientRect();
+      const leftRect = leftCol.getBoundingClientRect();
+      const rightRect = rightMedia.getBoundingClientRect();
+
+      return {
+        listInnerWidth,
+        mediaInnerWidth,
+        textBubbleWidth: bTextRect.width,
+        mediaBubbleWidth: bMediaRect.width,
+        textBubbleHeight: bTextRect.height,
+        mediaBubbleHeight: bMediaRect.height,
+        leftWidth: leftRect.width,
+        rightWidth: rightRect.width,
+        leftX: leftRect.left,
+        leftRightEdge: leftRect.right,
+        rightX: rightRect.left
+      };
+    });
+
+    // 1. Media bubble fills 100% of the slot list inner width and is wider than normal text bubble
+    expect(Math.abs(metrics.mediaBubbleWidth - metrics.listInnerWidth)).toBeLessThanOrEqual(1.5);
+    expect(metrics.mediaBubbleWidth).toBeGreaterThan(metrics.textBubbleWidth);
+
+    // 2. Left side is text, right side is image thumbnail occupying ~50% of the bubble inner width
+    expect(metrics.rightX).toBeGreaterThanOrEqual(metrics.leftRightEdge);
+    const rightWidthRatio = metrics.rightWidth / metrics.mediaInnerWidth;
+    expect(rightWidthRatio).toBeGreaterThanOrEqual(0.45);
+    expect(rightWidthRatio).toBeLessThanOrEqual(0.55);
+
+    // 3. Thumbnail matches the original bubble height without inflating it vertically
+    expect(Math.abs(metrics.mediaBubbleHeight - metrics.textBubbleHeight)).toBeLessThanOrEqual(1);
+
+    // 4. Cached legacy Twitter post in Slot 1 automatically backfills its image and re-renders as .has-media
+    const backfilledBubble = page.locator('#slot-content-1 .im-bubble').first();
+    await expect(backfilledBubble).toHaveClass(/has-media/);
+    await expect(backfilledBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
+  });
 });
 

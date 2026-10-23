@@ -55,7 +55,7 @@ npm run dist:linux      # Linux x64 (.AppImage & .deb)
 ## Features
 
 1. **Telegram-Style Chat Bubbles & Date Dividers**:
-   - Replicates Telegram's clean message bubble aesthetics: left-aligned, width hugs text length (up to 88% max-width), no message numbers, and inline specific timestamps (`11:45 AM`) positioned at the bottom right.
+   - Replicates Telegram's clean message bubble aesthetics: left-aligned, width hugs text length (up to 88% max-width for text-only posts), no message numbers, and inline specific timestamps (`11:45 AM`) positioned at the bottom right. For posts containing images, the bubble expands to 100% of the slot width and splits into two sides: text and timestamp on the left, and compact height-matched image thumbnails on the right so the bubble's original height is preserved.
    - Date Divider Pills: Displays a centered translucent capsule date divider (e.g., `June 29, 2025`) above each day's group of tweets, with only one date header shown per calendar day.
    - Natural IM timeline order: sorted chronologically from top to bottom (oldest to newest), with the latest post at the bottom and auto-scrolling to the newest message upon load.
    - Hovering over any bubble reveals an external browser link (`↗`) in the top-right corner to open the original tweet.

@@ -99,16 +99,120 @@ function convertFacetsToEntities(facets) {
   return entities;
 }
 
+function extractFxTwitterImages(tweet) {
+  const images = [];
+  if (!tweet || !tweet.media) return images;
+  const media = tweet.media;
+  const addUrl = (u) => {
+    if (typeof u === 'string' && u.trim() && !images.includes(u.trim())) {
+      images.push(u.trim());
+    }
+  };
+  if (Array.isArray(media.all)) {
+    for (const m of media.all) {
+      if (!m) continue;
+      if (m.type === 'photo' && m.url) {
+        addUrl(m.url);
+      } else if (m.thumbnail_url || m.url) {
+        addUrl(m.thumbnail_url || m.url);
+      }
+    }
+  }
+  if (Array.isArray(media.photos)) {
+    for (const p of media.photos) {
+      if (p && p.url) addUrl(p.url);
+    }
+  }
+  if (Array.isArray(media.videos)) {
+    for (const v of media.videos) {
+      if (v && (v.thumbnail_url || v.url)) addUrl(v.thumbnail_url || v.url);
+    }
+  }
+  if (media.external && media.external.thumbnail_url) {
+    addUrl(media.external.thumbnail_url);
+  }
+  return images;
+}
+
+function extractVxTwitterImages(data) {
+  const images = [];
+  if (!data) return images;
+  const addUrl = (u) => {
+    if (typeof u === 'string' && u.trim() && !images.includes(u.trim())) {
+      images.push(u.trim());
+    }
+  };
+  if (Array.isArray(data.media_extended)) {
+    for (const m of data.media_extended) {
+      if (!m) continue;
+      if (m.type === 'image' && m.url) {
+        addUrl(m.url);
+      } else if (m.thumbnail_url || m.url) {
+        addUrl(m.thumbnail_url || m.url);
+      }
+    }
+  } else if (Array.isArray(data.mediaURLs)) {
+    for (const u of data.mediaURLs) {
+      if (typeof u === 'string' && !u.endsWith('.mp4')) addUrl(u);
+    }
+  }
+  return images;
+}
+
+function extractSyndicationImages(data) {
+  const images = [];
+  if (!data) return images;
+  const addUrl = (u) => {
+    if (typeof u === 'string' && u.trim() && !images.includes(u.trim())) {
+      images.push(u.trim());
+    }
+  };
+  if (Array.isArray(data.photos)) {
+    for (const p of data.photos) {
+      if (p && p.url) addUrl(p.url);
+    }
+  }
+  if (Array.isArray(data.mediaDetails)) {
+    for (const m of data.mediaDetails) {
+      if (m && m.media_url_https) addUrl(m.media_url_https);
+    }
+  }
+  if (data.video && data.video.poster) {
+    addUrl(data.video.poster);
+  }
+  return images;
+}
+
 function fetchFullTweetData(tweetId) {
   const id = String(tweetId || '').trim();
   if (!/^\d+$/.test(id)) return Promise.resolve(null);
+
+  if (typeof window !== 'undefined' && window.__THEYSAY_MOCK_TWEET_DATA) {
+    if (typeof window.__THEYSAY_MOCK_TWEET_DATA === 'function') {
+      return Promise.resolve(window.__THEYSAY_MOCK_TWEET_DATA(id));
+    }
+    if (typeof window.__THEYSAY_MOCK_TWEET_DATA === 'object' && window.__THEYSAY_MOCK_TWEET_DATA[id]) {
+      return Promise.resolve(window.__THEYSAY_MOCK_TWEET_DATA[id]);
+    }
+  }
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const rawMock = localStorage.getItem('theysay_mock_tweet_data');
+      if (rawMock) {
+        const parsedMock = JSON.parse(rawMock);
+        if (parsedMock && parsedMock[id]) {
+          return Promise.resolve(parsedMock[id]);
+        }
+      }
+    } catch (_) {}
+  }
 
   if (fullTweetCache.has(id)) {
     return fullTweetCache.get(id);
   }
 
   const promise = (async () => {
-    // 1. Primary: FxTwitter API (returns full raw_text + codepoint facets)
+    // 1. Primary: FxTwitter API (returns full raw_text + codepoint facets + media)
     try {
       const res = await httpsGetText(`https://api.fxtwitter.com/status/${id}`);
       if (res.status >= 200 && res.status < 300 && res.body) {
@@ -117,15 +221,15 @@ function fetchFullTweetData(tweetId) {
         if (tweet) {
           const rawTextObj = tweet.raw_text;
           const text = (rawTextObj && rawTextObj.text) || tweet.text || '';
-          if (text) {
-            const entities = convertFacetsToEntities(rawTextObj && rawTextObj.facets);
-            return {
-              id,
-              text,
-              codePointLength: Array.from(text).length,
-              entities
-            };
-          }
+          const entities = convertFacetsToEntities(rawTextObj && rawTextObj.facets);
+          const images = extractFxTwitterImages(tweet);
+          return {
+            id,
+            text,
+            codePointLength: Array.from(text).length,
+            entities,
+            images
+          };
         }
       }
     } catch (_) {}
@@ -135,13 +239,40 @@ function fetchFullTweetData(tweetId) {
       const res = await httpsGetText(`https://api.vxtwitter.com/Twitter/status/${id}`);
       if (res.status >= 200 && res.status < 300 && res.body) {
         const data = JSON.parse(res.body);
-        if (data && data.text) {
-          const text = String(data.text);
+        if (data && (data.text || data.media_extended || data.mediaURLs)) {
+          const text = String(data.text || '');
+          const images = extractVxTwitterImages(data);
           return {
             id,
             text,
             codePointLength: Array.from(text).length,
-            entities: null
+            entities: null,
+            images
+          };
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fallback: Twitter Syndication API
+    try {
+      const res = await httpsGetText(
+        `https://cdn.syndication.twimg.com/tweet-result?id=${id}&lang=en&token=a`,
+        {
+          Origin: 'https://platform.twitter.com',
+          Referer: 'https://platform.twitter.com/'
+        }
+      );
+      if (res.status >= 200 && res.status < 300 && res.body) {
+        const data = JSON.parse(res.body);
+        if (data && typeof data === 'object' && (data.text || data.photos || data.mediaDetails || data.video)) {
+          const text = String(data.text || '');
+          const images = extractSyndicationImages(data);
+          return {
+            id,
+            text,
+            codePointLength: Array.from(text).length,
+            entities: null,
+            images
           };
         }
       }

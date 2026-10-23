@@ -2,6 +2,7 @@ const { shell } = require('electron');
 const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('../core/constants');
 const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('../core/utils');
 const {
+  getPostId,
   getPostKey,
   processAndSortPosts,
   getPostDateKey,
@@ -16,6 +17,7 @@ const {
   resetSlotReadTracking
 } = require('../core/post');
 const { openPostPopup, prefetchPost } = require('./popup');
+const { fetchFullTweetData } = require('./tweet_embed');
 const {
   getSavedHandles,
   saveHandles,
@@ -422,7 +424,29 @@ function authorColor(name) {
   return `hsl(${hash}, 62%, 52%)`;
 }
 
+function buildMediaThumbsHtml(images) {
+  if (!Array.isArray(images) || images.length === 0) return '';
+  const maxVisible = 4;
+  const visibleImages = images.slice(0, maxVisible);
+  const extraCount = images.length - visibleImages.length;
+  const gridClass = visibleImages.length > 1 ? 'multi' : 'single';
+
+  let html = `<div class="im-media-grid ${gridClass}">`;
+  visibleImages.forEach((imgUrl, idx) => {
+    const isLastWithMore = extraCount > 0 && idx === visibleImages.length - 1;
+    html += `<div class="im-media-thumb">`;
+    html += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(t('slot.imageAlt'))}" loading="lazy" referrerpolicy="no-referrer">`;
+    if (isLastWithMore) {
+      html += `<span class="im-media-more">+${extraCount}</span>`;
+    }
+    html += `</div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
 function buildDiscordBubbleHtml(msg, { showAuthor }) {
+  const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
   const rawText = stripDiscordEditedText(msg.text || '');
   const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
   const chars = Array.from(rawText);
@@ -445,26 +469,18 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     `;
   }
 
-  if (rawText) {
-    html += isLong
-      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
-      : `<span class="im-text-content">${formatTextWithTickers(rawText)}</span>`;
-  }
-
-  const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
-  if (images.length > 0) {
-    const gridClass = images.length > 1 ? 'multi' : 'single';
-    html += `<div class="im-media-grid ${gridClass}">`;
-    images.forEach(imgUrl => {
-      html += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(t('slot.imageAlt'))}" loading="lazy" referrerpolicy="no-referrer">`;
-    });
-    html += '</div>';
-  }
-
   const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
   const visibleAttachments = images.length > 0
     ? rawAttachments.filter(a => !isImageAttachmentLabel(a))
     : rawAttachments;
+
+  if (rawText) {
+    html += isLong
+      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
+      : `<span class="im-text-content">${formatTextWithTickers(rawText)}</span>`;
+  } else if (images.length > 0 && !cleanReplyText && !msg.replyAuthor && visibleAttachments.length === 0) {
+    html += `<span class="im-text-content">${escapeHtml(t('scraper.mediaOnlyFallback'))}</span>`;
+  }
 
   if (visibleAttachments.length > 0) {
     html += '<span class="im-attachments">';
@@ -480,8 +496,7 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 function buildPostBubbleHtml(post) {
   const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const rawText = normalizeMediaOnlyText((post.text || '').trim());
-  const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
-  const effectiveText = isMediaFallbackOnly ? '' : rawText;
+  const effectiveText = rawText || (images.length > 0 ? t('scraper.mediaOnlyFallback') : '');
   const chars = Array.from(effectiveText);
   const isLong = chars.length > 100;
   const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
@@ -499,17 +514,7 @@ function buildPostBubbleHtml(post) {
       : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
   }
 
-  let mediaHtml = '';
-  if (images.length > 0) {
-    const gridClass = images.length > 1 ? 'multi' : 'single';
-    mediaHtml += `<div class="im-media-grid ${gridClass}">`;
-    images.forEach(imgUrl => {
-      mediaHtml += `<img class="im-media-img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(t('slot.imageAlt'))}" loading="lazy" referrerpolicy="no-referrer">`;
-    });
-    mediaHtml += '</div>';
-  }
-
-  return `${tagHtml}${textHtml}${mediaHtml}`;
+  return `${tagHtml}${textHtml}`;
 }
 
 /**
@@ -763,7 +768,19 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
       if (isThreads) bubble.classList.add('threads');
     }
 
-    bubble.innerHTML = `${bodyHtml}<span class="im-time">${escapeHtml(timeDisplay)}</span>${post.url ? `<a class="im-btn-link" data-url="${escapeHtml(post.url)}" title="${escapeHtml(linkTitle)}">↗</a>` : ''}`;
+    const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
+    const hasMedia = images.length > 0;
+    const timeHtml = `<span class="im-time">${escapeHtml(timeDisplay)}</span>`;
+    const linkHtml = post.url
+      ? `<a class="im-btn-link" data-url="${escapeHtml(post.url)}" title="${escapeHtml(linkTitle)}">↗</a>`
+      : '';
+
+    if (hasMedia) {
+      bubble.classList.add('has-media');
+      bubble.innerHTML = `<div class="im-bubble-left">${bodyHtml}${timeHtml}</div>${buildMediaThumbsHtml(images)}${linkHtml}`;
+    } else {
+      bubble.innerHTML = `${bodyHtml}${timeHtml}${linkHtml}`;
+    }
 
     // Handle inline image load (keep bottom scroll alignment) and error fallback
     const mediaImgs = bubble.querySelectorAll('.im-media-img');
@@ -791,9 +808,12 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
             }
           }
           imgEl.style.display = 'none';
+          const thumb = imgEl.closest('.im-media-thumb');
+          if (thumb) thumb.style.display = 'none';
           const grid = imgEl.closest('.im-media-grid');
           if (grid && !Array.from(grid.querySelectorAll('.im-media-img')).some(el => el.style.display !== 'none')) {
             grid.style.display = 'none';
+            bubble.classList.remove('has-media');
           }
         });
       });
@@ -864,6 +884,91 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
         popPosts.slice(-4).reverse().forEach((p) => prefetchPost(p));
       }, 1000);
     }
+    backfillTwitterSlotImages(slot, slots);
+  }
+}
+
+async function backfillTwitterSlotImages(slot, slots = []) {
+  if (!slot || slot._isBackfillingImages) return;
+  if (isDiscordSlot(slot) || isThreadsSlot(slot)) return;
+  const posts = Array.isArray(slot.loadedPosts) ? slot.loadedPosts : [];
+  if (posts.length === 0) return;
+
+  const toBackfill = [];
+  for (const p of posts) {
+    if (!p) continue;
+    if (Array.isArray(p.images) && p.images.length > 0) {
+      p.imagesBackfilled = true;
+      continue;
+    }
+    if (p.imagesBackfilled) continue;
+    const postId = getPostId(p);
+    if (postId && /^\d+$/.test(postId)) {
+      toBackfill.push({ post: p, postId });
+    }
+  }
+
+  if (toBackfill.length === 0) return;
+  slot._isBackfillingImages = true;
+  const targetHandleAtStart = normalizeTwitterHandle(
+    slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')
+  ).toLowerCase();
+
+  let anyImagesFound = false;
+  let anyCompleted = false;
+
+  try {
+    const batchSize = 4;
+    for (let i = 0; i < toBackfill.length; i += batchSize) {
+      const batch = toBackfill.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async ({ post, postId }) => {
+          try {
+            const data = await fetchFullTweetData(postId);
+            if (data) {
+              post.imagesBackfilled = true;
+              anyCompleted = true;
+              if (Array.isArray(data.images) && data.images.length > 0) {
+                post.images = data.images;
+                anyImagesFound = true;
+              } else if (!Array.isArray(post.images)) {
+                post.images = [];
+              }
+            }
+          } catch (_) {}
+        })
+      );
+    }
+
+    const currentHandle = normalizeTwitterHandle(
+      slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')
+    ).toLowerCase();
+    if (currentHandle !== targetHandleAtStart) return;
+
+    if (anyImagesFound && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
+      const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
+      const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || null;
+      const meta = {
+        source: 'twitter',
+        displayName: slot.authorName ? slot.authorName.innerText : '',
+        userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`
+      };
+      renderSlotPosts(slot, slot.loadedPosts, handle, avatarUrl, slots, meta);
+      archiveSlotScrapedData(slot);
+    } else if (anyCompleted && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
+      const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
+      const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || null;
+      persistSlot(slot, {
+        handle,
+        displayName: slot.authorName ? slot.authorName.innerText : '',
+        userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`,
+        posts: slot.loadedPosts,
+        avatarUrl
+      }, slots);
+      archiveSlotScrapedData(slot);
+    }
+  } finally {
+    slot._isBackfillingImages = false;
   }
 }
 

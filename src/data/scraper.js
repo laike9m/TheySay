@@ -297,6 +297,46 @@ function buildExtractionScript(handle) {
           isMemberOnly = true;
         }
 
+        // Extract post media images (photos & video thumbnails) outside any quoted tweet card
+        const nestedArticle = article.querySelector('article');
+        const quoteTweetEl = article.querySelector('[data-testid="quoteTweet"]');
+        const roleLinkQuotes = Array.from(article.querySelectorAll('[role="link"]')).filter(
+          rl => rl.querySelector('[data-testid="User-Name"]') || rl.querySelector('time')
+        );
+        const isOutsideQuote = (node) => {
+          if (!node) return false;
+          if (nestedArticle && nestedArticle.contains(node)) return false;
+          if (quoteTweetEl && quoteTweetEl.contains(node)) return false;
+          if (quoteCardEl && quoteCardEl.contains(node)) return false;
+          for (const rl of roleLinkQuotes) {
+            if (rl.contains(node)) return false;
+          }
+          return true;
+        };
+
+        const images = [];
+        const mediaImgs = Array.from(
+          article.querySelectorAll(
+            '[data-testid="tweetPhoto"] img, [data-testid="card.wrapper"] img, img[src*="pbs.twimg.com/media/"], img[src*="pbs.twimg.com/tweet_video_thumb/"], img[src*="pbs.twimg.com/ext_tw_video_thumb/"], img[src*="pbs.twimg.com/amplify_video_thumb/"]'
+          )
+        ).filter(isOutsideQuote);
+        for (const img of mediaImgs) {
+          const src = img.src || '';
+          if (!src || src.startsWith('data:') || src.endsWith('.svg')) continue;
+          if (src.includes('profile_images') || src.includes('default_profile') || src.includes('/emoji/')) continue;
+          if (img.closest('[data-testid="Tweet-User-Avatar"]') || img.closest('[data-testid="User-Name"]')) continue;
+          if (!images.includes(src)) {
+            images.push(src);
+          }
+        }
+
+        const videos = Array.from(article.querySelectorAll('video')).filter(isOutsideQuote);
+        for (const v of videos) {
+          if (v.poster && !images.includes(v.poster)) {
+            images.push(v.poster);
+          }
+        }
+
         items.push({
           url: postUrl ? ('https://x.com' + postUrl) : '',
           text: text,
@@ -309,7 +349,8 @@ function buildExtractionScript(handle) {
           hasQuote: hasQuote,
           quoteUrl: quoteUrl,
           isTruncated: isTruncated,
-          isMemberOnly: isMemberOnly
+          isMemberOnly: isMemberOnly,
+          images: images
         });
       }
 
@@ -436,6 +477,7 @@ async function fetchTwitterSlot(
     const INITIAL_TARGET_COUNT = 5;
     const collectedNewPosts = [];
     const seenInThisRun = new Set();
+    const backfilledByKey = new Map();
     const maxAttempts = hasExisting ? 15 : 35;
     let attempts = 0;
     let consecutiveEmptyScrolls = 0;
@@ -492,7 +534,13 @@ async function fetchTwitterSlot(
 
           for (const item of result.items) {
             const key = getPostKey(item);
-            if (!key || seenInThisRun.has(key)) continue;
+            if (!key) continue;
+
+            if (existingKeys.has(key)) {
+              backfilledByKey.set(key, item);
+            }
+
+            if (seenInThisRun.has(key)) continue;
             seenInThisRun.add(key);
 
             // Boundary detection: if this normal post was already fetched before
@@ -582,7 +630,18 @@ async function fetchTwitterSlot(
     )
       ? slot.loadedPosts
       : existingPosts;
+    let backfillChanged = false;
     if (liveExistingPosts.length > 0) {
+      liveExistingPosts.forEach(m => {
+        const fresh = backfilledByKey.get(getPostKey(m));
+        if (fresh && Array.isArray(fresh.images) && fresh.images.length > 0 && (!Array.isArray(m.images) || m.images.length === 0)) {
+          m.images = fresh.images;
+          backfillChanged = true;
+        }
+        if (!Array.isArray(m.images)) {
+          m.images = [];
+        }
+      });
       recordSlotReadPosts(slot, liveExistingPosts);
     }
 
@@ -591,7 +650,7 @@ async function fetchTwitterSlot(
         if (!isBackground) {
           showToast(t('scraper.upToDateToast', { handle }), 'info', 2000);
         }
-        if (slot.postsList && slot.postsList.children.length > 0 && liveExistingPosts.length > 0) {
+        if (!backfillChanged && slot.postsList && slot.postsList.children.length > 0 && liveExistingPosts.length > 0) {
           persistSlot(slot, {
             handle,
             displayName: slot.authorName ? slot.authorName.innerText : '',

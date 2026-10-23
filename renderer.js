@@ -468,8 +468,21 @@ window.addEventListener('DOMContentLoaded', () => {
   // Restore cached posts
   loadSlotCache(slots);
 
-  // If any active Discord slot has legacy cached messages from before image URL extraction,
-  // automatically refresh Discord in the background once to populate inline images.
+  // If any active Twitter or Discord slot has legacy cached messages from before image URL extraction,
+  // automatically refresh in the background once to populate inline image thumbnails.
+  const hasLegacyTwitterCache = slots.slice(0, getActiveSlotCount()).some(
+    s => s && s.source !== 'discord' && s.source !== 'threads' && Array.isArray(s.loadedPosts) && s.loadedPosts.some(m => !Array.isArray(m.images))
+  );
+  if (hasLegacyTwitterCache) {
+    setTimeout(() => {
+      runBackgroundFetch({
+        slots,
+        bgWebviewsContainer,
+        getActiveSlotCount
+      });
+    }, 900);
+  }
+
   const hasLegacyDiscordCache = slots.slice(0, getActiveSlotCount()).some(
     s => s && s.source === 'discord' && Array.isArray(s.loadedPosts) && s.loadedPosts.some(m => !Array.isArray(m.images))
   );

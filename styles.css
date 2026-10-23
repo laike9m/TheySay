@@ -1891,53 +1891,85 @@ body {
   word-break: break-word;
 }
 
-/* Inline image previews inside Discord chat bubbles */
-.im-media-grid {
-  margin-top: 5px;
-  margin-bottom: 2px;
+/* Full-width left-right split bubble for posts with images:
+   left 50% shows text + timestamp, right 50% shows height-matched image thumbnail(s) */
+.im-bubble.has-media {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
   max-width: 100%;
 }
 
-.im-media-grid.single {
-  display: block;
+.im-bubble.has-media::after {
+  display: none;
 }
 
-.im-media-grid.single .im-media-img {
-  display: block;
-  max-width: min(260px, 100%);
-  max-height: 185px;
-  width: auto;
+.im-bubble-left {
+  flex: 1 1 50%;
+  max-width: calc(50% - 4px);
+  min-width: 0;
+  min-height: 18px;
+  align-self: center;
+}
+
+.im-bubble-left::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.im-media-grid {
+  flex: 0 0 calc(50% - 4px);
+  width: calc(50% - 4px);
+  max-width: calc(50% - 4px);
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin: -2px 0;
+  align-self: stretch;
+}
+
+.im-media-thumb {
+  position: relative;
+  flex: 1 1 0%;
+  min-width: 0;
   height: auto;
-  border-radius: 8px;
-  object-fit: contain;
+  min-height: 22px;
+  align-self: stretch;
+  border-radius: 6px;
+  overflow: hidden;
   background-color: rgba(0, 0, 0, 0.14);
   border: 1px solid var(--border-subtle);
-}
-
-.slot-card.is-priority .im-media-grid.single .im-media-img {
-  max-width: min(360px, 100%);
-  max-height: 250px;
+  box-sizing: border-box;
 }
 
 .im-media-grid.multi {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  max-width: min(260px, 100%);
+  gap: 3px;
 }
 
-.slot-card.is-priority .im-media-grid.multi {
-  max-width: min(360px, 100%);
-}
-
-.im-media-grid.multi .im-media-img {
-  display: block;
+.im-media-thumb .im-media-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 105px;
-  border-radius: 6px;
+  height: 100%;
   object-fit: cover;
-  background-color: rgba(0, 0, 0, 0.14);
-  border: 1px solid var(--border-subtle);
+  display: block;
+}
+
+.im-media-more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.56);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
 }
 
 /* Non-image attachments / embeds summarized as chips */

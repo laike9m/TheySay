@@ -800,7 +800,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
             posts: [
               {
                 id: '998877665544332211',
-                text: 'Cached legacy tweet that originally had no images field saved.',
+                text: 'Long term\n$QQQ\n model continues to track extremely well.',
                 time: timestamp,
                 url: 'https://x.com/VitalikButerin/status/998877665544332211',
                 author: 'VitalikButerin',
@@ -886,10 +886,12 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     // 3. Thumbnail matches the original bubble height without inflating it vertically
     expect(Math.abs(metrics.mediaBubbleHeight - metrics.textBubbleHeight)).toBeLessThanOrEqual(1);
 
-    // 4. Cached legacy Twitter post in Slot 1 automatically backfills its image and re-renders as .has-media
+    // 4. Cached legacy Twitter post in Slot 1 automatically backfills its image and cleans inline $QQQ newlines
     const backfilledBubble = page.locator('#slot-content-1 .im-bubble').first();
     await expect(backfilledBubble).toHaveClass(/has-media/);
     await expect(backfilledBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
+    const cleanedText = await backfilledBubble.locator('.im-text-content').textContent();
+    expect(cleanedText).toBe('Long term $QQQ model continues to track extremely well.');
   });
 });
 

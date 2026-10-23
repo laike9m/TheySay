@@ -153,6 +153,34 @@ function buildExtractionScript(handle) {
         }
       }
 
+      const readTweetText = function(root) {
+        if (!root) return '';
+        let out = '';
+        const walk = function(node) {
+          const kids = node.childNodes;
+          for (let i = 0; i < kids.length; i++) {
+            const n = kids[i];
+            if (n.nodeType === 3) {
+              out += n.nodeValue;
+            } else if (n.nodeType === 1) {
+              const tag = n.tagName.toLowerCase();
+              if (n.getAttribute && n.getAttribute('data-testid') === 'tweet-text-show-more-link') {
+                continue;
+              }
+              if (tag === 'img') {
+                out += (n.getAttribute('alt') || '');
+              } else if (tag === 'br') {
+                out += '\\n';
+              } else {
+                walk(n);
+              }
+            }
+          }
+        };
+        walk(root);
+        return out.trim();
+      };
+
       const items = [];
       for (const article of articles) {
         const timeEl = article.querySelector('time');
@@ -204,7 +232,8 @@ function buildExtractionScript(handle) {
           }
         }
 
-        const text = textEl ? textEl.innerText.trim() : ${mediaOnlyFallback};
+        const extractedText = textEl ? readTweetText(textEl) : '';
+        const text = extractedText || ${mediaOnlyFallback};
         const displayTime = timeEl ? timeEl.innerText.trim() : (statusLink ? statusLink.innerText.trim() : '');
         const datetime = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
 

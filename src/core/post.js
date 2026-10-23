@@ -43,13 +43,51 @@ function getPostKey(post) {
   return `${prefix}txt_${(post.text || '').slice(0, 40)}_${post.datetime || post.time || ''}`;
 }
 
+function cleanInlineEntityNewlines(text) {
+  if (typeof text !== 'string' || !text.includes('\n')) return text;
+  let cleaned = text;
+  let prev;
+  do {
+    prev = cleaned;
+    // 1. Entity ($TICKER, #hashtag, @handle) on its own line between inline text segments
+    //    where the line after starts with horizontal space or inline punctuation:
+    //    e.g. "Long term\n$QQQ\n model" -> "Long term $QQQ model"
+    cleaned = cleaned.replace(
+      /([^\r\n])[ \t]*\r?\n([$@#][A-Za-z0-9_.]+)\r?\n(?:[ \t]+([^\r\n])|([,.;:!?)}\]]))/g,
+      (_, beforeChar, entity, afterSpaceChar, afterPunct) => {
+        const prefix = /[([{'"“‘]/.test(beforeChar) ? `${beforeChar}${entity}` : `${beforeChar} ${entity}`;
+        return afterPunct ? `${prefix}${afterPunct}` : `${prefix} ${afterSpaceChar}`;
+      }
+    );
+    // 2. Entity followed by "\n <text>" (single newline + leading horizontal space) or "\n<punct>":
+    //    e.g. "$QQQ\n model continues" -> "$QQQ model continues"
+    cleaned = cleaned.replace(
+      /([$@#][A-Za-z0-9_.]+)\r?\n(?:[ \t]+([^\r\n])|([,.;:!?)}\]]))/g,
+      (_, entity, afterSpaceChar, afterPunct) => {
+        return afterPunct ? `${entity}${afterPunct}` : `${entity} ${afterSpaceChar}`;
+      }
+    );
+    // 3. Inline text ending with explicit horizontal space or opening bracket before "\n$ENTITY":
+    cleaned = cleaned.replace(
+      /([^\r\n\s])([ \t]+)\r?\n([$@#][A-Za-z0-9_.]+)/g,
+      '$1 $3'
+    );
+    cleaned = cleaned.replace(
+      /([([{'"“‘])[ \t]*\r?\n([$@#][A-Za-z0-9_.]+)/g,
+      '$1$2'
+    );
+  } while (cleaned !== prev);
+  return cleaned;
+}
+
 function processAndSortPosts(posts) {
   if (!Array.isArray(posts) || posts.length === 0) return [];
 
-  // 1. Ensure id, timestamp, and isMemberOnly are calculated
+  // 1. Ensure id, timestamp, cleaned text, and isMemberOnly are calculated
   const normalized = posts.map(p => ({
     ...p,
     id: getPostId(p),
+    text: typeof p.text === 'string' ? cleanInlineEntityNewlines(p.text) : p.text,
     timestamp: getPostTimestamp(p),
     isMemberOnly: isMemberOnlyPost(p)
   }));
@@ -340,6 +378,7 @@ module.exports = {
   getPostId,
   getPostTimestamp,
   getPostKey,
+  cleanInlineEntityNewlines,
   processAndSortPosts,
   getPostDateObj,
   getPostDateKey,

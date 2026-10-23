@@ -4,6 +4,7 @@ const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = requi
 const {
   getPostId,
   getPostKey,
+  cleanInlineEntityNewlines,
   processAndSortPosts,
   getPostDateKey,
   getPostDateLabel,
@@ -495,6 +496,9 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 
 function buildPostBubbleHtml(post) {
   const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
+  if (typeof post.text === 'string' && post.text.includes('\n')) {
+    post.text = cleanInlineEntityNewlines(post.text);
+  }
   const rawText = normalizeMediaOnlyText((post.text || '').trim());
   const effectiveText = rawText || (images.length > 0 ? t('scraper.mediaOnlyFallback') : '');
   const chars = Array.from(effectiveText);

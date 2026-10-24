@@ -83,7 +83,7 @@ function createSlotWidget(index) {
   widget.innerHTML = `
     <div class="grid-stack-item-content">
       <div class="slot-card" id="slot-card-${index}">
-        <!-- Compact Header (~34px) with User Avatar & Identity -->
+        <!-- Compact Header (~28px) with User Avatar & Identity -->
         <div class="slot-header slot-drag-handle">
           <span class="slot-drag-indicator" title="${escapeHtml(t('slot.dragHandleTitle'))}">⠿</span>
 

@@ -1128,7 +1128,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     });
     expect(Math.abs(geometry.contentTop - geometry.cardTop)).toBeLessThanOrEqual(2);
     expect(Math.abs(geometry.contentHeight - geometry.cardHeight)).toBeLessThanOrEqual(4);
-    expect(geometry.headerHeight).toBe(34);
+    expect(geometry.headerHeight).toBe(28);
 
     // Move cursor to top navbar (outside all slot cards): header is visible
     await page.mouse.move(100, 15);

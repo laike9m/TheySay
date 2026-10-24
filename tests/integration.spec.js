@@ -798,6 +798,17 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
                 isRetweet: false,
                 isUnread: false,
                 images: [imgUri]
+              },
+              {
+                id: 'post_zz_blank_lines_1',
+                text: 'Remember this...\n\nCheap can get cheaper.\n\nOverweight ETF companies have not sold off yet.\n\n$SPY\n$QQQ $IWM',
+                time: timestamp,
+                url: 'https://www.threads.com/@zuck/post/post_zz_blank_lines_1',
+                author: 'zuck',
+                isPinned: false,
+                isRetweet: false,
+                isUnread: false,
+                images: [imgUri]
               }
             ]
           },
@@ -836,11 +847,12 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
 
     const bubbles = page.locator('#slot-content-0 .im-bubble');
-    await expect(bubbles).toHaveCount(3);
+    await expect(bubbles).toHaveCount(4);
 
     const textOnlyBubble = bubbles.nth(0);
     const mediaBubble = bubbles.nth(1);
     const pureImageBubble = bubbles.nth(2);
+    const blankLinesBubble = bubbles.nth(3);
 
     await expect(textOnlyBubble).not.toHaveClass(/has-media/);
     await expect(mediaBubble).toHaveClass(/has-media/);
@@ -853,6 +865,22 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(pureImageBubble).toHaveClass(/media-only/);
     await expect(pureImageBubble.locator('.im-text-content')).toHaveCount(0);
     await expect(pureImageBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
+
+    // Blank lines are stripped in bubble display, last line expands past 100 chars when space is available,
+    // and original blank lines are preserved in popup modal when clicked
+    const bubbleDisplayText = await blankLinesBubble.locator('.im-text-content').textContent();
+    expect(bubbleDisplayText).toBe(
+      'Remember this...\nCheap can get cheaper.\nOverweight ETF companies have not sold off yet. $SPY $QQQ $IWM'
+    );
+    await blankLinesBubble.click();
+    const popupOverlay = page.locator('#tweet-popup-overlay');
+    await expect(popupOverlay).not.toHaveClass(/is-closed/);
+    const popupText = await popupOverlay.locator('.threads-popup-card .discord-popup-text').textContent();
+    expect(popupText).toBe(
+      'Remember this...\n\nCheap can get cheaper.\n\nOverweight ETF companies have not sold off yet.\n\n$SPY\n$QQQ $IWM'
+    );
+    await page.keyboard.press('Escape');
+    await expect(popupOverlay).toHaveClass(/is-closed/);
 
     const metrics = await page.evaluate(() => {
       const listEl = document.getElementById('slot-posts-list-0');

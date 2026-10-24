@@ -1,13 +1,9 @@
 function escapeHtml(text) {
-  if (typeof document !== 'undefined' && document.createElement) {
-    const div = document.createElement('div');
-    div.innerText = text;
-    return div.innerHTML;
-  }
-  return String(text)
+  return String(text ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function randomBetween(min, max) {

@@ -80,6 +80,34 @@ function cleanInlineEntityNewlines(text) {
   return cleaned;
 }
 
+function stripEmptyLines(text) {
+  if (typeof text !== 'string') return '';
+  let cleaned = text;
+  if (cleaned.includes('\n') || cleaned.includes('\r')) {
+    let prev;
+    do {
+      prev = cleaned;
+      // Remove newlines immediately before a $TICKER cashtag
+      cleaned = cleaned.replace(
+        /([^\r\n])[ \t]*[\r\n]+[ \t]*(\$[A-Za-z]{1,6}(?:\.[A-Za-z])?(?![A-Za-z0-9_]))/g,
+        (_, beforeChar, ticker) =>
+          /[([{'"“‘]/.test(beforeChar) ? `${beforeChar}${ticker}` : `${beforeChar} ${ticker}`
+      );
+      // Remove newlines immediately after a $TICKER cashtag
+      cleaned = cleaned.replace(
+        /((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z])?)[ \t]*[\r\n]+[ \t]*([^\r\n])/g,
+        (_, ticker, afterChar) =>
+          /[,.;:!?)}\]'"”’]/.test(afterChar) ? `${ticker}${afterChar}` : `${ticker} ${afterChar}`
+      );
+    } while (cleaned !== prev);
+  }
+  return cleaned
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.replace(/[\u200B-\u200D\uFEFF]/g, '').length > 0)
+    .join('\n');
+}
+
 function processAndSortPosts(posts) {
   if (!Array.isArray(posts) || posts.length === 0) return [];
 
@@ -379,6 +407,7 @@ module.exports = {
   getPostTimestamp,
   getPostKey,
   cleanInlineEntityNewlines,
+  stripEmptyLines,
   processAndSortPosts,
   getPostDateObj,
   getPostDateKey,

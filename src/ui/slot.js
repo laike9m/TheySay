@@ -5,6 +5,7 @@ const {
   getPostId,
   getPostKey,
   cleanInlineEntityNewlines,
+  stripEmptyLines,
   processAndSortPosts,
   getPostDateKey,
   getPostDateLabel,
@@ -446,15 +447,95 @@ function buildMediaThumbsHtml(images) {
   return html;
 }
 
+const BASE_PREVIEW_CHARS = 100;
+
+function trimIncompleteTrailingToken(sliceStr, fullStr) {
+  if (sliceStr.length >= fullStr.length) return sliceStr;
+  const nextChar = fullStr[sliceStr.length];
+  if (!nextChar || /\s/.test(nextChar)) return sliceStr;
+  const m = sliceStr.match(/([$@#]?[A-Za-z0-9_.-]+)$/);
+  if (!m) return sliceStr;
+  const partialToken = m[1];
+  const beforeToken = sliceStr.slice(0, sliceStr.length - partialToken.length);
+  const lastNewlineIdx = beforeToken.lastIndexOf('\n');
+  const lineContentBefore = beforeToken.slice(lastNewlineIdx + 1).trim();
+  if (lineContentBefore.length > 0 && partialToken.length <= 15) {
+    return beforeToken.trimEnd();
+  }
+  return sliceStr;
+}
+
+function renderTruncatedTextHtml(previewSlice, fullText) {
+  return `<span class="im-text-preview">${formatTextWithTickers(previewSlice, fullText)}<span class="im-text-ellipsis">...</span></span>`;
+}
+
+function expandBubbleLastLine(bubble) {
+  if (!bubble) return;
+  const textContentEl = bubble.querySelector('.im-text-content[data-full-text]');
+  if (!textContentEl) return;
+  const effectiveText = textContentEl.getAttribute('data-full-text') || '';
+  const chars = Array.from(effectiveText);
+  if (chars.length <= BASE_PREVIEW_CHARS) return;
+
+  const measureEl = bubble.querySelector('.im-bubble-left') || bubble;
+  const baseBoxHeight = measureEl.getBoundingClientRect().height;
+  const baseTextHeight = textContentEl.getBoundingClientRect().height;
+  if (!baseBoxHeight || baseBoxHeight <= 0) return;
+
+  const fitsOnSameLastLine = () => {
+    const boxH = measureEl.getBoundingClientRect().height;
+    const textH = textContentEl.getBoundingClientRect().height;
+    return boxH <= baseBoxHeight + 4 && textH <= baseTextHeight + 4;
+  };
+
+  let maxLineIdx = BASE_PREVIEW_CHARS;
+  if (chars[BASE_PREVIEW_CHARS - 1] === '\n' || chars[BASE_PREVIEW_CHARS - 1] === '\r') {
+    maxLineIdx = BASE_PREVIEW_CHARS - 1;
+  } else {
+    while (maxLineIdx < chars.length && chars[maxLineIdx] !== '\n' && chars[maxLineIdx] !== '\r') {
+      maxLineIdx++;
+    }
+  }
+
+  // If there are no more newlines after BASE_PREVIEW_CHARS, check if the entire remaining
+  // text fits on this last line without needing an ellipsis at all.
+  if (maxLineIdx === chars.length) {
+    textContentEl.innerHTML = formatTextWithTickers(effectiveText);
+    if (fitsOnSameLastLine()) {
+      return;
+    }
+  }
+
+  let low = BASE_PREVIEW_CHARS;
+  let high = maxLineIdx;
+  let bestK = BASE_PREVIEW_CHARS;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = chars.slice(0, mid).join('').trimEnd();
+    textContentEl.innerHTML = renderTruncatedTextHtml(candidate, effectiveText);
+    if (fitsOnSameLastLine()) {
+      bestK = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  const rawSlice = chars.slice(0, bestK).join('');
+  const cleanSlice = trimIncompleteTrailingToken(rawSlice, effectiveText).trimEnd();
+  textContentEl.innerHTML = renderTruncatedTextHtml(cleanSlice, effectiveText);
+}
+
 function buildDiscordBubbleHtml(msg, { showAuthor }) {
   const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
-  const rawText = normalizeMediaOnlyText(stripDiscordEditedText(msg.text || '')).trim();
+  const rawText = stripEmptyLines(normalizeMediaOnlyText(stripDiscordEditedText(msg.text || '')));
   const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
   const effectiveText = isMediaFallbackOnly ? '' : rawText;
-  const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
+  const cleanReplyText = stripEmptyLines(stripDiscordEditedText(msg.replyText || ''));
   const chars = Array.from(effectiveText);
-  const isLong = chars.length > 100;
-  const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
+  const isLong = chars.length > BASE_PREVIEW_CHARS;
+  const previewText = isLong ? chars.slice(0, BASE_PREVIEW_CHARS).join('').trimEnd() : effectiveText;
 
   let html = '';
 
@@ -479,7 +560,7 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 
   if (effectiveText) {
     html += isLong
-      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, effectiveText)}<span class="im-text-ellipsis">...</span></span></span>`
+      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText, effectiveText)}</span>`
       : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
   }
 
@@ -499,14 +580,14 @@ function buildPostBubbleHtml(post) {
   if (typeof post.text === 'string' && post.text.includes('\n')) {
     post.text = cleanInlineEntityNewlines(post.text);
   }
-  const rawText = normalizeMediaOnlyText((post.text || '').trim());
+  const rawText = stripEmptyLines(normalizeMediaOnlyText((post.text || '').trim()));
   const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
   const effectiveText = isMediaFallbackOnly
     ? ''
     : (rawText || (images.length === 0 ? t('scraper.mediaOnlyFallback') : ''));
   const chars = Array.from(effectiveText);
-  const isLong = chars.length > 100;
-  const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
+  const isLong = chars.length > BASE_PREVIEW_CHARS;
+  const previewText = isLong ? chars.slice(0, BASE_PREVIEW_CHARS).join('').trimEnd() : effectiveText;
 
   let tagHtml = '';
   if (post.isPinned) tagHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
@@ -517,7 +598,7 @@ function buildPostBubbleHtml(post) {
   let textHtml = '';
   if (effectiveText) {
     textHtml = isLong
-      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, effectiveText)}<span class="im-text-ellipsis">...</span></span></span>`
+      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText, effectiveText)}</span>`
       : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
   }
 
@@ -873,6 +954,7 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
     }
 
     slot.postsList.appendChild(bubble);
+    expandBubbleLastLine(bubble);
   });
 
   if (displayPosts.length === 0 && posts.length > 0 && !isDiscord && !isThreads) {

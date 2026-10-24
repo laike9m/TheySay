@@ -1370,12 +1370,24 @@ function updateSlotSizeUI(slot, w, h) {
   }
 }
 
+function syncSlotHeaderOpenMenuState(slot) {
+  if (!slot || !slot.header) return;
+  const isSizeMenuOpen = Boolean(slot.sizeMenu && slot.sizeMenu.style.display === 'flex');
+  const isSourceDropdownOpen = Boolean(slot.sourceDropdown && slot.sourceDropdown.style.display === 'flex');
+  const hasOpenMenu = isSizeMenuOpen || isSourceDropdownOpen;
+  slot.header.classList.toggle('has-open-menu', hasOpenMenu);
+  if (hasOpenMenu && slot.card) {
+    slot.card.classList.remove('is-header-hidden');
+  }
+}
+
 function closeSlotSourceDropdown(slot) {
   if (!slot || !slot.sourceDropdown) return;
   slot.sourceDropdown.style.display = 'none';
   slot.sourceDropdown.innerHTML = '';
   slot._dropdownHandle = '';
   slot._dropdownOnSelect = null;
+  syncSlotHeaderOpenMenuState(slot);
 }
 
 function closeAllSourceDropdowns(slots) {
@@ -1430,6 +1442,7 @@ function showSlotSourceDropdown(slot, { handle, twitter, threads, onSelect, slot
     closeAllSourceDropdowns(slots);
     slots.forEach(s => {
       if (s.sizeMenu) s.sizeMenu.style.display = 'none';
+      syncSlotHeaderOpenMenuState(s);
     });
   }
 
@@ -1476,6 +1489,7 @@ function showSlotSourceDropdown(slot, { handle, twitter, threads, onSelect, slot
   slot.sourceDropdown.style.display = 'flex';
   slot._dropdownHandle = cleanHandle.toLowerCase();
   slot._dropdownOnSelect = onSelect;
+  syncSlotHeaderOpenMenuState(slot);
 
   slot.sourceDropdown.onmousedown = (e) => {
     e.preventDefault();
@@ -1507,6 +1521,7 @@ function closeAllSizeMenus(slots) {
   slots.forEach(s => {
     if (s.sizeMenu) s.sizeMenu.style.display = 'none';
     closeSlotSourceDropdown(s);
+    syncSlotHeaderOpenMenuState(s);
   });
 }
 
@@ -1563,6 +1578,7 @@ function toggleSlotSizeMenu(slot, { slots, getGridDimensions, onResize }) {
 
   slot.sizeMenu.innerHTML = menuHtml;
   slot.sizeMenu.style.display = 'flex';
+  syncSlotHeaderOpenMenuState(slot);
 
   slot.sizeMenu.querySelectorAll('.size-menu-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -1590,6 +1606,33 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
     }
   };
 
+  if (slot.element) {
+    slot.element.addEventListener('mouseleave', () => {
+      if (slot.card) {
+        slot.card.classList.remove('is-header-hidden');
+      }
+    });
+  }
+
+  if (slot.header) {
+    slot.header.addEventListener('mouseenter', () => {
+      if (slot.card) {
+        slot.card.classList.remove('is-header-hidden');
+      }
+    });
+  }
+
+  if (slot.contentContainer) {
+    slot.contentContainer.addEventListener('mouseenter', () => {
+      if (!slot.card) return;
+      const hasOpenMenu = Boolean(slot.header && slot.header.classList.contains('has-open-menu'));
+      const isInputFocused = Boolean(slot.handleInput && document.activeElement === slot.handleInput);
+      if (!hasOpenMenu && !isInputFocused) {
+        slot.card.classList.add('is-header-hidden');
+      }
+    });
+  }
+
   // Click author badge to switch to input edit mode
   slot.authorHeader.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1607,6 +1650,12 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
       markSlotPostsAsRead(slot, slots);
     });
   }
+
+  slot.handleInput.addEventListener('focus', () => {
+    if (slot.card) {
+      slot.card.classList.remove('is-header-hidden');
+    }
+  });
 
   // When handleInput loses focus or escape is pressed, revert to author badge if posts exist for same handle (or if left empty)
   slot.handleInput.addEventListener('blur', () => {
@@ -1776,6 +1825,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       index: i,
       element: el,
       card: el.querySelector(`#slot-card-${i}`),
+      header: el.querySelector('.slot-header'),
       bgWebview: getOrCreateSlotWebview(i, bgWebviewsContainer, slots),
       avatarContainer: el.querySelector(`#slot-avatar-${i}`),
       avatarImg: el.querySelector(`#slot-avatar-img-${i}`),

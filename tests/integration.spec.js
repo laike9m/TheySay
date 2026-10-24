@@ -1105,5 +1105,70 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       'Added igv and panw puts at the open today as software names hit major overhead supply. 110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector'
     );
   });
+
+  test('13. Hovering a slot content area hides its header to reveal obscured content and moving to top header area restores it', async () => {
+    const card0 = page.locator('#slot-card-0');
+    const header0 = card0.locator('.slot-header');
+    const content0 = page.locator('#slot-content-0');
+    const header1 = page.locator('#slot-card-1 .slot-header');
+
+    // Verify content container spans full card height behind overlay header
+    const geometry = await page.evaluate(() => {
+      const cRect = document.getElementById('slot-card-0').getBoundingClientRect();
+      const hRect = document.querySelector('#slot-card-0 .slot-header').getBoundingClientRect();
+      const ctRect = document.getElementById('slot-content-0').getBoundingClientRect();
+      return {
+        cardTop: cRect.top,
+        cardHeight: cRect.height,
+        headerTop: hRect.top,
+        headerHeight: hRect.height,
+        contentTop: ctRect.top,
+        contentHeight: ctRect.height
+      };
+    });
+    expect(Math.abs(geometry.contentTop - geometry.cardTop)).toBeLessThanOrEqual(2);
+    expect(Math.abs(geometry.contentHeight - geometry.cardHeight)).toBeLessThanOrEqual(4);
+    expect(geometry.headerHeight).toBe(34);
+
+    // Move cursor to top navbar (outside all slot cards): header is visible
+    await page.mouse.move(100, 15);
+    await expect(card0).not.toHaveClass(/is-header-hidden/);
+    await expect.poll(() =>
+      header0.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
+    ).toBe(1);
+
+    // Move cursor into slot 0's lower message content area: slot 0's header hides, slot 1's header stays visible
+    const contentBox = await content0.boundingBox();
+    await page.mouse.move(contentBox.x + contentBox.width / 2, contentBox.y + contentBox.height / 2);
+    await expect(card0).toHaveClass(/is-header-hidden/);
+    await expect.poll(() =>
+      header0.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
+    ).toBe(0);
+    await expect.poll(() =>
+      header1.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
+    ).toBe(1);
+
+    // Move cursor to the right edge resize handle (.ui-resizable-e where horizontal resize arrow appears):
+    // header must remain hidden
+    const resizeEastBox = await page
+      .locator('.grid-stack-item[data-slot-index="0"] > .ui-resizable-e')
+      .boundingBox();
+    await page.mouse.move(
+      resizeEastBox.x + resizeEastBox.width / 2,
+      resizeEastBox.y + resizeEastBox.height / 2
+    );
+    await expect(card0).toHaveClass(/is-header-hidden/);
+    await expect.poll(() =>
+      header0.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
+    ).toBe(0);
+
+    // Move cursor up to slot 0's top header area: slot 0's header reappears for button/drag interaction
+    const headerBox = await header0.boundingBox();
+    await page.mouse.move(headerBox.x + headerBox.width / 2, headerBox.y + headerBox.height / 2);
+    await expect(card0).not.toHaveClass(/is-header-hidden/);
+    await expect.poll(() =>
+      header0.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
+    ).toBe(1);
+  });
 });
 

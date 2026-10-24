@@ -396,11 +396,21 @@ function restoreColumnHoverEffect(slots) {
   }
 }
 
+function clearHeaderHiddenState(slots) {
+  if (!Array.isArray(slots)) return;
+  slots.forEach(s => {
+    if (s && s.card) {
+      s.card.classList.remove('is-header-hidden');
+    }
+  });
+}
+
 function resetColumnHoverEffect(slots) {
   clearHoverTimers();
   hoverEffectState.expandedSlotIndex = null;
   hoverEffectState.staySlotIndex = null;
   hoverEffectState.pointerDownInfo = null;
+  clearHeaderHiddenState(slots);
   if (Array.isArray(slots)) {
     slots.forEach(s => restoreSlotVerticalGeometry(s));
   }
@@ -517,6 +527,7 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
   };
 
   gridContainer.addEventListener('mouseleave', () => {
+    clearHeaderHiddenState(slots);
     if (hoverEffectState.headerTimer) {
       clearTimeout(hoverEffectState.headerTimer);
       hoverEffectState.headerTimer = null;
@@ -606,22 +617,33 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     hoverEffectState.lastClientY = e.clientY;
 
     if (hoverEffectState.isInteractingWithGrid || isAnyOverlayOpen()) {
+      clearHeaderHiddenState(slots);
       return;
     }
 
     const target = e.target;
-    if (!target || typeof target.closest !== 'function') return;
+    if (!target || typeof target.closest !== 'function') {
+      clearHeaderHiddenState(slots);
+      return;
+    }
 
     const itemEl = target.closest('.grid-stack-item');
-    if (!itemEl || itemEl.parentElement !== gridContainer) return;
+    if (!itemEl || itemEl.parentElement !== gridContainer) {
+      clearHeaderHiddenState(slots);
+      return;
+    }
 
     const slotIndex = parseInt(itemEl.getAttribute('data-slot-index'), 10);
-    if (!Number.isFinite(slotIndex) || !slots[slotIndex]) return;
+    if (!Number.isFinite(slotIndex) || !slots[slotIndex]) {
+      clearHeaderHiddenState(slots);
+      return;
+    }
     const slot = slots[slotIndex];
 
-    // Moving cursor onto a section's header (用户名那栏) restores column heights
+    // Moving cursor onto a section's header (用户名那栏) shows the header and restores column heights
     const headerEl = target.closest('.slot-header');
     if (headerEl) {
+      clearHeaderHiddenState(slots);
       if (hoverEffectState.expandedSlotIndex !== null) {
         const node = slot.element.gridstackNode;
         const isTopRowHeader = Boolean(node && node.y === 0);
@@ -648,6 +670,17 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
       }
       return;
     }
+
+    // Cursor is inside the section below the header (content area or resize handles):
+    // hide this slot's header (unless its menu is open or its handle input is focused)
+    const hasOpenMenu = Boolean(slot.header && slot.header.classList.contains('has-open-menu'));
+    const isInputFocused = Boolean(slot.handleInput && document.activeElement === slot.handleInput);
+    const shouldHideHeader = !hasOpenMenu && !isInputFocused;
+    slots.forEach(s => {
+      if (s && s.card) {
+        s.card.classList.toggle('is-header-hidden', shouldHideHeader && s.index === slot.index);
+      }
+    });
 
     // Cursor is not in header: cancel any pending header restore timer
     if (hoverEffectState.headerTimer) {

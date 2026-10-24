@@ -787,6 +787,17 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
                 isRetweet: false,
                 isUnread: false,
                 images: [imgUri]
+              },
+              {
+                id: 'post_z_media_only_1',
+                text: '(该推文为纯媒体/卡片内容，无文本)',
+                time: timestamp,
+                url: 'https://www.threads.com/@zuck/post/post_z_media_only_1',
+                author: 'zuck',
+                isPinned: false,
+                isRetweet: false,
+                isUnread: false,
+                images: [imgUri]
               }
             ]
           },
@@ -825,15 +836,23 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
 
     const bubbles = page.locator('#slot-content-0 .im-bubble');
-    await expect(bubbles).toHaveCount(2);
+    await expect(bubbles).toHaveCount(3);
 
     const textOnlyBubble = bubbles.nth(0);
     const mediaBubble = bubbles.nth(1);
+    const pureImageBubble = bubbles.nth(2);
 
     await expect(textOnlyBubble).not.toHaveClass(/has-media/);
     await expect(mediaBubble).toHaveClass(/has-media/);
+    await expect(mediaBubble).not.toHaveClass(/media-only/);
     await expect(mediaBubble.locator('.im-bubble-left')).toBeVisible();
     await expect(mediaBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
+
+    // Pure-image bubble displays only the image without "(该推文为纯媒体/卡片内容，无文本)"
+    await expect(pureImageBubble).toHaveClass(/has-media/);
+    await expect(pureImageBubble).toHaveClass(/media-only/);
+    await expect(pureImageBubble.locator('.im-text-content')).toHaveCount(0);
+    await expect(pureImageBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
 
     const metrics = await page.evaluate(() => {
       const listEl = document.getElementById('slot-posts-list-0');

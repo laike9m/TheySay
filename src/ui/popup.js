@@ -173,7 +173,10 @@ function renderFallbackInto(entry) {
   const post = entry.post;
   if (!entry.el || !post) return;
 
+  const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const rawText = normalizeMediaOnlyText((post.text || '').trim());
+  const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
+  const effectiveText = isMediaFallbackOnly ? '' : rawText;
   const timeDisplay = post.time || (post.datetime ? new Date(post.datetime).toLocaleString() : '');
   const displayName = post.displayName || post.userHandle || '';
   const userHandle = post.userHandle || '';
@@ -202,6 +205,19 @@ function renderFallbackInto(entry) {
     `;
   }
 
+  let imagesHtml = '';
+  if (images.length > 0) {
+    imagesHtml = `
+      <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
+        ${images.map(url => `
+          <div class="discord-popup-image-wrap">
+            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="${escapeHtml(t('slot.imageAlt'))}" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="${escapeHtml(t('popup.viewOriginalImageTitle'))}">
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   fallbackDiv.innerHTML = `
     <div class="tweet-popup-fallback-header">
       ${avatarUrl ? `<img class="tweet-popup-fallback-avatar" src="${escapeHtml(avatarUrl)}" alt="">` : '<div class="tweet-popup-fallback-avatar-placeholder">👤</div>'}
@@ -211,7 +227,8 @@ function renderFallbackInto(entry) {
       </div>
     </div>
     ${memberInfoHtml}
-    <div class="tweet-popup-fallback-text">${formatTextWithTickers(rawText, undefined, { linkifyUrls: true })}</div>
+    ${effectiveText ? `<div class="tweet-popup-fallback-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true })}</div>` : ''}
+    ${imagesHtml}
     ${quoteInfoHtml}
     <div class="tweet-popup-fallback-footer">
       <span class="tweet-popup-fallback-time">${escapeHtml(timeDisplay)}</span>

@@ -1972,6 +1972,54 @@ body {
   pointer-events: none;
 }
 
+/* Pure-image bubble (no text): display only the image(s) across the bubble */
+.im-bubble.has-media.media-only {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.im-media-only-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.im-media-only-header .im-author {
+  margin-bottom: 0;
+}
+
+.im-bubble.has-media.media-only .im-media-grid {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  height: 76px;
+  margin: 0;
+}
+
+.im-bubble.has-media.media-only .im-media-thumb {
+  height: 76px;
+  min-height: 76px;
+}
+
+.im-bubble.has-media.media-only .im-time {
+  position: absolute;
+  right: 12px;
+  bottom: 9px;
+  float: none;
+  margin: 0;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background-color: rgba(15, 23, 42, 0.62);
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* Non-image attachments / embeds summarized as chips */
 .im-attachments {
   display: inline-flex;

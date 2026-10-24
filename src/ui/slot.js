@@ -448,11 +448,13 @@ function buildMediaThumbsHtml(images) {
 
 function buildDiscordBubbleHtml(msg, { showAuthor }) {
   const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
-  const rawText = stripDiscordEditedText(msg.text || '');
+  const rawText = normalizeMediaOnlyText(stripDiscordEditedText(msg.text || '')).trim();
+  const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
+  const effectiveText = isMediaFallbackOnly ? '' : rawText;
   const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
-  const chars = Array.from(rawText);
+  const chars = Array.from(effectiveText);
   const isLong = chars.length > 100;
-  const previewText = isLong ? chars.slice(0, 100).join('') : rawText;
+  const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
 
   let html = '';
 
@@ -475,12 +477,10 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     ? rawAttachments.filter(a => !isImageAttachmentLabel(a))
     : rawAttachments;
 
-  if (rawText) {
+  if (effectiveText) {
     html += isLong
-      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, rawText)}<span class="im-text-ellipsis">...</span></span></span>`
-      : `<span class="im-text-content">${formatTextWithTickers(rawText)}</span>`;
-  } else if (images.length > 0 && !cleanReplyText && !msg.replyAuthor && visibleAttachments.length === 0) {
-    html += `<span class="im-text-content">${escapeHtml(t('scraper.mediaOnlyFallback'))}</span>`;
+      ? `<span class="im-text-content"><span class="im-text-preview">${formatTextWithTickers(previewText, effectiveText)}<span class="im-text-ellipsis">...</span></span></span>`
+      : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
   }
 
   if (visibleAttachments.length > 0) {
@@ -500,7 +500,10 @@ function buildPostBubbleHtml(post) {
     post.text = cleanInlineEntityNewlines(post.text);
   }
   const rawText = normalizeMediaOnlyText((post.text || '').trim());
-  const effectiveText = rawText || (images.length > 0 ? t('scraper.mediaOnlyFallback') : '');
+  const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
+  const effectiveText = isMediaFallbackOnly
+    ? ''
+    : (rawText || (images.length === 0 ? t('scraper.mediaOnlyFallback') : ''));
   const chars = Array.from(effectiveText);
   const isLong = chars.length > 100;
   const previewText = isLong ? chars.slice(0, 100).join('') : effectiveText;
@@ -781,7 +784,17 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
 
     if (hasMedia) {
       bubble.classList.add('has-media');
-      bubble.innerHTML = `<div class="im-bubble-left">${bodyHtml}${timeHtml}</div>${buildMediaThumbsHtml(images)}${linkHtml}`;
+      const isMediaOnly =
+        !bodyHtml.includes('im-text-content') &&
+        !bodyHtml.includes('im-reply-ref') &&
+        !bodyHtml.includes('im-attachments');
+      if (isMediaOnly) {
+        bubble.classList.add('media-only');
+        const headerHtml = bodyHtml ? `<div class="im-media-only-header">${bodyHtml}</div>` : '';
+        bubble.innerHTML = `${headerHtml}${buildMediaThumbsHtml(images)}${timeHtml}${linkHtml}`;
+      } else {
+        bubble.innerHTML = `<div class="im-bubble-left">${bodyHtml}${timeHtml}</div>${buildMediaThumbsHtml(images)}${linkHtml}`;
+      }
     } else {
       bubble.innerHTML = `${bodyHtml}${timeHtml}${linkHtml}`;
     }

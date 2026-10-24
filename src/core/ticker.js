@@ -22,7 +22,7 @@ const TRADING_CONTEXT_RE =
 const HONORIFIC_AFTER_RE = /^(?:老师|总|哥|姐|大佬|神|叔|爷|博|群|频道)/u;
 
 // Adjacent price / percentage patterns (e.g. "coin 245", "spy 580", "1050以下的mu")
-const LOCAL_PRICE_AFTER_RE = /^\s+\d+(?:\.\d+)?(?:\s*%|\s*刀|\s*块|\s*股|\b|$|[，,。！!？?\s])/u;
+const LOCAL_PRICE_AFTER_RE = /^\s+\d+(?:\.\d+)?(?:\s*%|\s*刀|\s*块|\s*股|\b|$|[，,。.！!？?\s])/u;
 const LOCAL_PRICE_BEFORE_RE = /\d+(?:\.\d+)?(?:\s*(?:股|刀|块|以下|以上|附近|左右|的))*\s*$/u;
 
 // Single-pass tokenizer:
@@ -30,7 +30,7 @@ const LOCAL_PRICE_BEFORE_RE = /\d+(?:\.\d+)?(?:\s*(?:股|刀|块|以下|以上|�
 // Group 2: Explicit $TICKER cashtags (1-6 letters + optional .A/.B share class, upper or lower)
 // Group 3: Standalone 2-5 letter words (upper or lower, with optional .A/.B share class)
 const TOKEN_RE =
-  /(https?:\/\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|www\.[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|\b[A-Za-z0-9-]+\.(?:com|org|net|io|ai|co|gg|me|dev|app|xyz|tv|us|uk|cn|jp|hk|edu|gov)\b(?:\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]*)?|[@#][A-Za-z0-9_.-]+)|((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z])?(?![A-Za-z0-9_]))|((?<![A-Za-z0-9_$@#-])[A-Za-z]{2,5}(?:\.[ABab])?(?![A-Za-z0-9_-]))/g;
+  /(https?:\/\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|www\.[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|\b[A-Za-z0-9-]+\.(?:com|org|net|io|ai|co|gg|me|dev|app|xyz|tv|us|uk|cn|jp|hk|edu|gov)\b(?:\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]*)?|[@#][A-Za-z0-9_.-]+)|((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z](?![A-Za-z0-9_]))?(?![A-Za-z0-9_]))|((?<![A-Za-z0-9_$@#-])[A-Za-z]{2,5}(?:\.[ABab](?![A-Za-z0-9_-]))?(?![A-Za-z0-9_-]))/g;
 
 function loadCachedRemoteSymbols() {
   const cached = getTickerRemoteCache();

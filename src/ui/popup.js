@@ -254,9 +254,9 @@ function renderFallbackInto(entry) {
 
 // Warm a post's embed in the background so a later click is instant.
 function prefetchPost(post, { priority = false } = {}) {
-  // Discord messages, Threads posts, and member-only posts are rendered locally from data we already hold;
+  // Discord messages, Threads posts, merged posts, and member-only posts are rendered locally from data we already hold;
   // there is no third-party widget to warm up.
-  if (!post || post.source === 'discord' || post.source === 'threads' || isMemberOnlyPost(post)) return;
+  if (!post || post.source === 'discord' || post.source === 'threads' || post.isMerged || isMemberOnlyPost(post)) return;
 
   const postId = getPostId(post);
   if (!postId) return;
@@ -543,7 +543,10 @@ function openPostPopup(post) {
   const loadingEl = getLoadingEl();
   if (!overlay) return;
 
-  const postId = getPostId(post);
+  const rawPostId = getPostId(post);
+  const postId = post.isMerged && rawPostId
+    ? `merged_${rawPostId}_${Array.isArray(post.mergedPosts) ? post.mergedPosts.length : 2}`
+    : rawPostId;
   currentPost = post;
 
   // Hide whatever was shown before.
@@ -566,9 +569,9 @@ function openPostPopup(post) {
   entry.el.classList.add('is-active');
   openOverlay();
 
-  // If this is a member-only post, Twitter's public embed iframe cannot render it.
-  // Immediately render the rich fallback card with "仅会员可见" notice without waiting for widget timeout.
-  if (isMemberOnlyPost(post)) {
+  // If this is a member-only post or a merged multi-post bubble, Twitter's single-post public embed
+  // iframe cannot represent it. Immediately render the rich card with the full text and images.
+  if (isMemberOnlyPost(post) || post.isMerged) {
     if (loadingEl) loadingEl.style.display = 'none';
     renderFallbackInto(entry);
     return;

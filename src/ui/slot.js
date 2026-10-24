@@ -10,6 +10,8 @@ const {
   getPostDateKey,
   getPostDateLabel,
   formatTelegramTime,
+  getPostMinuteKey,
+  joinSameMinuteTexts,
   shouldShowPostPopup,
   isPostWithQuote,
   isMemberOnlyPost,
@@ -527,6 +529,118 @@ function expandBubbleLastLine(bubble) {
   textContentEl.innerHTML = renderTruncatedTextHtml(cleanSlice, effectiveText);
 }
 
+function extractCleanPostText(post, { isDiscord = false } = {}) {
+  if (!post) return '';
+  let text = post.text || '';
+  if (isDiscord) {
+    text = stripDiscordEditedText(text);
+  } else if (typeof text === 'string' && text.includes('\n')) {
+    text = cleanInlineEntityNewlines(text);
+  }
+  const rawText = stripEmptyLines(normalizeMediaOnlyText(String(text).trim()));
+  if (!rawText || rawText === t('scraper.mediaOnlyFallback')) {
+    return '';
+  }
+  return rawText;
+}
+
+function canMergeSameMinutePosts(prev, curr, { isDiscord = false } = {}) {
+  if (!prev || !curr) return false;
+  const prevMinKey = getPostMinuteKey(prev);
+  const currMinKey = getPostMinuteKey(curr);
+  if (!prevMinKey || !currMinKey || prevMinKey !== currMinKey) return false;
+
+  const prevDateKey = getPostDateKey(prev);
+  const currDateKey = getPostDateKey(curr);
+  if (prevDateKey !== currDateKey) return false;
+
+  if (Boolean(prev.isPinned) !== Boolean(curr.isPinned)) return false;
+  if (Boolean(isMemberOnlyPost(prev)) !== Boolean(isMemberOnlyPost(curr))) return false;
+
+  if (isDiscord) {
+    if ((prev.displayName || '') !== (curr.displayName || '')) return false;
+    if (Boolean(prev.isBot) !== Boolean(curr.isBot)) return false;
+  }
+
+  return true;
+}
+
+function groupSameMinutePosts(posts, { isDiscord = false } = {}) {
+  if (!Array.isArray(posts) || posts.length === 0) return [];
+  const groups = [];
+  for (const post of posts) {
+    if (!post) continue;
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && canMergeSameMinutePosts(lastGroup[lastGroup.length - 1], post, { isDiscord })) {
+      lastGroup.push(post);
+    } else {
+      groups.push([post]);
+    }
+  }
+
+  return groups.map((group) => {
+    if (group.length === 1) {
+      return group[0];
+    }
+
+    const basePost = group[0];
+    const cleanSegments = group
+      .map(p => extractCleanPostText(p, { isDiscord }))
+      .filter(Boolean);
+    const mergedText = joinSameMinuteTexts(cleanSegments);
+
+    const mergedImages = [];
+    const seenImages = new Set();
+    const mergedAttachments = [];
+    const seenAttachments = new Set();
+    let firstReplyPost = null;
+    let firstQuotePost = null;
+
+    for (const p of group) {
+      if (Array.isArray(p.images)) {
+        for (const img of p.images) {
+          if (img && !seenImages.has(img)) {
+            seenImages.add(img);
+            mergedImages.push(img);
+          }
+        }
+      }
+      if (Array.isArray(p.attachments)) {
+        for (const att of p.attachments) {
+          if (att && !seenAttachments.has(att)) {
+            seenAttachments.add(att);
+            mergedAttachments.push(att);
+          }
+        }
+      }
+      if (!firstReplyPost && (p.replyText || p.replyAuthor)) {
+        firstReplyPost = p;
+      }
+      if (!firstQuotePost && (isPostWithQuote(p) || p.quoteText || p.quoteAuthor)) {
+        firstQuotePost = p;
+      }
+    }
+
+    return {
+      ...basePost,
+      text: mergedText,
+      images: mergedImages,
+      attachments: mergedAttachments,
+      replyAuthor: firstReplyPost ? firstReplyPost.replyAuthor : '',
+      replyText: firstReplyPost ? firstReplyPost.replyText : '',
+      hasQuote: group.some(p => isPostWithQuote(p)),
+      quoteUrl: (firstQuotePost && firstQuotePost.quoteUrl) || basePost.quoteUrl || '',
+      quoteAuthor: (firstQuotePost && firstQuotePost.quoteAuthor) || basePost.quoteAuthor || '',
+      quoteText: (firstQuotePost && firstQuotePost.quoteText) || basePost.quoteText || '',
+      isPinned: group.some(p => p.isPinned),
+      isRetweet: group.some(p => p.isRetweet),
+      isUnread: group.some(p => p.isUnread),
+      isMerged: true,
+      mergedPosts: group
+    };
+  });
+}
+
 function buildDiscordBubbleHtml(msg, { showAuthor }) {
   const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
   const rawText = stripEmptyLines(normalizeMediaOnlyText(stripDiscordEditedText(msg.text || '')));
@@ -534,7 +648,7 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
   const effectiveText = isMediaFallbackOnly ? '' : rawText;
   const cleanReplyText = stripEmptyLines(stripDiscordEditedText(msg.replyText || ''));
   const chars = Array.from(effectiveText);
-  const isLong = chars.length > BASE_PREVIEW_CHARS;
+  const isLong = !msg.isMerged && chars.length > BASE_PREVIEW_CHARS;
   const previewText = isLong ? chars.slice(0, BASE_PREVIEW_CHARS).join('').trimEnd() : effectiveText;
 
   let html = '';
@@ -586,7 +700,7 @@ function buildPostBubbleHtml(post) {
     ? ''
     : (rawText || (images.length === 0 ? t('scraper.mediaOnlyFallback') : ''));
   const chars = Array.from(effectiveText);
-  const isLong = chars.length > BASE_PREVIEW_CHARS;
+  const isLong = !post.isMerged && chars.length > BASE_PREVIEW_CHARS;
   const previewText = isLong ? chars.slice(0, BASE_PREVIEW_CHARS).join('').trimEnd() : effectiveText;
 
   let tagHtml = '';
@@ -768,14 +882,22 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
       bubbleEl.classList.remove('unread');
       changed = true;
     }
-    if (postObj && postObj.isUnread) {
-      postObj.isUnread = false;
-      changed = true;
-    }
-    const targetKey = getPostKey(postObj);
-    if (targetKey && Array.isArray(slot.loadedPosts)) {
+    const targetPosts = (postObj && Array.isArray(postObj.mergedPosts))
+      ? [postObj, ...postObj.mergedPosts]
+      : (postObj ? [postObj] : []);
+    const targetKeys = new Set();
+    targetPosts.forEach(tp => {
+      if (!tp) return;
+      if (tp.isUnread) {
+        tp.isUnread = false;
+        changed = true;
+      }
+      const k = getPostKey(tp);
+      if (k) targetKeys.add(k);
+    });
+    if (targetKeys.size > 0 && Array.isArray(slot.loadedPosts)) {
       slot.loadedPosts.forEach(p => {
-        if (p && getPostKey(p) === targetKey && p.isUnread) {
+        if (p && targetKeys.has(getPostKey(p)) && p.isUnread) {
           p.isUnread = false;
           changed = true;
         }
@@ -793,14 +915,25 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
     ? posts
     : posts.filter(p => !isMemberOnlyPost(p));
 
+  displayPosts.forEach((p) => {
+    if (!p.source && slot.source) {
+      p.source = slot.source;
+    }
+    if (!p.avatarUrl && finalAvatar) {
+      p.avatarUrl = finalAvatar;
+    }
+    if (!isDiscord) {
+      if (!p.displayName && displayName) p.displayName = displayName;
+      if (!p.userHandle && userHandle) p.userHandle = userHandle;
+    }
+  });
+
+  const groupedDisplayPosts = groupSameMinutePosts(displayPosts, { isDiscord });
+
   let lastDateKey = null;
   let lastAuthorName = null;
 
-  displayPosts.forEach((post) => {
-    if (!post.source && slot.source) {
-      post.source = slot.source;
-    }
-
+  groupedDisplayPosts.forEach((post) => {
     const dateKey = getPostDateKey(post);
     const dateLabel = getPostDateLabel(post);
     let startedNewDay = false;
@@ -827,15 +960,6 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
     bubble.addEventListener('mouseenter', () => {
       markBubbleAsRead(post, bubble);
     });
-
-    // Store avatar and author reference on post object if available
-    if (!post.avatarUrl && finalAvatar) {
-      post.avatarUrl = finalAvatar;
-    }
-    if (!isDiscord) {
-      if (!post.displayName && displayName) post.displayName = displayName;
-      if (!post.userHandle && userHandle) post.userHandle = userHandle;
-    }
 
     const timeDisplay = formatTelegramTime(post);
     const linkTitle = isDiscord

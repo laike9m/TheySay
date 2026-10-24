@@ -250,6 +250,61 @@ function formatTelegramTime(post) {
   return post.time || '';
 }
 
+function getPostMinuteKey(post) {
+  if (!post) return '';
+  const d = getPostDateObj(post);
+  if (d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  }
+  return post.time ? String(post.time).trim() : '';
+}
+
+const CJK_TEXT_RE = /[\u3400-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/;
+
+function hasChineseText(str) {
+  return CJK_TEXT_RE.test(String(str || ''));
+}
+
+function joinSameMinuteTexts(segments) {
+  if (!Array.isArray(segments)) return '';
+  const cleaned = segments
+    .map(s => String(s || '').trim())
+    .filter(Boolean);
+  if (cleaned.length === 0) return '';
+  if (cleaned.length === 1) return cleaned[0];
+
+  const anyChinese = cleaned.some(s => hasChineseText(s));
+  let result = cleaned[0];
+
+  for (let i = 1; i < cleaned.length; i++) {
+    const nextSeg = cleaned[i];
+    const useChinese = anyChinese || hasChineseText(result) || hasChineseText(nextSeg);
+
+    if (useChinese) {
+      const trimmedPrev = result.replace(/[\s,，;；.。]+$/u, '');
+      if (/[!！?？…:：]$/u.test(trimmedPrev)) {
+        result = `${trimmedPrev}${nextSeg}`;
+      } else {
+        result = `${trimmedPrev}。${nextSeg}`;
+      }
+    } else {
+      const trimmedPrev = result.replace(/[\s,;。]+$/u, '');
+      if (/[.!?…:]$/u.test(trimmedPrev)) {
+        result = `${trimmedPrev} ${nextSeg}`;
+      } else {
+        result = `${trimmedPrev}. ${nextSeg}`;
+      }
+    }
+  }
+
+  return result;
+}
+
 function isPostTruncated(post) {
   if (!post) return false;
   const rawText = (post.text || '').trim();
@@ -413,6 +468,9 @@ module.exports = {
   getPostDateKey,
   getPostDateLabel,
   formatTelegramTime,
+  getPostMinuteKey,
+  hasChineseText,
+  joinSameMinuteTexts,
   isPostTruncated,
   isPostWithQuote,
   shouldShowPostPopup,

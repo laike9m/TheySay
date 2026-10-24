@@ -733,7 +733,11 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
   });
 
   test('11. Image post bubbles: full-width layout, 50% right image split, height matching & cached post backfill', async () => {
-    const nowIso = new Date().toISOString();
+    const baseMs = Date.now();
+    const t0 = new Date(baseMs - 3 * 60000).toISOString();
+    const t1 = new Date(baseMs - 2 * 60000).toISOString();
+    const t2 = new Date(baseMs - 1 * 60000).toISOString();
+    const t3 = new Date(baseMs).toISOString();
     const dummySvgDataUri =
       'data:image/svg+xml;utf8,' +
       encodeURIComponent(
@@ -741,7 +745,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       );
 
     await page.evaluate(
-      ({ timestamp, imgUri, handlesKey, cacheKey }) => {
+      ({ times, imgUri, handlesKey, cacheKey }) => {
         localStorage.setItem(
           'theysay_mock_tweet_data',
           JSON.stringify({
@@ -769,7 +773,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               {
                 id: 'post_text_only_1',
                 text: 'Short one-line update.',
-                time: timestamp,
+                time: times[0],
                 url: 'https://www.threads.com/@zuck/post/post_text_only_1',
                 author: 'zuck',
                 isPinned: false,
@@ -780,7 +784,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               {
                 id: 'post_with_img_1',
                 text: 'Short one-line update.',
-                time: timestamp,
+                time: times[1],
                 url: 'https://www.threads.com/@zuck/post/post_with_img_1',
                 author: 'zuck',
                 isPinned: false,
@@ -791,7 +795,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               {
                 id: 'post_z_media_only_1',
                 text: '(该推文为纯媒体/卡片内容，无文本)',
-                time: timestamp,
+                time: times[2],
                 url: 'https://www.threads.com/@zuck/post/post_z_media_only_1',
                 author: 'zuck',
                 isPinned: false,
@@ -802,7 +806,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               {
                 id: 'post_zz_blank_lines_1',
                 text: 'Remember this...\n\nCheap can get cheaper.\n\nOverweight ETF companies have not sold off yet.\n\n$SPY\n$QQQ $IWM',
-                time: timestamp,
+                time: times[3],
                 url: 'https://www.threads.com/@zuck/post/post_zz_blank_lines_1',
                 author: 'zuck',
                 isPinned: false,
@@ -823,7 +827,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               {
                 id: '998877665544332211',
                 text: 'Long term\n$QQQ\n model continues to track extremely well.',
-                time: timestamp,
+                time: times[3],
                 url: 'https://x.com/VitalikButerin/status/998877665544332211',
                 author: 'VitalikButerin',
                 isPinned: false,
@@ -837,7 +841,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
         localStorage.setItem(cacheKey, JSON.stringify(cache));
       },
       {
-        timestamp: nowIso,
+        times: [t0, t1, t2, t3],
         imgUri: dummySvgDataUri,
         handlesKey: STORAGE_HANDLES_KEY,
         cacheKey: STORAGE_CACHE_KEY
@@ -939,6 +943,167 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(backfilledBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
     const cleanedText = await backfilledBubble.locator('.im-text-content').textContent();
     expect(cleanedText).toBe('Long term $QQQ model continues to track extremely well.');
+  });
+
+  test('12. Same-minute message merging: Chinese (。) & English (.) separators and full display without truncation', async () => {
+    await page.evaluate(
+      ({ handlesKey, cacheKey }) => {
+        const handles = [
+          'https://discord.com/channels/111111/222222',
+          'threads:@zuck',
+          '',
+          ''
+        ];
+        while (handles.length < 16) handles.push('');
+        localStorage.setItem(handlesKey, JSON.stringify(handles));
+
+        // 5 Chinese messages within the exact same minute (12:47) + 1 message in the next minute (12:48)
+        const baseMinute = '2026-10-23T19:47:';
+        const nextMinute = '2026-10-23T19:48:10.000Z';
+
+        const cache = {
+          0: {
+            handle: 'https://discord.com/channels/111111/222222',
+            source: 'discord',
+            sourceTitle: '#trading',
+            sourceSubtitle: 'Alpha Guild',
+            displayName: '#trading',
+            userHandle: 'Alpha Guild',
+            avatarUrl: '',
+            lastFetchedAt: Date.now(),
+            posts: [
+              {
+                id: '1001',
+                text: 'add了 igv + panw put',
+                datetime: `${baseMinute}02.000Z`,
+                time: `${baseMinute}02.000Z`,
+                displayName: 'TraderA',
+                isUnread: true,
+                images: []
+              },
+              {
+                id: '1002',
+                text: 'igv 110左右是上周五大阴线的起点',
+                datetime: `${baseMinute}15.000Z`,
+                time: `${baseMinute}15.000Z`,
+                displayName: 'TraderA',
+                isUnread: true,
+                images: []
+              },
+              {
+                id: '1003',
+                text: '这里今天拉回去就被抛售是很bearish的',
+                datetime: `${baseMinute}28.000Z`,
+                time: `${baseMinute}28.000Z`,
+                displayName: 'TraderA',
+                isUnread: true,
+                images: []
+              },
+              {
+                id: '1004',
+                text: '做空，盈亏比很高，拉过去我们就止损',
+                datetime: `${baseMinute}41.000Z`,
+                time: `${baseMinute}41.000Z`,
+                displayName: 'TraderA',
+                isUnread: true,
+                images: []
+              },
+              {
+                id: '1005',
+                text: '很多 igv 的估值比半导体还高，而且当前软件板块整体面临非常明显的估值压缩压力，长线资金也在持续撤出高估值SaaS标的，反弹就是很好的加仓做空机会',
+                datetime: `${baseMinute}55.000Z`,
+                time: `${baseMinute}55.000Z`,
+                displayName: 'TraderA',
+                isUnread: true,
+                images: []
+              },
+              {
+                id: '1006',
+                text: '下一分钟的独立消息',
+                datetime: nextMinute,
+                time: nextMinute,
+                displayName: 'TraderA',
+                isUnread: false,
+                images: []
+              }
+            ]
+          },
+          1: {
+            handle: 'threads:@zuck',
+            source: 'threads',
+            displayName: 'Mark Zuckerberg',
+            userHandle: 'threads:@zuck',
+            avatarUrl: '',
+            lastFetchedAt: Date.now(),
+            posts: [
+              {
+                id: 'en_msg_1',
+                text: 'Added igv and panw puts at the open today as software names hit major overhead supply',
+                datetime: `${baseMinute}05.000Z`,
+                time: `${baseMinute}05.000Z`,
+                url: 'https://www.threads.com/@zuck/post/en_msg_1',
+                author: 'zuck',
+                isUnread: false,
+                images: []
+              },
+              {
+                id: 'en_msg_2',
+                text: '110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector',
+                datetime: `${baseMinute}35.000Z`,
+                time: `${baseMinute}35.000Z`,
+                url: 'https://www.threads.com/@zuck/post/en_msg_2',
+                author: 'zuck',
+                isUnread: false,
+                images: []
+              }
+            ]
+          }
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      },
+      {
+        handlesKey: STORAGE_HANDLES_KEY,
+        cacheKey: STORAGE_CACHE_KEY
+      }
+    );
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    // Slot 0: 5 messages at 12:47 merge into 1 bubble + 1 message at 12:48 = 2 bubbles total
+    const discordBubbles = page.locator('#slot-content-0 .im-bubble');
+    await expect(discordBubbles).toHaveCount(2);
+
+    const mergedChineseBubble = discordBubbles.nth(0);
+    await expect(mergedChineseBubble).toHaveClass(/unread/);
+    // Merged bubble must NOT be truncated even though it exceeds 100 chars
+    await expect(mergedChineseBubble.locator('.im-text-ellipsis')).toHaveCount(0);
+
+    const chineseText = await mergedChineseBubble.locator('.im-text-content').textContent();
+    expect(chineseText).toBe(
+      'add了 igv + panw put。igv 110左右是上周五大阴线的起点。这里今天拉回去就被抛售是很bearish的。做空，盈亏比很高，拉过去我们就止损。很多 igv 的估值比半导体还高，而且当前软件板块整体面临非常明显的估值压缩压力，长线资金也在持续撤出高估值SaaS标的，反弹就是很好的加仓做空机会'
+    );
+
+    // Tickers (igv x3, panw x1) are highlighted inside the merged Chinese bubble
+    await expect(mergedChineseBubble.locator('.ticker-highlight')).toHaveCount(4);
+
+    // Clicking the merged bubble marks all 5 underlying messages as read and opens popup with full merged text
+    await mergedChineseBubble.click();
+    await expect(page.locator('#slot-unread-badge-0')).toBeHidden();
+    const popupOverlay = page.locator('#tweet-popup-overlay');
+    await expect(popupOverlay).not.toHaveClass(/is-closed/);
+    await expect(popupOverlay.locator('.discord-popup-text')).toHaveText(chineseText);
+    await page.keyboard.press('Escape');
+    await expect(popupOverlay).toHaveClass(/is-closed/);
+
+    // Slot 1: 2 English messages in the same minute merge into 1 bubble separated by ". " and are not truncated
+    const englishBubbles = page.locator('#slot-content-1 .im-bubble');
+    await expect(englishBubbles).toHaveCount(1);
+    const mergedEnglishBubble = englishBubbles.nth(0);
+    await expect(mergedEnglishBubble.locator('.im-text-ellipsis')).toHaveCount(0);
+    const englishText = await mergedEnglishBubble.locator('.im-text-content').textContent();
+    expect(englishText).toBe(
+      'Added igv and panw puts at the open today as software names hit major overhead supply. 110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector'
+    );
   });
 });
 

@@ -409,7 +409,9 @@ function resetColumnHoverEffect(slots) {
   clearHoverTimers();
   hoverEffectState.expandedSlotIndex = null;
   hoverEffectState.staySlotIndex = null;
-  hoverEffectState.pointerDownInfo = null;
+  if (hoverEffectState.pointerDownInfo) {
+    hoverEffectState.pointerDownInfo.didDragOrResize = true;
+  }
   clearHeaderHiddenState(slots);
   if (Array.isArray(slots)) {
     slots.forEach(s => restoreSlotVerticalGeometry(s));
@@ -549,11 +551,12 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     hoverEffectState.pointerDownInfo = {
       x: e.clientX,
       y: e.clientY,
-      inBubbleOrControl
+      inBubbleOrControl,
+      didDragOrResize: false
     };
-  });
+  }, true);
 
-  // Clicking on blank space (outside message bubbles) in a section triggers height expansion
+  // Clicking on blank space (outside message bubbles) or resize handle arrows in a section triggers height expansion
   gridContainer.addEventListener('click', (e) => {
     const downInfo = hoverEffectState.pointerDownInfo;
     hoverEffectState.pointerDownInfo = null;
@@ -565,7 +568,7 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
       return;
     }
     if (downInfo) {
-      if (downInfo.inBubbleOrControl) return;
+      if (downInfo.inBubbleOrControl || downInfo.didDragOrResize) return;
       if (Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 6) return;
     }
     if (typeof window.getSelection === 'function') {
@@ -582,18 +585,21 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     }
 
     const contentEl = target.closest('.slot-content-container');
-    if (!contentEl) return;
+    const resizeHandleEl = target.closest('.ui-resizable-handle');
+    if (!contentEl && !resizeHandleEl) return;
 
-    // Ignore clicks on the scrollbar area of the content container
-    const contentRect = contentEl.getBoundingClientRect();
-    if (
-      e.clientX > contentRect.left + contentEl.clientWidth ||
-      e.clientY > contentRect.top + contentEl.clientHeight
-    ) {
-      return;
+    if (contentEl) {
+      // Ignore clicks on the scrollbar area of the content container
+      const contentRect = contentEl.getBoundingClientRect();
+      if (
+        e.clientX > contentRect.left + contentEl.clientWidth ||
+        e.clientY > contentRect.top + contentEl.clientHeight
+      ) {
+        return;
+      }
     }
 
-    const itemEl = contentEl.closest('.grid-stack-item');
+    const itemEl = (contentEl || resizeHandleEl).closest('.grid-stack-item');
     if (!itemEl || itemEl.parentElement !== gridContainer) return;
 
     const slotIndex = parseInt(itemEl.getAttribute('data-slot-index'), 10);

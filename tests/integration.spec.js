@@ -1149,18 +1149,29 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     ).toBe(1);
 
     // Move cursor to the right edge resize handle (.ui-resizable-e where horizontal resize arrow appears):
-    // header must remain hidden
+    // header must remain hidden, and clicking on the resize handle area expands/restores the section
+    const item0 = page.locator('.grid-stack-item[data-slot-index="0"]');
+    const squeezedItems = page.locator('.grid-stack-item.is-hover-squeezed');
     const resizeEastBox = await page
       .locator('.grid-stack-item[data-slot-index="0"] > .ui-resizable-e')
       .boundingBox();
-    await page.mouse.move(
-      resizeEastBox.x + resizeEastBox.width / 2,
-      resizeEastBox.y + resizeEastBox.height / 2
-    );
+    const resizeClickX = resizeEastBox.x + resizeEastBox.width / 2;
+    const resizeClickY = resizeEastBox.y + resizeEastBox.height / 2;
+    await page.mouse.move(resizeClickX, resizeClickY);
     await expect(card0).toHaveClass(/is-header-hidden/);
     await expect.poll(() =>
       header0.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
     ).toBe(0);
+
+    // Click on the resize arrow area (.ui-resizable-e) to expand slot 0 in its column
+    await page.mouse.click(resizeClickX, resizeClickY);
+    await expect(item0).toHaveClass(/is-hover-expanded/);
+    await expect(squeezedItems).toHaveCount(1);
+
+    // Click on the resize arrow area again to restore column heights
+    await page.mouse.click(resizeClickX, resizeClickY);
+    await expect(item0).not.toHaveClass(/is-hover-expanded/);
+    await expect(squeezedItems).toHaveCount(0);
 
     // Move cursor up to slot 0's top header area: slot 0's header reappears for button/drag interaction
     const headerBox = await header0.boundingBox();

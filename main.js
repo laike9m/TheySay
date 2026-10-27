@@ -452,15 +452,23 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   });
 
   let reportedLoggedIn = false;
+  let notifiedMainWindow = false;
   const notifyIfLoggedIn = (url) => {
     if (reportedLoggedIn) return;
     if (url.indexOf('discord.com/channels/') < 0 && url.indexOf('discord.com/app') < 0) return;
 
     reportedLoggedIn = true;
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      discordSession.flushStorageData();
+    } catch (_) {}
+    if (mainWindow && !mainWindow.isDestroyed() && !notifiedMainWindow) {
+      notifiedMainWindow = true;
       mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
     }
     setTimeout(() => {
+      try {
+        discordSession.flushStorageData();
+      } catch (_) {}
       if (discordLoginWindow && !discordLoginWindow.isDestroyed()) {
         discordLoginWindow.close();
       }
@@ -474,7 +482,11 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
 
   discordLoginWindow.on('closed', () => {
     discordLoginWindow = null;
-    if (mainWindow && !mainWindow.isDestroyed() && reportedLoggedIn) {
+    try {
+      discordSession.flushStorageData();
+    } catch (_) {}
+    if (mainWindow && !mainWindow.isDestroyed() && reportedLoggedIn && !notifiedMainWindow) {
+      notifiedMainWindow = true;
       mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
     }
   });

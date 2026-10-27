@@ -447,6 +447,33 @@ body {
   box-shadow: 0 0 6px var(--accent-success);
 }
 
+.login-menu-status-dot.has-expired {
+  background-color: var(--accent-danger);
+  box-shadow: 0 0 8px var(--accent-danger);
+  animation: pulse-expired-dot 1.4s infinite ease-in-out;
+}
+
+.login-dropdown-btn.has-expired {
+  border-color: rgba(244, 33, 46, 0.55);
+  color: #ff6b78;
+}
+
+[data-theme="light"] .login-dropdown-btn.has-expired {
+  border-color: rgba(220, 38, 38, 0.5);
+  color: #dc2626;
+}
+
+@keyframes pulse-expired-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.25);
+  }
+}
+
 .login-dropdown-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -644,6 +671,25 @@ body {
   color: var(--accent-blue);
 }
 
+/* Expired state */
+.platform-status-badge.expired {
+  background-color: rgba(244, 33, 46, 0.15);
+  border-color: rgba(244, 33, 46, 0.45);
+  color: #ff6b78;
+}
+
+[data-theme="light"] .platform-status-badge.expired {
+  background-color: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.4);
+  color: #dc2626;
+}
+
+.platform-status-badge.expired .status-indicator-dot {
+  background-color: var(--accent-danger);
+  box-shadow: 0 0 5px var(--accent-danger);
+  animation: pulse-dot 1s infinite alternate;
+}
+
 /* Checking state */
 .platform-status-badge.checking {
   background-color: var(--bg-control);
@@ -661,8 +707,170 @@ body {
   to { opacity: 1; }
 }
 
+/* Persistent Top Login Expired Banner */
+.auth-expired-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  margin: 0 12px 6px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(244, 33, 46, 0.22) 0%, rgba(245, 158, 11, 0.18) 100%);
+  border: 1.5px solid rgba(244, 33, 46, 0.65);
+  box-shadow: 0 4px 16px rgba(244, 33, 46, 0.18);
+  color: #ffdce0;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+  z-index: 95;
+}
+
+[data-theme="light"] .auth-expired-banner {
+  background: linear-gradient(90deg, rgba(254, 226, 226, 0.96) 0%, rgba(254, 243, 199, 0.96) 100%);
+  border-color: rgba(220, 38, 38, 0.65);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
+.auth-expired-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.auth-expired-banner-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--accent-danger);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(244, 33, 46, 0.55);
+  animation: pulse-expired-dot 1.6s infinite ease-in-out;
+}
+
+.auth-expired-banner-text {
+  line-height: 1.35;
+}
+
+.auth-expired-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.auth-expired-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background-color: var(--accent-danger);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px rgba(244, 33, 46, 0.35);
+  white-space: nowrap;
+}
+
+.auth-expired-login-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(244, 33, 46, 0.5);
+}
+
+.auth-expired-login-btn:active {
+  transform: translateY(0);
+}
+
+/* Per-Slot Persistent Login Expired Strip */
+.slot-card.is-login-expired {
+  border-color: rgba(244, 33, 46, 0.55);
+}
+
+.slot-card.is-login-expired .slot-posts-list {
+  padding-bottom: 36px;
+}
+
+.slot-expired-banner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  background: rgba(38, 12, 16, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(244, 33, 46, 0.5);
+  color: #ff9ea7;
+  font-size: 11.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .slot-expired-banner {
+  background: rgba(254, 226, 226, 0.95);
+  border-top-color: rgba(220, 38, 38, 0.45);
+  color: #b91c1c;
+}
+
+.slot-expired-banner-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-expired-banner-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-danger);
+  flex-shrink: 0;
+  box-shadow: 0 0 5px var(--accent-danger);
+}
+
+.slot-expired-login-btn {
+  padding: 2px 9px;
+  border-radius: 5px;
+  border: 1px solid rgba(244, 33, 46, 0.55);
+  background-color: var(--accent-danger);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.15s ease;
+}
+
+.slot-expired-login-btn:hover {
+  filter: brightness(1.12);
+}
+
 /* Dashboard Container */
 .dashboard-container {
+  flex: 1;
+  min-height: 0;
   height: calc(100vh - 50px);
   padding: 0 8px 8px;
   overflow-y: auto;

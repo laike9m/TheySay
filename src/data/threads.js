@@ -22,6 +22,7 @@ const {
 } = require('./webview');
 const {
   updateSlotAvatar,
+  updateSlotExpiredUI,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
@@ -30,6 +31,7 @@ const {
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
 } = require('../ui/slot');
+const { markPlatformLoginExpired } = require('../ui/auth');
 const {
   SOURCE_THREADS,
   normalizeThreadsHandle,
@@ -499,6 +501,8 @@ async function fetchThreadsSlot(
         if (result && result.error) {
           if (result.loginRedirect) {
             saveThreadsLoggedIn(false);
+            markPlatformLoginExpired('threads', { force: hasExisting });
+            updateSlotExpiredUI(slot);
           }
           if (!hasExisting) {
             showSlotError(slot, result.error);
@@ -507,7 +511,7 @@ async function fetchThreadsSlot(
           } else {
             console.warn(`[Threads Background Fetch] Error for @${handle}:`, result.error);
           }
-          return { ok: false };
+          return { ok: false, notLoggedIn: Boolean(result.loginRedirect) };
         }
 
         if (result && result.displayName && !resolvedDisplayName) {

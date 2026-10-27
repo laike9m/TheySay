@@ -17,8 +17,9 @@
 - **Unread Tracking & Per-Channel Notifications**: Highlights new messages with unread count badges and lets you toggle desktop notifications independently for each account or channel.  
   **未读提醒与按频道独立通知**：自动高亮新消息并显示未读计数角标，支持为每个账号或频道单独开启桌面系统通知。
 
-- **Custom Auto-Refresh & Profile Backup**: Set independent background refresh intervals for Twitter, Threads, and Discord, and export or import your entire layout, settings, and followed list as a `.json` profile anytime.  
-  **独立自动刷新与 Profile 备份**：支持分别为 Twitter、Threads 与 Discord 设置后台刷新频率，并可将全部排版、设置与关注列表一键导出/导入为 `.json` 备份文件。
+- **Custom Auto-Refresh, Login Expiration Alerts & Profile Backup**: Set independent background refresh intervals for Twitter, Threads, and Discord, receive prominent persistent top-banner and per-slot alerts when a previously logged-in session expires (strictly distinguished from initial unlogged-in use) with one-click re-login and instant resume, and export or import your entire layout, settings, and followed list as a `.json` profile anytime.  
+  **独立自动刷新、登录过期强提示与 Profile 备份**：支持分别为 Twitter、Threads 与 Discord 设置后台刷新频率；当已登录过的平台会话过期时，在页面顶部及对应卡片内展示持久醒目的过期警告与一键重登入口（严格区分初次使用的未登录状态，重登后提示自动消失并立即恢复抓取）；同时可将全部排版、设置与关注列表一键导出/导入为 `.json` 备份文件。
 
 - **Bilingual Interface (English & Chinese)**: Automatically adapts to your system language (defaults to English unless your system is set to Simplified or Traditional Chinese), with instant language switching in Settings.  
   **中英双语界面**：自动根据系统语言切换界面语言（系统为简/繁体中文时默认显示中文，其他语言环境默认显示英文），并支持在设置中随时手动切换。
+

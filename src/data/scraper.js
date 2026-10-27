@@ -31,6 +31,7 @@ const {
 const {
   updateSlotAvatar,
   updateSlotSourceUI,
+  updateSlotExpiredUI,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
@@ -42,6 +43,7 @@ const {
   showSlotSourceDropdown,
   applyPlatformSelectionAndFetch
 } = require('../ui/slot');
+const { markPlatformLoginExpired } = require('../ui/auth');
 const {
   SOURCE_DISCORD,
   SOURCE_THREADS,
@@ -89,7 +91,7 @@ function buildExtractionScript(handle) {
         return { error: ${errProtected} };
       }
       if (location.pathname.includes('/login') || location.pathname.includes('/i/flow/login')) {
-        return { error: ${errNotLoggedIn} };
+        return { error: ${errNotLoggedIn}, loginRedirect: true };
       }
 
       const allArticles = Array.from(document.querySelectorAll('article[data-testid="tweet"], article'));
@@ -540,6 +542,10 @@ async function fetchTwitterSlot(
         }
 
         if (result && result.error) {
+          if (result.loginRedirect) {
+            markPlatformLoginExpired('twitter', { force: hasExisting });
+            updateSlotExpiredUI(slot);
+          }
           if (!hasExisting) {
             showSlotError(slot, result.error);
           } else if (!isBackground) {
@@ -547,7 +553,7 @@ async function fetchTwitterSlot(
           } else {
             console.warn(`[Background Fetch] Error for @${handle}:`, result.error);
           }
-          return { ok: false };
+          return { ok: false, notLoggedIn: Boolean(result.loginRedirect) };
         }
 
         if (result && result.avatarUrl) {
@@ -878,6 +884,7 @@ async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActive
   isTwitterBackgroundFetching = true;
 
   let abortedOffline = false;
+  let abortedAuth = false;
   try {
     const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
     for (let i = 0; i < totalSlots; i++) {
@@ -894,6 +901,10 @@ async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActive
           abortedOffline = true;
           break;
         }
+        if (res && res.notLoggedIn) {
+          abortedAuth = true;
+          break;
+        }
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
       }
@@ -902,7 +913,7 @@ async function runTwitterBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Twitter Background Fetch] Error during sequential crawl:', err);
   } finally {
     isTwitterBackgroundFetching = false;
-    if (!abortedOffline && isNetworkOnline()) {
+    if (!abortedOffline && !abortedAuth && isNetworkOnline()) {
       saveLastFetchTimeTwitter(Date.now());
     }
   }
@@ -914,6 +925,7 @@ async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActive
   isDiscordBackgroundFetching = true;
 
   let abortedOffline = false;
+  let abortedAuth = false;
   try {
     const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
     for (let i = 0; i < totalSlots; i++) {
@@ -930,6 +942,10 @@ async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActive
           abortedOffline = true;
           break;
         }
+        if (res && res.notLoggedIn) {
+          abortedAuth = true;
+          break;
+        }
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
       }
@@ -938,7 +954,7 @@ async function runDiscordBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Discord Background Fetch] Error during sequential crawl:', err);
   } finally {
     isDiscordBackgroundFetching = false;
-    if (!abortedOffline && isNetworkOnline()) {
+    if (!abortedOffline && !abortedAuth && isNetworkOnline()) {
       saveLastFetchTimeDiscord(Date.now());
     }
   }
@@ -950,6 +966,7 @@ async function runThreadsBackgroundFetch({ slots, bgWebviewsContainer, getActive
   isThreadsBackgroundFetching = true;
 
   let abortedOffline = false;
+  let abortedAuth = false;
   try {
     const totalSlots = getActiveSlotCount ? getActiveSlotCount() : slots.length;
     for (let i = 0; i < totalSlots; i++) {
@@ -966,6 +983,10 @@ async function runThreadsBackgroundFetch({ slots, bgWebviewsContainer, getActive
           abortedOffline = true;
           break;
         }
+        if (res && res.notLoggedIn) {
+          abortedAuth = true;
+          break;
+        }
         // Polite pause between sequential card crawls to avoid rapid bursts
         await sleep(1500);
       }
@@ -974,7 +995,7 @@ async function runThreadsBackgroundFetch({ slots, bgWebviewsContainer, getActive
     console.error('[Threads Background Fetch] Error during sequential crawl:', err);
   } finally {
     isThreadsBackgroundFetching = false;
-    if (!abortedOffline && isNetworkOnline()) {
+    if (!abortedOffline && !abortedAuth && isNetworkOnline()) {
       saveLastFetchTimeThreads(Date.now());
     }
   }

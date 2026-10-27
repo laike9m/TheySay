@@ -49,6 +49,7 @@ const {
 } = require('../core/source');
 const { requestNotificationPermission } = require('./notification');
 const { formatTextWithTickers } = require('../core/ticker');
+const { isPlatformLoginExpired, openPlatformLoginWindow } = require('./auth');
 const {
   t,
   translateAttachmentLabel,
@@ -141,6 +142,15 @@ function createSlotWidget(index) {
           </div>
           <div class="slot-error" id="slot-error-${index}" style="display: none;"></div>
           <div class="slot-posts-list" id="slot-posts-list-${index}" style="display: none;"></div>
+        </div>
+
+        <!-- Persistent Login Expired Strip for this Slot -->
+        <div class="slot-expired-banner" id="slot-expired-banner-${index}" style="display: none;">
+          <span class="slot-expired-banner-label">
+            <span class="slot-expired-banner-dot"></span>
+            <span class="slot-expired-banner-text" id="slot-expired-text-${index}"></span>
+          </span>
+          <button type="button" class="slot-expired-login-btn" id="slot-expired-btn-${index}"></button>
         </div>
       </div>
     </div>
@@ -266,6 +276,7 @@ function updateSlotSourceUI(slot) {
     slot.card.classList.toggle('is-discord', isDiscord || slot.source === SOURCE_DISCORD);
     slot.card.classList.toggle('is-threads', isThreads || slot.source === SOURCE_THREADS);
   }
+  updateSlotExpiredUI(slot);
 }
 
 /**
@@ -338,6 +349,70 @@ function updateSlotFetchTimeUI(slot, timestamp) {
       ? t('slot.lastFetchedTitle', { name, timeStr, editHint })
       : t('slot.noFetchedTitle', { name, editHint });
   }
+}
+
+function updateSlotHeaderMeta(slot, meta = {}) {
+  if (!slot || !meta) return;
+  if (meta.source === SOURCE_DISCORD || isDiscordSlot(slot)) {
+    let rawTitle = meta.title ? meta.title : (slot.sourceTitle || t('slot.defaultDiscordChannel'));
+    if (rawTitle === '#频道' || rawTitle === '#channel') {
+      rawTitle = '';
+    }
+    const rawSubtitle = meta.subtitle !== undefined ? meta.subtitle : (slot.sourceSubtitle || '');
+    let cleanChan = sanitizeSingleLine(rawTitle)
+      .replace(/^[#@\s]+/, '')
+      .replace(/[:：\s]+$/, '')
+      .split(/[,，(（]/)[0]
+      .trim();
+    let cleanGuild = sanitizeSingleLine(rawSubtitle)
+      .replace(/\s*[-|]\s*Discord$/i, '')
+      .trim();
+    if (cleanGuild && cleanChan && cleanGuild.toLowerCase() === cleanChan.toLowerCase()) {
+      cleanGuild = '';
+    }
+    const displayName = cleanChan ? `#${cleanChan}` : t('slot.defaultDiscordChannel');
+    slot.sourceTitle = displayName;
+    slot.sourceSubtitle = cleanGuild;
+    if (slot.authorName) slot.authorName.innerText = displayName;
+    if (slot.authorHandle) slot.authorHandle.innerText = cleanGuild;
+    updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
+  }
+}
+
+function updateSlotExpiredUI(slot) {
+  if (!slot || !slot.expiredBanner) return;
+  const rawInput = slot.handleInput ? slot.handleInput.value.trim() : '';
+  const hasTarget = Boolean(slot.monitoredHandle || rawInput);
+  const platform = getSlotSource(slot);
+  const expired = hasTarget && isPlatformLoginExpired(platform);
+
+  if (expired) {
+    const platformLabel = platform === SOURCE_DISCORD
+      ? 'Discord'
+      : (platform === SOURCE_THREADS ? 'Threads' : 'Twitter / X');
+    if (slot.expiredText) {
+      slot.expiredText.textContent = t('auth.slotExpiredBannerText', { platform: platformLabel });
+    }
+    if (slot.expiredBtn) {
+      slot.expiredBtn.textContent = t('auth.slotExpiredLoginBtn');
+    }
+    slot.expiredBanner.style.display = 'flex';
+    if (slot.card) {
+      slot.card.classList.add('is-login-expired');
+    }
+  } else {
+    slot.expiredBanner.style.display = 'none';
+    if (slot.card) {
+      slot.card.classList.remove('is-login-expired');
+    }
+  }
+}
+
+function updateAllSlotsExpiredUI(slots = []) {
+  if (!Array.isArray(slots)) return;
+  slots.forEach((slot) => {
+    updateSlotExpiredUI(slot);
+  });
 }
 
 function getSlotUnreadCount(slot) {
@@ -415,6 +490,7 @@ function showSlotError(slot, errorMsg) {
   slot.error.style.display = 'block';
   slot.error.innerHTML = `⚠️ ${errorMsg}`;
   slot.postsList.style.display = 'none';
+  updateSlotExpiredUI(slot);
 }
 
 // Stable per-author tint, so the same person keeps the same colour across
@@ -1851,10 +1927,20 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
       loadingText: el.querySelector(`#slot-loading-text-${i}`),
       error: el.querySelector(`#slot-error-${i}`),
       postsList: el.querySelector(`#slot-posts-list-${i}`),
+      expiredBanner: el.querySelector(`#slot-expired-banner-${i}`),
+      expiredText: el.querySelector(`#slot-expired-text-${i}`),
+      expiredBtn: el.querySelector(`#slot-expired-btn-${i}`),
       isFetching: false,
       isMuted: typeof savedMuted[i] === 'boolean' ? savedMuted[i] : DEFAULT_SLOT_MUTED,
       loadedPosts: []
     };
+
+    if (slot.expiredBtn) {
+      slot.expiredBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPlatformLoginWindow(getSlotSource(slot));
+      });
+    }
 
     slot.avatarImg.addEventListener('error', () => {
       if (slot.avatarImg.src.includes('_400x400.')) {
@@ -1879,6 +1965,7 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
     resetSlotReadTracking(slot);
 
     updateSlotMuteUI(slot);
+    updateSlotExpiredUI(slot);
 
     slots.push(slot);
     bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
@@ -2185,6 +2272,7 @@ function localizeSlotsUI(slots) {
     updateSlotMuteUI(slot);
     updateSlotUnreadBadge(slot);
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
+    updateSlotExpiredUI(slot);
     const node = slot.element.gridstackNode;
     const w = node ? (node.w || 1) : 1;
     const h = node ? (node.h || 1) : 1;
@@ -2199,6 +2287,9 @@ module.exports = {
   toggleSlotMute,
   updateSlotSourceUI,
   updateSlotFetchTimeUI,
+  updateSlotHeaderMeta,
+  updateSlotExpiredUI,
+  updateAllSlotsExpiredUI,
   updateSlotUnreadBadge,
   markSlotPostsAsRead,
   showSlotLoading,

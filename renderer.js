@@ -23,7 +23,7 @@ const {
   buildProfileData
 } = require('./src/core/storage');
 const { initTheme, applyTheme, applyHeaderColor } = require('./src/ui/theme');
-const { initAuth, refreshAuthLocaleUI } = require('./src/ui/auth');
+const { initAuth, refreshAuthLocaleUI, syncAuthStateFromCache } = require('./src/ui/auth');
 const { initBackgroundWebviews } = require('./src/data/webview');
 const {
   initSlotsRegistry,
@@ -31,6 +31,7 @@ const {
   closeAllSizeMenus,
   updateSlotSizeUI,
   updateSlotMuteUI,
+  updateAllSlotsExpiredUI,
   markAllPostsAsRead,
   refreshSlotsContent,
   localizeSlotsUI,
@@ -48,6 +49,7 @@ const {
 const {
   fetchSlot,
   runBackgroundFetch,
+  runTwitterBackgroundFetch,
   runThreadsBackgroundFetch,
   runDiscordBackgroundFetch,
   startPeriodicBackgroundFetch
@@ -280,6 +282,7 @@ async function handleImportProfile() {
       });
       // Restore cached data for all handles/channels from target cache archive
       loadSlotCache(slots);
+      syncAuthStateFromCache(slots);
     }
 
     // 4. Apply grid preset and saved layout positions/sizes
@@ -401,7 +404,27 @@ window.addEventListener('DOMContentLoaded', () => {
   initNotifications(slots);
   initAuth({
     onExportProfile: () => handleExportProfile(),
-    onImportProfile: () => handleImportProfile()
+    onImportProfile: () => handleImportProfile(),
+    onExpiredStateChange: () => {
+      updateAllSlotsExpiredUI(slots);
+      if (grid) {
+        grid.cellHeight(calculateCellHeight(currentRows));
+      }
+    },
+    onLoginSuccess: (platform) => {
+      updateAllSlotsExpiredUI(slots);
+      if (grid) {
+        grid.cellHeight(calculateCellHeight(currentRows));
+      }
+      const ctx = { slots, bgWebviewsContainer, getActiveSlotCount };
+      if (platform === 'discord') {
+        setTimeout(() => runDiscordBackgroundFetch(ctx), 300);
+      } else if (platform === 'threads') {
+        setTimeout(() => runThreadsBackgroundFetch(ctx), 300);
+      } else if (platform === 'twitter') {
+        setTimeout(() => runTwitterBackgroundFetch(ctx), 300);
+      }
+    }
   });
   initSettings({
     onExportProfile: (overrides) => handleExportProfile(overrides),
@@ -465,8 +488,9 @@ window.addEventListener('DOMContentLoaded', () => {
     getGridDimensions
   });
 
-  // Restore cached posts
+  // Restore cached posts and synchronize login expiration state
   loadSlotCache(slots);
+  syncAuthStateFromCache(slots);
 
   // If any active Twitter or Discord slot has legacy cached messages from before image URL extraction,
   // automatically refresh in the background once to populate inline image thumbnails.

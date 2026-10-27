@@ -1181,5 +1181,170 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       header0.evaluate((el) => parseFloat(getComputedStyle(el).opacity))
     ).toBe(1);
   });
+
+  test('14. Login expiration vs initial unlogged-in state: persistent banner, per-slot prompt & recovery on login', async () => {
+    // Part A: Simulate a fresh first-time install (never logged into Discord/Twitter/Threads, no Discord cache)
+    await page.evaluate(
+      ({ handlesKey, cacheKey }) => {
+        localStorage.removeItem('theysay_discord_logged_in');
+        localStorage.removeItem('theysay_discord_ever_logged_in');
+        localStorage.removeItem('theysay_discord_login_expired');
+        localStorage.removeItem('theysay_twitter_ever_logged_in');
+        localStorage.removeItem('theysay_twitter_login_expired');
+        localStorage.removeItem('theysay_threads_logged_in');
+        localStorage.removeItem('theysay_threads_ever_logged_in');
+        localStorage.removeItem('theysay_threads_login_expired');
+        localStorage.removeItem('theysay_target_cache');
+        localStorage.removeItem('theysay_target_cache_v1');
+
+        const handles = ['elonmusk', '', '', ''];
+        while (handles.length < 16) handles.push('');
+        localStorage.setItem(handlesKey, JSON.stringify(handles));
+        localStorage.setItem(cacheKey, JSON.stringify({}));
+      },
+      {
+        handlesKey: STORAGE_HANDLES_KEY,
+        cacheKey: STORAGE_CACHE_KEY
+      }
+    );
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    const topBanner = page.locator('#auth-expired-banner');
+    const discordBadge = page.locator('#discord-status-badge');
+    const discordLabel = page.locator('#discord-status-label');
+    const menuDot = page.locator('#login-menu-status-dot');
+    const menuBtn = page.locator('#btn-login-menu');
+
+    // Initial unlogged-in state must NOT show any login-expired banner or warning
+    await expect(topBanner).toBeHidden();
+    await expect(discordBadge).toHaveClass(/logged-out/);
+    await expect(discordBadge).not.toHaveClass(/expired/);
+    await expect(discordLabel).toHaveText('未登录');
+    await expect(menuDot).not.toHaveClass(/has-expired/);
+    await expect(menuBtn).not.toHaveClass(/has-expired/);
+    await expect(page.locator('#slot-expired-banner-0')).toBeHidden();
+
+    // Even if an unlogged-in user tries a Discord slot before ever logging in (force: false),
+    // it remains in the initial unlogged-in state without triggering the global expired banner
+    await page.evaluate(() => {
+      const { markPlatformLoginExpired } = require('./src/ui/auth');
+      markPlatformLoginExpired('discord', { force: false });
+    });
+    await expect(topBanner).toBeHidden();
+    await expect(discordLabel).toHaveText('未登录');
+
+    // Part B: Simulate an existing Discord user whose session has expired (cached Discord messages + logged_in = '0')
+    await page.evaluate(
+      ({ handlesKey, cacheKey }) => {
+        const handles = [
+          'https://discord.com/channels/100000000000000001/200000000000000002',
+          'elonmusk',
+          '',
+          ''
+        ];
+        while (handles.length < 16) handles.push('');
+        localStorage.setItem(handlesKey, JSON.stringify(handles));
+        localStorage.setItem('theysay_discord_logged_in', '0');
+
+        const cache = {
+          0: {
+            handle: 'https://discord.com/channels/100000000000000001/200000000000000002',
+            source: 'discord',
+            sourceTitle: '#general',
+            sourceSubtitle: 'AlphaResearch',
+            displayName: '#general',
+            userHandle: 'AlphaResearch',
+            avatarUrl: '',
+            lastFetchedAt: Date.now() - 3600000,
+            posts: [
+              {
+                id: 'msg_oct23',
+                text: 'Previous cached message from Discord channel',
+                datetime: '2026-10-23T18:55:00.000Z',
+                time: '2026-10-23T18:55:00.000Z',
+                displayName: 'Analyst',
+                isUnread: false,
+                images: []
+              }
+            ]
+          }
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      },
+      {
+        handlesKey: STORAGE_HANDLES_KEY,
+        cacheKey: STORAGE_CACHE_KEY
+      }
+    );
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    // Global top banner must be prominently visible and have NO close button
+    await expect(topBanner).toBeVisible();
+    await expect(topBanner.locator('.auth-expired-banner-text')).toContainText(
+      'Discord 登录已过期，无法拉取最新消息，请重新登录以恢复更新。'
+    );
+    const bannerLoginBtn = topBanner.locator('.auth-expired-login-btn[data-platform="discord"]');
+    await expect(bannerLoginBtn).toBeVisible();
+    await expect(bannerLoginBtn).toHaveText('立即登录 Discord');
+    await expect(topBanner.locator('button')).toHaveCount(1);
+
+    // Header account button & Discord dropdown badge show expired state
+    await expect(menuDot).toHaveClass(/has-expired/);
+    await expect(menuBtn).toHaveClass(/has-expired/);
+    await expect(discordBadge).toHaveClass(/expired/);
+    await expect(discordLabel).toHaveText('登录已过期');
+
+    // Discord slot (Slot 0) shows per-slot expired banner; Twitter slot (Slot 1) does not
+    await expect(page.locator('#slot-card-0')).toHaveClass(/is-login-expired/);
+    await expect(page.locator('#slot-expired-banner-0')).toBeVisible();
+    await expect(page.locator('#slot-expired-text-0')).toHaveText('Discord 登录已过期，无法更新最新消息');
+    await expect(page.locator('#slot-expired-btn-0')).toHaveText('重新登录');
+    await expect(page.locator('#slot-expired-banner-1')).toBeHidden();
+
+    // Pressing Escape or clicking elsewhere must NOT dismiss the banner before logging in
+    await page.keyboard.press('Escape');
+    await page.mouse.click(20, 20);
+    await expect(topBanner).toBeVisible();
+    await expect(page.locator('#slot-expired-banner-0')).toBeVisible();
+
+    // Verify updateSlotHeaderMeta helper works without error
+    await page.evaluate(() => {
+      const { updateSlotHeaderMeta } = require('./src/ui/slot');
+      const slotEl = document.getElementById('author-name-0');
+      const fakeSlot = {
+        source: 'discord',
+        sourceTitle: '#general',
+        sourceSubtitle: 'AlphaResearch',
+        authorName: slotEl,
+        authorHandle: document.getElementById('author-handle-0'),
+        authorHeader: document.getElementById('slot-author-header-0'),
+        lastFetchedAt: Date.now()
+      };
+      updateSlotHeaderMeta(fakeSlot, {
+        source: 'discord',
+        title: '#general',
+        subtitle: 'AlphaResearch'
+      });
+    });
+
+    // Part C: Simulate user completing Discord login; banner and slot warning must disappear immediately
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const wins = BrowserWindow.getAllWindows();
+      if (wins.length > 0) {
+        wins[0].webContents.send('discord-login-status-changed', { loggedIn: true });
+      }
+    });
+
+    await expect(topBanner).toBeHidden();
+    await expect(page.locator('#slot-expired-banner-0')).toBeHidden();
+    await expect(page.locator('#slot-card-0')).not.toHaveClass(/is-login-expired/);
+    await expect(discordBadge).toHaveClass(/logged-in/);
+    await expect(discordLabel).toHaveText('已登录');
+    await expect(menuDot).toHaveClass(/has-login/);
+    await expect(menuDot).not.toHaveClass(/has-expired/);
+  });
 });
+
 

@@ -5,7 +5,14 @@ const { updateSlotSizeUI, slotHasContent } = require('./slot');
 const { t } = require('../core/i18n');
 
 function calculateCellHeight(rows) {
-  const availableHeight = window.innerHeight - 62; // top nav (50px) + bottom padding
+  let bannerOffset = 0;
+  try {
+    const banner = typeof document !== 'undefined' ? document.getElementById('auth-expired-banner') : null;
+    if (banner && banner.style.display !== 'none' && banner.offsetHeight > 0) {
+      bannerOffset = banner.offsetHeight + 6;
+    }
+  } catch (_) {}
+  const availableHeight = window.innerHeight - 62 - bannerOffset; // top nav (50px) + bottom padding + expired banner
   const margin = 8;
   const totalMargin = (rows - 1) * margin;
   return Math.max(160, Math.floor((availableHeight - totalMargin) / rows));

@@ -19,6 +19,12 @@ const STORAGE_LAST_FETCH_DISCORD_KEY = 'theysay_last_fetch_time_discord';
 const STORAGE_LAST_FETCH_THREADS_KEY = 'theysay_last_fetch_time_threads';
 const STORAGE_DISCORD_LOGIN_KEY = 'theysay_discord_logged_in';
 const STORAGE_THREADS_LOGIN_KEY = 'theysay_threads_logged_in';
+const STORAGE_TWITTER_EVER_LOGGED_IN_KEY = 'theysay_twitter_ever_logged_in';
+const STORAGE_THREADS_EVER_LOGGED_IN_KEY = 'theysay_threads_ever_logged_in';
+const STORAGE_DISCORD_EVER_LOGGED_IN_KEY = 'theysay_discord_ever_logged_in';
+const STORAGE_TWITTER_LOGIN_EXPIRED_KEY = 'theysay_twitter_login_expired';
+const STORAGE_THREADS_LOGIN_EXPIRED_KEY = 'theysay_threads_login_expired';
+const STORAGE_DISCORD_LOGIN_EXPIRED_KEY = 'theysay_discord_login_expired';
 const STORAGE_TWITTER_INTERVAL_KEY = 'theysay_twitter_interval_minutes';
 const STORAGE_DISCORD_INTERVAL_KEY = 'theysay_discord_interval_minutes';
 const STORAGE_THREADS_INTERVAL_KEY = 'theysay_threads_interval_minutes';
@@ -162,6 +168,12 @@ module.exports = {
   STORAGE_LAST_FETCH_THREADS_KEY,
   STORAGE_DISCORD_LOGIN_KEY,
   STORAGE_THREADS_LOGIN_KEY,
+  STORAGE_TWITTER_EVER_LOGGED_IN_KEY,
+  STORAGE_THREADS_EVER_LOGGED_IN_KEY,
+  STORAGE_DISCORD_EVER_LOGGED_IN_KEY,
+  STORAGE_TWITTER_LOGIN_EXPIRED_KEY,
+  STORAGE_THREADS_LOGIN_EXPIRED_KEY,
+  STORAGE_DISCORD_LOGIN_EXPIRED_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_DISCORD_INTERVAL_KEY,
   STORAGE_THREADS_INTERVAL_KEY,

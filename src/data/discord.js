@@ -30,6 +30,7 @@ const {
 const {
   updateSlotAvatar,
   updateSlotHeaderMeta,
+  updateSlotExpiredUI,
   updateSlotFetchTimeUI,
   showSlotLoading,
   showSlotError,
@@ -38,6 +39,7 @@ const {
   archiveSlotScrapedData,
   restoreSlotFromTargetCache
 } = require('../ui/slot');
+const { markPlatformLoginExpired, markPlatformLoginSuccess } = require('../ui/auth');
 const { notifySlotNewMessages } = require('../ui/notification');
 const { t, normalizeDiscordChannelFallback } = require('../core/i18n');
 
@@ -247,13 +249,16 @@ const JUMP_TO_PRESENT_SCRIPT = `
       ${PAGE_HELPERS}
       const scroller = getScroller();
 
-      // The "Jump to Present" bar skips the whole unread backlog in one hop.
+      // Only click "jumpToPresentBar" (at the bottom of the viewport when viewing old history).
+      // Do NOT match "newMessagesBar" which sits at the top of the DOM and jumps UP to the oldest unread message.
       const bar = document.querySelector(
-        '[class*="jumpToPresentBar"] button, [class*="jumpToPresentBar"] [role="button"], button[class*="jumpToPresentBar"], [class*="jumpToPresentBar"], ' +
-        '[class*="newMessagesBar"] button, [class*="newMessagesBar"] [role="button"], button[class*="newMessagesBar"], [class*="newMessagesBar"]'
+        '[class*="jumpToPresentBar"] button, [class*="jumpToPresentBar"] [role="button"], button[class*="jumpToPresentBar"], [class*="jumpToPresentBar"]'
       );
       if (bar) {
         bar.click();
+        if (scroller) {
+          scroller.scrollTop = scroller.scrollHeight;
+        }
         return { jumped: true, atBottom: false };
       }
 
@@ -956,7 +961,10 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
       if (probe.state === 'ready') return { ok: true };
       if (probe.state === 'login') {
         saveDiscordLoggedIn(false);
-        return { ok: false, error: t('discord.notLoggedInError') };
+        try {
+          wv.setAttribute('src', 'about:blank');
+        } catch (_) {}
+        return { ok: false, notLoggedIn: true, error: t('discord.notLoggedInError') };
       }
     }
     await sleep(500);
@@ -1058,6 +1066,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
   };
 
   let slotOffline = false;
+  let slotNotLoggedIn = false;
   try {
     await withDiscordLock(async () => {
       if (!(await canReachHost('discord.com'))) {
@@ -1079,6 +1088,11 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
           }
           return;
         }
+        if (nav.notLoggedIn) {
+          slotNotLoggedIn = true;
+          markPlatformLoginExpired('discord', { force: hasExisting });
+          updateSlotExpiredUI(slot);
+        }
         if (!hasExisting) {
           showSlotError(slot, nav.error);
         } else if (!isBackground) {
@@ -1090,6 +1104,8 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
       }
 
       saveDiscordLoggedIn(true);
+      markPlatformLoginSuccess('discord');
+      updateSlotExpiredUI(slot);
       setProgress(t('discord.locatingLatest'));
       await jumpToPresent(wv);
       await sleep(400);
@@ -1118,7 +1134,13 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         const result = await runScript(wv, buildDiscordExtractionScript(guildId, channelId));
 
         if (result && result.error === 'NOT_LOGGED_IN') {
+          slotNotLoggedIn = true;
           saveDiscordLoggedIn(false);
+          markPlatformLoginExpired('discord', { force: hasExisting });
+          updateSlotExpiredUI(slot);
+          try {
+            wv.setAttribute('src', 'about:blank');
+          } catch (_) {}
           const loginErrMsg = t('discord.notLoggedInError');
           if (!hasExisting) {
             showSlotError(slot, loginErrMsg);
@@ -1316,7 +1338,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
     if (slot.card) slot.card.classList.remove('is-fetching');
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
   }
-  return { ok: !slotOffline, offline: slotOffline };
+  return { ok: !slotOffline && !slotNotLoggedIn, offline: slotOffline, notLoggedIn: slotNotLoggedIn };
 }
 
 module.exports = {

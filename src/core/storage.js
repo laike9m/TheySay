@@ -13,6 +13,12 @@ const {
   STORAGE_LAST_FETCH_THREADS_KEY,
   STORAGE_DISCORD_LOGIN_KEY,
   STORAGE_THREADS_LOGIN_KEY,
+  STORAGE_TWITTER_EVER_LOGGED_IN_KEY,
+  STORAGE_THREADS_EVER_LOGGED_IN_KEY,
+  STORAGE_DISCORD_EVER_LOGGED_IN_KEY,
+  STORAGE_TWITTER_LOGIN_EXPIRED_KEY,
+  STORAGE_THREADS_LOGIN_EXPIRED_KEY,
+  STORAGE_DISCORD_LOGIN_EXPIRED_KEY,
   STORAGE_TWITTER_INTERVAL_KEY,
   STORAGE_DISCORD_INTERVAL_KEY,
   STORAGE_THREADS_INTERVAL_KEY,
@@ -500,16 +506,150 @@ function getDiscordLoggedIn() {
   return localStorage.getItem(STORAGE_DISCORD_LOGIN_KEY) === '1';
 }
 
+function hasDiscordLoginStateBeenSet() {
+  try {
+    return localStorage.getItem(STORAGE_DISCORD_LOGIN_KEY) !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
 function saveDiscordLoggedIn(loggedIn) {
   localStorage.setItem(STORAGE_DISCORD_LOGIN_KEY, loggedIn ? '1' : '0');
+  if (loggedIn) {
+    saveDiscordEverLoggedIn(true);
+    saveDiscordLoginExpired(false);
+  }
 }
 
 function getThreadsLoggedIn() {
   return localStorage.getItem(STORAGE_THREADS_LOGIN_KEY) === '1';
 }
 
+function hasThreadsLoginStateBeenSet() {
+  try {
+    return localStorage.getItem(STORAGE_THREADS_LOGIN_KEY) !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
 function saveThreadsLoggedIn(loggedIn) {
   localStorage.setItem(STORAGE_THREADS_LOGIN_KEY, loggedIn ? '1' : '0');
+  if (loggedIn) {
+    saveThreadsEverLoggedIn(true);
+    saveThreadsLoginExpired(false);
+  }
+}
+
+function getTwitterEverLoggedIn() {
+  try {
+    return localStorage.getItem(STORAGE_TWITTER_EVER_LOGGED_IN_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveTwitterEverLoggedIn(everLoggedIn) {
+  try {
+    localStorage.setItem(STORAGE_TWITTER_EVER_LOGGED_IN_KEY, everLoggedIn ? '1' : '0');
+  } catch (e) {}
+}
+
+function getThreadsEverLoggedIn() {
+  try {
+    return localStorage.getItem(STORAGE_THREADS_EVER_LOGGED_IN_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveThreadsEverLoggedIn(everLoggedIn) {
+  try {
+    localStorage.setItem(STORAGE_THREADS_EVER_LOGGED_IN_KEY, everLoggedIn ? '1' : '0');
+  } catch (e) {}
+}
+
+function getDiscordEverLoggedIn() {
+  try {
+    return localStorage.getItem(STORAGE_DISCORD_EVER_LOGGED_IN_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveDiscordEverLoggedIn(everLoggedIn) {
+  try {
+    localStorage.setItem(STORAGE_DISCORD_EVER_LOGGED_IN_KEY, everLoggedIn ? '1' : '0');
+  } catch (e) {}
+}
+
+function getTwitterLoginExpired() {
+  try {
+    return localStorage.getItem(STORAGE_TWITTER_LOGIN_EXPIRED_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveTwitterLoginExpired(expired) {
+  try {
+    localStorage.setItem(STORAGE_TWITTER_LOGIN_EXPIRED_KEY, expired ? '1' : '0');
+  } catch (e) {}
+}
+
+function getThreadsLoginExpired() {
+  try {
+    return localStorage.getItem(STORAGE_THREADS_LOGIN_EXPIRED_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveThreadsLoginExpired(expired) {
+  try {
+    localStorage.setItem(STORAGE_THREADS_LOGIN_EXPIRED_KEY, expired ? '1' : '0');
+  } catch (e) {}
+}
+
+function getDiscordLoginExpired() {
+  try {
+    return localStorage.getItem(STORAGE_DISCORD_LOGIN_EXPIRED_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveDiscordLoginExpired(expired) {
+  try {
+    localStorage.setItem(STORAGE_DISCORD_LOGIN_EXPIRED_KEY, expired ? '1' : '0');
+  } catch (e) {}
+}
+
+function getPlatformEverLoggedIn(platform) {
+  if (platform === 'discord') return getDiscordEverLoggedIn();
+  if (platform === 'threads') return getThreadsEverLoggedIn();
+  if (platform === 'twitter') return getTwitterEverLoggedIn();
+  return false;
+}
+
+function savePlatformEverLoggedIn(platform, val) {
+  if (platform === 'discord') saveDiscordEverLoggedIn(val);
+  else if (platform === 'threads') saveThreadsEverLoggedIn(val);
+  else if (platform === 'twitter') saveTwitterEverLoggedIn(val);
+}
+
+function getPlatformLoginExpired(platform) {
+  if (platform === 'discord') return getDiscordLoginExpired();
+  if (platform === 'threads') return getThreadsLoginExpired();
+  if (platform === 'twitter') return getTwitterLoginExpired();
+  return false;
+}
+
+function savePlatformLoginExpired(platform, val) {
+  if (platform === 'discord') saveDiscordLoginExpired(val);
+  else if (platform === 'threads') saveThreadsLoginExpired(val);
+  else if (platform === 'twitter') saveTwitterLoginExpired(val);
 }
 
 function getShowMemberOnlyPosts() {
@@ -814,9 +954,27 @@ module.exports = {
   getThreadsIntervalMinutes,
   saveThreadsIntervalMinutes,
   getDiscordLoggedIn,
+  hasDiscordLoginStateBeenSet,
   saveDiscordLoggedIn,
   getThreadsLoggedIn,
+  hasThreadsLoginStateBeenSet,
   saveThreadsLoggedIn,
+  getTwitterEverLoggedIn,
+  saveTwitterEverLoggedIn,
+  getThreadsEverLoggedIn,
+  saveThreadsEverLoggedIn,
+  getDiscordEverLoggedIn,
+  saveDiscordEverLoggedIn,
+  getTwitterLoginExpired,
+  saveTwitterLoginExpired,
+  getThreadsLoginExpired,
+  saveThreadsLoginExpired,
+  getDiscordLoginExpired,
+  saveDiscordLoginExpired,
+  getPlatformEverLoggedIn,
+  savePlatformEverLoggedIn,
+  getPlatformLoginExpired,
+  savePlatformLoginExpired,
   getShowMemberOnlyPosts,
   saveShowMemberOnlyPosts,
   getDiscordSoundEnabled,

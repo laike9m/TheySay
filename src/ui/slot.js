@@ -1,4 +1,5 @@
 const { shell } = require('electron');
+const pLimit = require('p-limit');
 const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('../core/constants');
 const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('../core/utils');
 const {
@@ -1331,12 +1332,10 @@ async function resolveSlotUrlTitles(slot, slots = []) {
   let anyResolved = false;
 
   try {
-    const entries = Array.from(urlToPosts.entries());
-    const batchSize = 4;
-    for (let i = 0; i < entries.length; i += batchSize) {
-      const batch = entries.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(async ([url, targetPosts]) => {
+    const limit = pLimit(4);
+    await Promise.all(
+      Array.from(urlToPosts.entries()).map(([url, targetPosts]) =>
+        limit(async () => {
           try {
             const title = await fetchUrlTitle(url);
             if (title) {
@@ -1350,8 +1349,8 @@ async function resolveSlotUrlTitles(slot, slots = []) {
             }
           } catch (_) {}
         })
-      );
-    }
+      )
+    );
 
     if (anyResolved && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
       refreshSlotBubbleTextsWithTitles(slot);
@@ -1401,11 +1400,10 @@ async function backfillTwitterSlotImages(slot, slots = []) {
   let anyCompleted = false;
 
   try {
-    const batchSize = 4;
-    for (let i = 0; i < toBackfill.length; i += batchSize) {
-      const batch = toBackfill.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(async ({ post, postId }) => {
+    const limit = pLimit(4);
+    await Promise.all(
+      toBackfill.map(({ post, postId }) =>
+        limit(async () => {
           try {
             const data = await fetchFullTweetData(postId);
             if (data) {
@@ -1420,8 +1418,8 @@ async function backfillTwitterSlotImages(slot, slots = []) {
             }
           } catch (_) {}
         })
-      );
-    }
+      )
+    );
 
     const currentHandle = normalizeTwitterHandle(
       slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '')

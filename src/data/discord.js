@@ -1,3 +1,4 @@
+const PQueue = require('p-queue').default;
 const {
   DISCORD_PARTITION,
   DISCORD_WEBVIEW_ID,
@@ -58,13 +59,10 @@ const SWITCH_TIMEOUT_MS = 20000;
 // Every Discord slot shares one client instance, so all access has to be
 // serialized: a manual refresh must not yank the channel out from under the
 // background crawler.
-let discordQueue = Promise.resolve();
+const discordLockQueue = new PQueue({ concurrency: 1 });
 
 function withDiscordLock(fn) {
-  const run = discordQueue.then(fn, fn);
-  // Keep the chain alive even when a job rejects.
-  discordQueue = run.then(() => {}, () => {});
-  return run;
+  return discordLockQueue.add(fn);
 }
 
 function getOrCreateDiscordWebview(container) {

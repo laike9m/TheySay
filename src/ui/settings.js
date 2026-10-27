@@ -37,7 +37,8 @@ const {
 } = require('../core/ticker');
 const {
   applyHeaderColor,
-  resolveHeaderPalette
+  resolveHeaderPalette,
+  normalizeHexColor
 } = require('./theme');
 const { showToast } = require('../core/utils');
 const {
@@ -79,17 +80,6 @@ function populateSelectAndInput(selectEl, customWrapEl, customInputEl, currentVa
     customWrapEl.style.display = 'flex';
     customInputEl.value = currentVal;
   }
-}
-
-function normalizeHexColor(val, fallback) {
-  const str = String(val || '').trim();
-  if (/^#[0-9A-Fa-f]{6}$/.test(str)) {
-    return str.toLowerCase();
-  }
-  if (/^[0-9A-Fa-f]{6}$/.test(str)) {
-    return `#${str.toLowerCase()}`;
-  }
-  return fallback;
 }
 
 function updateHeaderPreviewUI(bgColor, { liveApply = false } = {}) {

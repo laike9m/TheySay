@@ -1,58 +1,30 @@
-const https = require('https');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { LRUCache } = require('lru-cache');
 
 // Cache for full tweet payloads (tweetId -> Promise<object|null>)
-const fullTweetCache = new Map();
+const fullTweetCache = new LRUCache({ max: 500 });
 // Cache for syndication tweet-result payloads (url -> Promise<{ status, body, contentType }>)
-const syndicationCache = new Map();
+const syndicationCache = new LRUCache({ max: 500 });
 
-function httpsGetText(url, headers = {}, redirectsLeft = 3) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(
-      url,
+async function httpsGetText(url, headers = {}) {
+  const res = await fetch(url, {
+    headers: Object.assign(
       {
-        headers: Object.assign(
-          {
-            'User-Agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            Accept: 'application/json, text/plain, */*'
-          },
-          headers
-        ),
-        timeout: 10000
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        Accept: 'application/json, text/plain, */*'
       },
-      (res) => {
-        if (
-          res.statusCode >= 300 &&
-          res.statusCode < 400 &&
-          res.headers.location &&
-          redirectsLeft > 0
-        ) {
-          res.resume();
-          const nextUrl = new URL(res.headers.location, url).toString();
-          resolve(httpsGetText(nextUrl, headers, redirectsLeft - 1));
-          return;
-        }
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => {
-          body += chunk;
-        });
-        res.on('end', () => {
-          resolve({
-            status: res.statusCode || 200,
-            body,
-            contentType: res.headers['content-type'] || 'application/json; charset=utf-8'
-          });
-        });
-      }
-    );
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy(new Error('Request timed out'));
-    });
+      headers
+    ),
+    redirect: 'follow',
+    signal: AbortSignal.timeout(10000)
   });
+  return {
+    status: res.status || 200,
+    body: await res.text(),
+    contentType: res.headers.get('content-type') || 'application/json; charset=utf-8'
+  };
 }
 
 function convertFacetsToEntities(facets) {

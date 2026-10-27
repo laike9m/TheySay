@@ -182,9 +182,10 @@ function getCanonicalTargetKey(input, sourceHint) {
   return `twitter:${cleanHandle}`;
 }
 
-const platformProbeCache = new Map();
-const inflightPlatformProbes = new Map();
+const { LRUCache } = require('lru-cache');
 const PLATFORM_PROBE_TTL_MS = 60 * 1000;
+const platformProbeCache = new LRUCache({ max: 200, ttl: PLATFORM_PROBE_TTL_MS });
+const inflightPlatformProbes = new Map();
 
 async function probeHandlePlatforms(handle, { threadsOnly = false, bypassCache = false } = {}) {
   const cleanHandle = String(handle || '')
@@ -205,9 +206,7 @@ async function probeHandlePlatforms(handle, { threadsOnly = false, bypassCache =
   const cacheKey = `${threadsOnly ? 'th' : 'all'}:${cleanHandle.toLowerCase()}`;
   if (!bypassCache) {
     const cached = platformProbeCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < PLATFORM_PROBE_TTL_MS) {
-      return cached.data;
-    }
+    if (cached) return cached;
   }
 
   if (inflightPlatformProbes.has(cacheKey)) {
@@ -229,7 +228,7 @@ async function probeHandlePlatforms(handle, { threadsOnly = false, bypassCache =
         twitter: (res && res.twitter) || { exists: false },
         threads: (res && res.threads) || { exists: false }
       };
-      platformProbeCache.set(cacheKey, { ts: Date.now(), data: normalized });
+      platformProbeCache.set(cacheKey, normalized);
       return normalized;
     } catch (e) {
       return { twitter: { exists: false }, threads: { exists: false } };

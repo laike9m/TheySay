@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const Store = require('electron-store');
+const englishWords = require('an-array-of-english-words');
+const { LRUCache } = require('lru-cache');
 const { getLinkPreview, getPreviewFromContent } = require('link-preview-js');
 const { DISCORD_PARTITION, THREADS_PARTITION, THREADS_LOGIN_URL } = require('./src/core/constants');
 const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/ui/tweet_embed');
@@ -36,21 +39,23 @@ const DEFAULT_WINDOW_HEIGHT = 900;
 const MIN_WINDOW_WIDTH = 850;
 const MIN_WINDOW_HEIGHT = 650;
 
-function getWindowStatePath() {
-  return path.join(app.getPath('userData'), 'window-state.json');
-}
+const preferencesStore = new Store({
+  name: 'preferences',
+  cwd: app.getPath('userData'),
+  clearInvalidConfig: true
+});
 
-function getPreferencesPath() {
-  return path.join(app.getPath('userData'), 'preferences.json');
-}
+const windowStateStore = new Store({
+  name: 'window-state',
+  cwd: app.getPath('userData'),
+  clearInvalidConfig: true
+});
 
 function loadSavedLanguagePreference() {
   try {
-    const prefPath = getPreferencesPath();
-    if (!fs.existsSync(prefPath)) return null;
-    const saved = JSON.parse(fs.readFileSync(prefPath, 'utf8'));
-    if (saved && (saved.language === 'en' || saved.language === 'zh')) {
-      return saved.language;
+    const lang = preferencesStore.get('language');
+    if (lang === 'en' || lang === 'zh') {
+      return lang;
     }
   } catch (_) {}
   return null;
@@ -58,22 +63,11 @@ function loadSavedLanguagePreference() {
 
 function saveLanguagePreference(lang) {
   try {
-    const prefPath = getPreferencesPath();
-    let current = {};
-    if (fs.existsSync(prefPath)) {
-      try {
-        current = JSON.parse(fs.readFileSync(prefPath, 'utf8')) || {};
-      } catch (_) {
-        current = {};
-      }
-    }
     if (lang === 'en' || lang === 'zh') {
-      current.language = lang;
+      preferencesStore.set('language', lang);
     } else {
-      delete current.language;
+      preferencesStore.delete('language');
     }
-    fs.mkdirSync(path.dirname(prefPath), { recursive: true });
-    fs.writeFileSync(prefPath, JSON.stringify(current, null, 2) + '\n', 'utf8');
   } catch (err) {
     console.warn('[Preferences] Failed to save language preference:', err.message);
   }
@@ -86,12 +80,8 @@ function loadWindowState() {
   };
 
   try {
-    const statePath = getWindowStatePath();
-    if (!fs.existsSync(statePath)) {
-      return defaultState;
-    }
-    const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    if (!saved || typeof saved !== 'object') {
+    const saved = windowStateStore.store;
+    if (!saved || typeof saved !== 'object' || Object.keys(saved).length === 0) {
       return defaultState;
     }
 
@@ -235,9 +225,15 @@ function createWindow() {
     }
     updateWindowStateFromWindow();
     try {
-      const statePath = getWindowStatePath();
-      fs.mkdirSync(path.dirname(statePath), { recursive: true });
-      fs.writeFileSync(statePath, JSON.stringify(currentWindowState, null, 2) + '\n', 'utf8');
+      const stateToSave = {
+        width: currentWindowState.width,
+        height: currentWindowState.height,
+        isMaximized: Boolean(currentWindowState.isMaximized),
+        isFullScreen: Boolean(currentWindowState.isFullScreen)
+      };
+      if (typeof currentWindowState.x === 'number') stateToSave.x = currentWindowState.x;
+      if (typeof currentWindowState.y === 'number') stateToSave.y = currentWindowState.y;
+      windowStateStore.set(stateToSave);
     } catch (err) {
       console.warn('[WindowState] Failed to save window state:', err.message);
     }
@@ -506,17 +502,43 @@ ipcMain.handle('check-threads-login-status', async () => {
   }
 });
 
-function decodeBasicHtmlEntities(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&#0*64;/g, '@')
-    .replace(/&#x0*40;/gi, '@')
-    .replace(/&#x2022;/gi, '•')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0*39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+async function fetchUrlPreview(targetUrl, { userAgent = DISCORD_USER_AGENT, timeout = 6500 } = {}) {
+  const headers = {
+    'user-agent': userAgent,
+    'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+    accept: 'text/html,application/xhtml+xml'
+  };
+  try {
+    return await getLinkPreview(targetUrl, {
+      followRedirects: 'follow',
+      timeout,
+      headers
+    });
+  } catch (_) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(targetUrl, {
+        headers,
+        redirect: 'follow',
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const resHeaders = { 'content-type': 'text/html; charset=utf-8' };
+      res.headers.forEach((v, k) => {
+        resHeaders[k] = v;
+      });
+      return await getPreviewFromContent({
+        url: res.url || targetUrl,
+        headers: resHeaders,
+        data: await res.text()
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      return null;
+    }
+  }
 }
 
 async function probeTwitterHandle(cleanHandle) {
@@ -575,42 +597,24 @@ async function probeThreadsHandle(cleanHandle) {
   if (!/^[A-Za-z0-9_.]{1,30}$/.test(cleanHandle)) {
     return { exists: false };
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4500);
-  try {
-    const res = await fetch(`https://www.threads.com/@${encodeURIComponent(cleanHandle.toLowerCase())}`, {
-      headers: {
-        'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-        Accept: 'text/html'
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    if (!res.ok) return { exists: false };
-    const html = await res.text();
-    const ogTitleMatch =
-      html.match(/property="og:title"\s+content="([^"]+)"/i) ||
-      html.match(/content="([^"]+)"\s+property="og:title"/i);
-    const ogImgMatch =
-      html.match(/property="og:image"\s+content="([^"]+)"/i) ||
-      html.match(/content="([^"]+)"\s+property="og:image"/i);
-    const rawTitle = decodeBasicHtmlEntities(ogTitleMatch ? ogTitleMatch[1] : '');
-    const titleParts = rawTitle.match(/^(.+?)\s*[(（]@([A-Za-z0-9_.]+)[)）]/);
-    if (titleParts) {
-      const rawImg = decodeBasicHtmlEntities(ogImgMatch ? ogImgMatch[1] : '');
-      const isGenericLogo = rawImg.includes('static.cdninstagram.com/rsrc.php');
-      return {
-        exists: true,
-        handle: titleParts[2].toLowerCase(),
-        displayName: titleParts[1].trim(),
-        avatarUrl: isGenericLogo ? '' : rawImg
-      };
-    }
-    return { exists: false };
-  } catch (e) {
-    clearTimeout(timer);
-    return { exists: false };
+  const targetUrl = `https://www.threads.com/@${encodeURIComponent(cleanHandle.toLowerCase())}`;
+  const preview = await fetchUrlPreview(targetUrl, {
+    userAgent: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+    timeout: 4500
+  });
+  const rawTitle = String((preview && preview.title) || '').trim();
+  const titleParts = rawTitle.match(/^(.+?)\s*[(（]@([A-Za-z0-9_.]+)[)）]/);
+  if (titleParts) {
+    const rawImg = String((preview && Array.isArray(preview.images) && preview.images[0]) || '');
+    const isGenericLogo = rawImg.includes('static.cdninstagram.com/rsrc.php');
+    return {
+      exists: true,
+      handle: titleParts[2].toLowerCase(),
+      displayName: titleParts[1].trim(),
+      avatarUrl: isGenericLogo ? '' : rawImg
+    };
   }
+  return { exists: false };
 }
 
 ipcMain.handle('probe-handle-platforms', async (event, payload) => {
@@ -856,25 +860,9 @@ ipcMain.handle('fetch-online-tickers', async () => {
 
     const stopwordsSet = new Set(Array.isArray(tickerData.stopwords) ? tickerData.stopwords : []);
     const dictSet = new Set();
-    for (const file of ['words', 'web2a', 'propernames', 'connectives']) {
-      const dictPath = path.join('/usr/share/dict', file);
-      if (fs.existsSync(dictPath)) {
-        try {
-          const lines = fs.readFileSync(dictPath, 'utf8').split(/\r?\n/);
-          for (const line of lines) {
-            const w = line.trim().replace(/[^A-Za-z]/g, '').toUpperCase();
-            if (!w) continue;
-            dictSet.add(w);
-            if (w.length >= 2) {
-              dictSet.add(w + 'S');
-              dictSet.add(w + 'ES');
-              dictSet.add(w + 'ED');
-              dictSet.add(w + 'ING');
-              dictSet.add(w + 'ER');
-              dictSet.add(w + 'ERS');
-            }
-          }
-        } catch (e) {}
+    for (const word of englishWords) {
+      if (word.length >= 3 && word.length <= 5) {
+        dictSet.add(word.toUpperCase());
       }
     }
 
@@ -926,7 +914,7 @@ ipcMain.on('flush-storage-data', () => {
   } catch (_) {}
 });
 
-const mainUrlTitleCache = new Map();
+const mainUrlTitleCache = new LRUCache({ max: 1000 });
 
 ipcMain.handle('fetch-url-title', async (event, rawUrl) => {
   try {
@@ -939,33 +927,10 @@ ipcMain.handle('fetch-url-title', async (event, rawUrl) => {
       return { ok: Boolean(cachedTitle), url: cleanInput, title: cachedTitle };
     }
 
-    const previewOptions = {
-      followRedirects: 'follow',
-      timeout: 6500,
-      headers: {
-        'user-agent': DISCORD_USER_AGENT,
-        'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
-      }
-    };
-
-    let preview;
-    try {
-      preview = await getLinkPreview(targetUrl, previewOptions);
-    } catch (_) {
-      const res = await fetch(targetUrl, {
-        headers: previewOptions.headers,
-        redirect: 'follow'
-      });
-      const headers = {};
-      res.headers.forEach((v, k) => {
-        headers[k] = v;
-      });
-      preview = await getPreviewFromContent({
-        url: res.url || targetUrl,
-        headers,
-        data: await res.text()
-      });
-    }
+    const preview = await fetchUrlPreview(targetUrl, {
+      userAgent: DISCORD_USER_AGENT,
+      timeout: 6500
+    });
 
     const title = String((preview && preview.title) || '')
       .replace(/[\r\n\t]+/g, ' ')

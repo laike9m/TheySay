@@ -1466,6 +1466,52 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
       await page.keyboard.press('Escape');
       await expect(overlay).toHaveClass(/is-closed/);
+
+      // Verify linkify-it + tlds, normalize-url, and colord behavior
+      const linkifyCheck = await page.evaluate(() => {
+        const {
+          extractUrlsFromText,
+          formatTextWithTickers,
+          registerUrlTitle,
+          getCachedUrlTitle
+        } = require('./src/core/ticker');
+        const { resolveHeaderPalette, normalizeHexColor } = require('./src/ui/theme');
+
+        registerUrlTitle(
+          'https://example.com:443/report/?b=2&utm_source=twitter&a=1#section',
+          'Normalized Report Title',
+          { persist: false }
+        );
+        const canonicalHit = getCachedUrlTitle('https://example.com/report?a=1&b=2&fbclid=xyz');
+
+        const sample =
+          '看下https://en.wikipedia.org/wiki/Apple_(company)，以及 defillama.finance/chains 和 @elonmusk 提到的 $NVDA (还有 coin.market 域名)';
+        return {
+          urls: extractUrlsFromText(sample),
+          html: formatTextWithTickers(sample, sample, {
+            linkifyUrls: true,
+            linkTitles: {
+              'https://en.wikipedia.org/wiki/Apple_(company)': 'Apple Inc. - Wikipedia'
+            }
+          }),
+          canonicalHit,
+          normalizedHex: normalizeHexColor('1E293B'),
+          darkPalette: resolveHeaderPalette('#1e293b'),
+          lightPalette: resolveHeaderPalette('#f1f5f9')
+        };
+      });
+      expect(linkifyCheck.urls).toEqual([
+        'https://en.wikipedia.org/wiki/Apple_(company)',
+        'defillama.finance/chains'
+      ]);
+      expect(linkifyCheck.html).toContain('Apple Inc. - Wikipedia');
+      expect(linkifyCheck.html).toContain('<span class="ticker-highlight">$NVDA</span>');
+      // 'coin' inside bare domain 'coin.market' must not be highlighted as a ticker
+      expect(linkifyCheck.html).not.toContain('<span class="ticker-highlight">coin</span>');
+      expect(linkifyCheck.canonicalHit).toBe('Normalized Report Title');
+      expect(linkifyCheck.normalizedHex).toBe('#1e293b');
+      expect(linkifyCheck.darkPalette.text).toBe('#f8fafc');
+      expect(linkifyCheck.lightPalette.text).toBe('#0f1419');
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }

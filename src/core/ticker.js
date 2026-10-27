@@ -1,4 +1,8 @@
 const { ipcRenderer } = require('electron');
+const LinkifyIt = require('linkify-it');
+const tlds = require('tlds');
+const normalizeUrl = require('normalize-url');
+const { LRUCache } = require('lru-cache');
 const { escapeHtml } = require('./utils');
 const {
   getTickerFgColor,
@@ -10,6 +14,13 @@ const {
 } = require('./storage');
 const tickerData = require('../../data/ticker-data.json');
 
+const linkify = new LinkifyIt({}, { fuzzyLink: true, fuzzyEmail: true, fuzzyIP: false });
+linkify.tlds(tlds);
+linkify.add('ftp:', null);
+linkify.add('//', null);
+linkify.add('@', { validate: /^[A-Za-z0-9_.-]+/ });
+linkify.add('#', { validate: /^[A-Za-z0-9_.-]+/ });
+
 const unambiguousSet = new Set(Array.isArray(tickerData.unambiguous) ? tickerData.unambiguous : []);
 const contextualSet = new Set(Array.isArray(tickerData.contextual) ? tickerData.contextual : []);
 const stopwordsSet = new Set(Array.isArray(tickerData.stopwords) ? tickerData.stopwords : []);
@@ -17,30 +28,22 @@ const stopwordsSet = new Set(Array.isArray(tickerData.stopwords) ? tickerData.st
 let lastSyncedDate = tickerData.updatedAt || '';
 
 const MAX_CACHED_URL_TITLES = 1000;
-const TRACKING_QUERY_PARAMS = [
-  'utm_source',
-  'utm_medium',
-  'utm_campaign',
-  'utm_term',
-  'utm_content',
-  'utm_id',
-  'r',
-  'showWelcomeOnShare',
+const TRACKING_QUERY_PATTERNS = [
+  /^utm_\w+/i,
+  /^mc_[a-z]+$/i,
+  /^ref(_src|_url)?$/i,
   'fbclid',
   'gclid',
   'igshid',
-  'mc_cid',
-  'mc_eid',
+  'r',
+  'showWelcomeOnShare',
   's',
   't',
   'si',
-  'feature',
-  'ref',
-  'ref_src',
-  'ref_url'
+  'feature'
 ];
 
-const urlTitleMemoryCache = new Map();
+const urlTitleMemoryCache = new LRUCache({ max: MAX_CACHED_URL_TITLES });
 const inFlightUrlTitleRequests = new Map();
 const failedUrlTitleSet = new Set();
 let urlTitleCacheHydrated = false;
@@ -56,15 +59,34 @@ const HONORIFIC_AFTER_RE = /^(?:老师|总|哥|姐|大佬|神|叔|爷|博|群|�
 const LOCAL_PRICE_AFTER_RE = /^\s+\d+(?:\.\d+)?(?:\s*%|\s*刀|\s*块|\s*股|\b|$|[，,。.！!？?\s])/u;
 const LOCAL_PRICE_BEFORE_RE = /\d+(?:\.\d+)?(?:\s*(?:股|刀|块|以下|以上|附近|左右|的))*\s*$/u;
 
-// Single-pass tokenizer:
-// Group 1: URLs, domain names, @mentions, #hashtags (passed through without ticker highlighting)
-// Group 2: Explicit $TICKER cashtags (1-6 letters + optional .A/.B share class, upper or lower)
-// Group 3: Standalone 2-5 letter words (upper or lower, with optional .A/.B share class)
-const TOKEN_RE =
-  /(https?:\/\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|www\.[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+|\b[A-Za-z0-9-]+\.(?:com|org|net|io|ai|co|gg|me|dev|app|xyz|tv|us|uk|cn|jp|hk|edu|gov)\b(?:\/[^\s<>"')\]}\u2018-\u201d\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]*)?|[@#][A-Za-z0-9_.-]+)|((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z](?![A-Za-z0-9_]))?(?![A-Za-z0-9_]))|((?<![A-Za-z0-9_$@#-])[A-Za-z]{2,5}(?:\.[ABab](?![A-Za-z0-9_-]))?(?![A-Za-z0-9_-]))/g;
+// CJK characters & fullwidth punctuation treated as word/URL boundaries for linkify-it scanning
+const CJK_BOUNDARY_RE = /[\u2018-\u201d\u3000-\u303f\u3400-\u9fff\uff00-\uffef]/g;
+
+// Explicit $TICKER cashtags (1-6 letters + optional .A/.B share class) and standalone 2-5 letter words
+const CASHTAG_AND_WORD_RE =
+  /((?<![A-Za-z0-9_])\$[A-Za-z]{1,6}(?:\.[A-Za-z](?![A-Za-z0-9_]))?(?![A-Za-z0-9_]))|((?<![A-Za-z0-9_$@#-])[A-Za-z]{2,5}(?:\.[ABab](?![A-Za-z0-9_-]))?(?![A-Za-z0-9_-]))/g;
+
+function isValidLinkifyMatch(m) {
+  if (!m.schema && !/^www\./i.test(m.raw) && !m.raw.includes('/')) {
+    if (!/\.[a-z0-9-]+$/.test(m.raw)) return false;
+  }
+  return true;
+}
 
 function splitUrlToken(urlOrHandle) {
   const raw = String(urlOrHandle || '');
+  if (!raw) return { cleanUrl: '', trailingPunct: '', href: '' };
+  const scanStr = raw.replace(CJK_BOUNDARY_RE, ' ');
+  const matches = linkify.match(scanStr);
+  if (matches && matches.length > 0 && matches[0].index === 0) {
+    const m = matches[0];
+    if (m.schema !== '@' && m.schema !== '#' && m.schema !== 'mailto:' && isValidLinkifyMatch(m)) {
+      const cleanUrl = raw.slice(0, m.lastIndex);
+      const trailingPunct = raw.slice(m.lastIndex);
+      const href = /^https?:\/\//i.test(cleanUrl) ? cleanUrl : `https://${cleanUrl}`;
+      return { cleanUrl, trailingPunct, href };
+    }
+  }
   const trailingMatch = raw.match(/[.,;:!?]+$/);
   const cleanUrl = trailingMatch ? raw.slice(0, -trailingMatch[0].length) : raw;
   const trailingPunct = trailingMatch ? trailingMatch[0] : '';
@@ -78,13 +100,71 @@ function isWebLinkToken(cleanUrl) {
   return /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}\/[^\s]+/i.test(cleanUrl);
 }
 
+function tokenizeText(str) {
+  if (!str) return [];
+  const tokens = [];
+  const scanStr = str.replace(CJK_BOUNDARY_RE, ' ');
+  const linkMatches = (linkify.match(scanStr) || []).filter(isValidLinkifyMatch);
+
+  const scanPlainGap = (gapStart, gapEnd) => {
+    if (gapEnd <= gapStart) return;
+    const sub = str.slice(gapStart, gapEnd);
+    const re = new RegExp(CASHTAG_AND_WORD_RE.source, 'g');
+    let m;
+    while ((m = re.exec(sub)) !== null) {
+      const raw = m[0];
+      const index = gapStart + m.index;
+      const lastIndex = index + raw.length;
+      if (m[1]) {
+        tokens.push({ type: 'cashtag', raw, index, lastIndex });
+      } else if (m[2]) {
+        tokens.push({ type: 'word', raw, index, lastIndex });
+      }
+    }
+  };
+
+  let cursor = 0;
+  for (const m of linkMatches) {
+    if (m.index < cursor) continue;
+    if (m.index > cursor) {
+      scanPlainGap(cursor, m.index);
+    }
+    const raw = str.slice(m.index, m.lastIndex);
+    if (m.schema === '@' || m.schema === '#' || m.schema === 'mailto:') {
+      tokens.push({ type: 'passthrough', raw, index: m.index, lastIndex: m.lastIndex });
+    } else if (isWebLinkToken(raw)) {
+      const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+      tokens.push({
+        type: 'url',
+        raw,
+        cleanUrl: raw,
+        href,
+        index: m.index,
+        lastIndex: m.lastIndex
+      });
+    } else {
+      tokens.push({ type: 'passthrough', raw, index: m.index, lastIndex: m.lastIndex });
+    }
+    cursor = m.lastIndex;
+  }
+
+  if (cursor < str.length) {
+    scanPlainGap(cursor, str.length);
+  }
+
+  return tokens;
+}
+
 function normalizeUrlForTitleKey(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return '';
   const { cleanUrl, href } = splitUrlToken(rawUrl.trim());
   if (!cleanUrl) return '';
   try {
-    const u = new URL(href);
-    return u.toString();
+    return normalizeUrl(href, {
+      stripWWW: false,
+      sortQueryParameters: false,
+      removeTrailingSlash: false
+    });
   } catch (_) {
     return href;
   }
@@ -94,13 +174,13 @@ function getCanonicalUrlForTitleKey(rawUrl) {
   const norm = normalizeUrlForTitleKey(rawUrl);
   if (!norm) return '';
   try {
-    const u = new URL(norm);
-    for (const param of TRACKING_QUERY_PARAMS) {
-      u.searchParams.delete(param);
-    }
-    u.hash = '';
-    const str = u.toString();
-    return str.endsWith('/') && u.pathname === '/' ? str.slice(0, -1) : str;
+    return normalizeUrl(norm, {
+      stripWWW: false,
+      stripHash: true,
+      removeTrailingSlash: true,
+      sortQueryParameters: true,
+      removeQueryParameters: TRACKING_QUERY_PATTERNS
+    });
   } catch (_) {
     return norm;
   }
@@ -136,12 +216,7 @@ function ensureUrlTitleCacheHydrated() {
 
 function persistUrlTitleCacheToStorage() {
   try {
-    const entries = Array.from(urlTitleMemoryCache.entries()).slice(-MAX_CACHED_URL_TITLES);
-    const obj = {};
-    for (const [k, v] of entries) {
-      obj[k] = v;
-    }
-    saveUrlTitlesCache(obj);
+    saveUrlTitlesCache(Object.fromEntries(urlTitleMemoryCache.entries()));
   } catch (_) {}
 }
 
@@ -247,15 +322,10 @@ function extractUrlsFromText(rawText) {
   if (!str) return [];
   const urls = [];
   const seen = new Set();
-  const re = new RegExp(TOKEN_RE.source, 'g');
-  let match;
-  while ((match = re.exec(str)) !== null) {
-    const urlOrHandle = match[1];
-    if (!urlOrHandle) continue;
-    const { cleanUrl } = splitUrlToken(urlOrHandle);
-    if (isWebLinkToken(cleanUrl) && !seen.has(cleanUrl)) {
-      seen.add(cleanUrl);
-      urls.push(cleanUrl);
+  for (const token of tokenizeText(str)) {
+    if (token.type === 'url' && !seen.has(token.cleanUrl)) {
+      seen.add(token.cleanUrl);
+      urls.push(token.cleanUrl);
     }
   }
   return urls;
@@ -264,33 +334,20 @@ function extractUrlsFromText(rawText) {
 function replaceUrlsWithTitles(rawText, extraTitlesMap = null) {
   const str = String(rawText || '');
   if (!str) return '';
-  const re = new RegExp(TOKEN_RE.source, 'g');
   let result = '';
   let lastIndex = 0;
-  let match;
 
-  while ((match = re.exec(str)) !== null) {
-    const fullMatch = match[0];
-    const urlOrHandle = match[1];
-    const matchIndex = match.index;
-
-    if (matchIndex > lastIndex) {
-      result += str.slice(lastIndex, matchIndex);
+  for (const token of tokenizeText(str)) {
+    if (token.index > lastIndex) {
+      result += str.slice(lastIndex, token.index);
     }
-
-    if (urlOrHandle) {
-      const { cleanUrl, trailingPunct } = splitUrlToken(urlOrHandle);
-      if (isWebLinkToken(cleanUrl)) {
-        const title = getCachedUrlTitle(cleanUrl, extraTitlesMap);
-        result += `${title || cleanUrl}${trailingPunct}`;
-      } else {
-        result += fullMatch;
-      }
+    if (token.type === 'url') {
+      const title = getCachedUrlTitle(token.cleanUrl, extraTitlesMap);
+      result += title || token.cleanUrl;
     } else {
-      result += fullMatch;
+      result += token.raw;
     }
-
-    lastIndex = matchIndex + fullMatch.length;
+    lastIndex = token.lastIndex;
   }
 
   if (lastIndex < str.length) {
@@ -328,13 +385,11 @@ function sliceTextWithUrlTitles(rawText, maxDisplayChars, extraTitlesMap = null)
     return { slicedText: '', linkTitles: extraTitlesMap || null };
   }
 
-  const re = new RegExp(TOKEN_RE.source, 'g');
   let remaining = maxDisplayChars;
   let slicedText = '';
   let lastIndex = 0;
   let overrideTitles = null;
   let stoppedEarly = false;
-  let match;
 
   const appendPlainSlice = (plainSeg) => {
     if (!plainSeg || remaining <= 0) return;
@@ -350,61 +405,43 @@ function sliceTextWithUrlTitles(rawText, maxDisplayChars, extraTitlesMap = null)
     }
   };
 
-  while ((match = re.exec(str)) !== null) {
-    const fullMatch = match[0];
-    const urlOrHandle = match[1];
-    const matchIndex = match.index;
-
-    if (matchIndex > lastIndex) {
-      appendPlainSlice(str.slice(lastIndex, matchIndex));
+  for (const token of tokenizeText(str)) {
+    if (token.index > lastIndex) {
+      appendPlainSlice(str.slice(lastIndex, token.index));
       if (stoppedEarly) break;
     }
 
-    if (urlOrHandle) {
-      const { cleanUrl, trailingPunct } = splitUrlToken(urlOrHandle);
-      if (isWebLinkToken(cleanUrl)) {
-        if (remaining <= 0) {
-          stoppedEarly = true;
-          break;
-        }
-        const resolvedTitle = getCachedUrlTitle(cleanUrl, extraTitlesMap);
-        const displayLabel = resolvedTitle || cleanUrl;
-        const labelChars = Array.from(displayLabel);
-
-        if (labelChars.length <= remaining) {
-          slicedText += cleanUrl;
-          remaining -= labelChars.length;
-          if (trailingPunct) {
-            const pChars = Array.from(trailingPunct);
-            if (pChars.length <= remaining) {
-              slicedText += trailingPunct;
-              remaining -= pChars.length;
-            } else {
-              slicedText += pChars.slice(0, remaining).join('');
-              remaining = 0;
-              stoppedEarly = true;
-              break;
-            }
-          }
-        } else {
-          const partialLabel = labelChars.slice(0, remaining).join('').trimEnd();
-          if (partialLabel) {
-            slicedText += cleanUrl;
-            overrideTitles = Object.assign({}, extraTitlesMap || {}, {
-              [cleanUrl]: partialLabel
-            });
-          }
-          remaining = 0;
-          stoppedEarly = true;
-          break;
-        }
-        lastIndex = matchIndex + fullMatch.length;
-        continue;
+    if (token.type === 'url') {
+      if (remaining <= 0) {
+        stoppedEarly = true;
+        break;
       }
+      const cleanUrl = token.cleanUrl;
+      const resolvedTitle = getCachedUrlTitle(cleanUrl, extraTitlesMap);
+      const displayLabel = resolvedTitle || cleanUrl;
+      const labelChars = Array.from(displayLabel);
+
+      if (labelChars.length <= remaining) {
+        slicedText += cleanUrl;
+        remaining -= labelChars.length;
+      } else {
+        const partialLabel = labelChars.slice(0, remaining).join('').trimEnd();
+        if (partialLabel) {
+          slicedText += cleanUrl;
+          overrideTitles = Object.assign({}, extraTitlesMap || {}, {
+            [cleanUrl]: partialLabel
+          });
+        }
+        remaining = 0;
+        stoppedEarly = true;
+        break;
+      }
+      lastIndex = token.lastIndex;
+      continue;
     }
 
-    appendPlainSlice(fullMatch);
-    lastIndex = matchIndex + fullMatch.length;
+    appendPlainSlice(token.raw);
+    lastIndex = token.lastIndex;
     if (stoppedEarly) break;
   }
 
@@ -533,41 +570,29 @@ function formatTextWithTickers(rawText, contextText, options = {}) {
   let result = '';
   let lastIndex = 0;
 
-  TOKEN_RE.lastIndex = 0;
-  let match;
-  while ((match = TOKEN_RE.exec(str)) !== null) {
-    const fullMatch = match[0];
-    const urlOrHandle = match[1];
-    const cashtag = match[2];
-    const word = match[3];
-    const matchIndex = match.index;
-
-    if (matchIndex > lastIndex) {
-      result += escapeHtml(str.slice(lastIndex, matchIndex));
+  for (const token of tokenizeText(str)) {
+    if (token.index > lastIndex) {
+      result += escapeHtml(str.slice(lastIndex, token.index));
     }
 
-    if (urlOrHandle) {
-      const { cleanUrl, trailingPunct, href } = splitUrlToken(urlOrHandle);
-      if (isWebLinkToken(cleanUrl)) {
-        const resolvedTitle = getCachedUrlTitle(cleanUrl, extraTitlesMap);
-        const displayLabel = resolvedTitle || cleanUrl;
-        if (linkifyUrls) {
-          result += `<a href="#" class="popup-inline-link" data-url="${escapeHtml(href)}" data-raw-url="${escapeHtml(cleanUrl)}" title="${escapeHtml(href)}">${escapeHtml(displayLabel)}</a>${escapeHtml(trailingPunct)}`;
-        } else {
-          result += `<span class="im-inline-link" data-url="${escapeHtml(href)}" data-raw-url="${escapeHtml(cleanUrl)}" title="${escapeHtml(href)}">${escapeHtml(displayLabel)}</span>${escapeHtml(trailingPunct)}`;
-        }
+    if (token.type === 'url') {
+      const { cleanUrl, href } = token;
+      const resolvedTitle = getCachedUrlTitle(cleanUrl, extraTitlesMap);
+      const displayLabel = resolvedTitle || cleanUrl;
+      if (linkifyUrls) {
+        result += `<a href="#" class="popup-inline-link" data-url="${escapeHtml(href)}" data-raw-url="${escapeHtml(cleanUrl)}" title="${escapeHtml(href)}">${escapeHtml(displayLabel)}</a>`;
       } else {
-        result += escapeHtml(fullMatch);
+        result += `<span class="im-inline-link" data-url="${escapeHtml(href)}" data-raw-url="${escapeHtml(cleanUrl)}" title="${escapeHtml(href)}">${escapeHtml(displayLabel)}</span>`;
       }
-    } else if (cashtag) {
-      result += `<span class="ticker-highlight">${escapeHtml(cashtag)}</span>`;
-    } else if (word && isWordTicker(word, str, matchIndex, hasTradingContext)) {
-      result += `<span class="ticker-highlight">${escapeHtml(word)}</span>`;
+    } else if (token.type === 'cashtag') {
+      result += `<span class="ticker-highlight">${escapeHtml(token.raw)}</span>`;
+    } else if (token.type === 'word' && isWordTicker(token.raw, str, token.index, hasTradingContext)) {
+      result += `<span class="ticker-highlight">${escapeHtml(token.raw)}</span>`;
     } else {
-      result += escapeHtml(fullMatch);
+      result += escapeHtml(token.raw);
     }
 
-    lastIndex = matchIndex + fullMatch.length;
+    lastIndex = token.lastIndex;
   }
 
   if (lastIndex < str.length) {

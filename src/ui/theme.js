@@ -1,33 +1,27 @@
+const { colord } = require('colord');
 const { DEFAULT_HEADER_BG_COLOR, HEADER_COLOR_PRESETS } = require('../core/constants');
 const { getStoredTheme, saveStoredTheme, getHeaderBgColor } = require('../core/storage');
 const { clearPostWidgetCache } = require('./popup');
 const { t } = require('../core/i18n');
 
-function normalizeHex(val, fallback = DEFAULT_HEADER_BG_COLOR) {
+function normalizeHexColor(val, fallback = DEFAULT_HEADER_BG_COLOR) {
   const str = String(val || '').trim();
-  if (/^#[0-9A-Fa-f]{6}$/.test(str)) return str.toLowerCase();
-  if (/^[0-9A-Fa-f]{6}$/.test(str)) return `#${str.toLowerCase()}`;
+  if (/^#?[0-9A-Fa-f]{6}$/.test(str)) {
+    const parsed = colord(str.startsWith('#') ? str : `#${str}`);
+    if (parsed.isValid()) return parsed.toHex();
+  }
   return fallback;
 }
 
-function shadeRgb(r, g, b, factor) {
-  const clamp = (n) => Math.max(0, Math.min(255, Math.round(n)));
-  const toHex = (n) => clamp(n).toString(16).padStart(2, '0');
-  return `#${toHex(r * factor)}${toHex(g * factor)}${toHex(b * factor)}`;
-}
-
 function resolveHeaderPalette(bgHex) {
-  const bg = normalizeHex(bgHex, DEFAULT_HEADER_BG_COLOR);
+  const bg = normalizeHexColor(bgHex, DEFAULT_HEADER_BG_COLOR);
   const preset = HEADER_COLOR_PRESETS.find((p) => p.bg.toLowerCase() === bg);
   if (preset) {
     return { ...preset, name: t(`settings.colorPreset.${preset.id}`) };
   }
 
-  const r = parseInt(bg.slice(1, 3), 16);
-  const g = parseInt(bg.slice(3, 5), 16);
-  const b = parseInt(bg.slice(5, 7), 16);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  const isDark = lum < 0.55;
+  const color = colord(bg);
+  const isDark = color.brightness() < 0.55;
 
   if (isDark) {
     return {
@@ -36,7 +30,7 @@ function resolveHeaderPalette(bgHex) {
       bg,
       text: '#f8fafc',
       subtext: 'rgba(248, 250, 252, 0.72)',
-      border: shadeRgb(r, g, b, 0.78),
+      border: color.darken(0.12).toHex(),
       hoverBg: 'rgba(255, 255, 255, 0.12)',
       activeIcon: '#ffffff',
       activeBg: 'rgba(255, 255, 255, 0.22)',
@@ -50,7 +44,7 @@ function resolveHeaderPalette(bgHex) {
     bg,
     text: '#0f1419',
     subtext: '#536471',
-    border: shadeRgb(r, g, b, 0.9),
+    border: color.darken(0.08).toHex(),
     hoverBg: 'rgba(15, 23, 42, 0.07)',
     activeIcon: '#1d9bf0',
     activeBg: 'rgba(29, 155, 240, 0.15)',
@@ -103,5 +97,6 @@ module.exports = {
   applyTheme,
   initTheme,
   applyHeaderColor,
-  resolveHeaderPalette
+  resolveHeaderPalette,
+  normalizeHexColor
 };

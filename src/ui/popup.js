@@ -1,4 +1,6 @@
 const { shell, ipcRenderer } = require('electron');
+const PQueue = require('p-queue').default;
+const { LRUCache } = require('lru-cache');
 const { getPostId, isMemberOnlyPost } = require('../core/post');
 const { escapeHtml, stripDiscordEditedText } = require('../core/utils');
 const { formatTextWithTickers, registerUrlTitlesMap, fetchUrlTitle } = require('../core/ticker');
@@ -18,14 +20,13 @@ const MAX_CONCURRENT_RENDERS = 2;
 // Give up on an embed after this long and show the fallback card instead.
 const RENDER_TIMEOUT_MS = 15000;
 
-// postId -> { el, status, promise, job, post }
+// postId -> { el, status, promise, runTask, started, prioritized, disposed, post }
 //   status: 'idle' | 'pending' | 'ready' | 'failed'
-const embedSlots = new Map();
+const embedSlots = new LRUCache({ max: MAX_PRERENDERED * 4 });
+const renderQueue = new PQueue({ concurrency: MAX_CONCURRENT_RENDERS });
 
 let activePostId = null;
 let currentPost = null;
-let renderQueue = [];
-let activeRenders = 0;
 
 function getOverlay() {
   return document.getElementById('tweet-popup-overlay');
@@ -52,22 +53,12 @@ function isPostPopupOpen() {
    Render queue
    ---------------------------------------------------------------- */
 
-function pumpRenderQueue() {
-  while (activeRenders < MAX_CONCURRENT_RENDERS && renderQueue.length > 0) {
-    const job = renderQueue.shift();
-    job();
-  }
-}
-
-// Move a queued job to the front so a post the user is actually waiting on
+// Promote a queued job to high priority so a post the user is actually waiting on
 // jumps ahead of background prefetch work.
 function prioritizeSlot(entry) {
-  if (!entry || !entry.job) return;
-  const idx = renderQueue.indexOf(entry.job);
-  if (idx > 0) {
-    renderQueue.splice(idx, 1);
-    renderQueue.unshift(entry.job);
-  }
+  if (!entry || entry.started || entry.prioritized || !entry.runTask) return;
+  entry.prioritized = true;
+  renderQueue.add(entry.runTask, { priority: 1 });
 }
 
 /* ----------------------------------------------------------------
@@ -76,11 +67,14 @@ function prioritizeSlot(entry) {
 
 function evictStaleSlots() {
   if (embedSlots.size <= MAX_PRERENDERED) return;
-  // Map preserves insertion order, so the oldest entries come first.
-  for (const [id, entry] of embedSlots) {
+  // Iterate least-recently-used keys first.
+  for (const id of Array.from(embedSlots.rkeys())) {
     if (embedSlots.size <= MAX_PRERENDERED) break;
+    const entry = embedSlots.peek(id);
+    if (!entry) continue;
     // Never evict what's on screen or still being built.
     if (id === activePostId || entry.status === 'pending') continue;
+    entry.disposed = true;
     if (entry.el && entry.el.parentNode) {
       entry.el.parentNode.removeChild(entry.el);
     }
@@ -105,56 +99,73 @@ function ensureSlot(postId, post) {
   el.setAttribute('data-tweet-id', postId);
   container.appendChild(el);
 
-  entry = { el, status: 'idle', promise: null, job: null, post: post || null };
+  entry = {
+    el,
+    status: 'idle',
+    promise: null,
+    runTask: null,
+    started: false,
+    prioritized: false,
+    disposed: false,
+    post: post || null
+  };
   embedSlots.set(postId, entry);
   evictStaleSlots();
   return entry;
 }
 
-function renderSlot(entry, postId) {
+function renderSlot(entry, postId, { priority = false } = {}) {
   if (entry.promise) return entry.promise;
 
   entry.status = 'pending';
   entry.promise = new Promise((resolve) => {
-    const start = () => {
-      activeRenders++;
-      let settled = false;
-
-      const done = (ok) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        activeRenders--;
-        entry.job = null;
-        entry.status = ok ? 'ready' : 'failed';
-        if (!ok) renderFallbackInto(entry);
-        pumpRenderQueue();
-        resolve(entry.status);
-      };
-
-      const timer = setTimeout(() => done(false), RENDER_TIMEOUT_MS);
-
-      const twttr = window.twttr;
-      if (!twttr || !twttr.widgets || !twttr.widgets.createTweet) {
-        done(false);
-        return;
+    let taskPromise = null;
+    entry.runTask = () => {
+      if (entry.disposed) {
+        resolve('failed');
+        return Promise.resolve();
       }
+      if (entry.started) return taskPromise || Promise.resolve();
+      entry.started = true;
 
-      // The slot must have a real, non-zero layout width here: Twitter's widget
-      // factory measures the host element to size its iframe, and a zero-width
-      // host makes it silently bail out.
-      twttr.widgets.createTweet(postId, entry.el, {
-        theme: getCurrentTheme(),
-        align: 'center',
-        dnt: true
-      })
-        .then((el) => done(!!el))
-        .catch(() => done(false));
+      taskPromise = new Promise((finishTask) => {
+        let settled = false;
+        const done = (ok) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          entry.runTask = null;
+          entry.status = ok ? 'ready' : 'failed';
+          if (!ok && !entry.disposed) renderFallbackInto(entry);
+          resolve(entry.status);
+          finishTask();
+        };
+
+        const timer = setTimeout(() => done(false), RENDER_TIMEOUT_MS);
+
+        const twttr = window.twttr;
+        if (!twttr || !twttr.widgets || !twttr.widgets.createTweet) {
+          done(false);
+          return;
+        }
+
+        // The slot must have a real, non-zero layout width here: Twitter's widget
+        // factory measures the host element to size its iframe, and a zero-width
+        // host makes it silently bail out.
+        twttr.widgets.createTweet(postId, entry.el, {
+          theme: getCurrentTheme(),
+          align: 'center',
+          dnt: true
+        })
+          .then((el) => done(!!el))
+          .catch(() => done(false));
+      });
+
+      return taskPromise;
     };
 
-    entry.job = start;
-    renderQueue.push(start);
-    pumpRenderQueue();
+    if (priority) entry.prioritized = true;
+    renderQueue.add(entry.runTask, { priority: priority ? 1 : 0 });
   });
 
   return entry.promise;
@@ -296,7 +307,7 @@ function prefetchPost(post, { priority = false } = {}) {
   if (existing) {
     if (post) existing.post = post;
     if (priority) prioritizeSlot(existing);
-    if (!existing.promise) renderSlot(existing, postId);
+    if (!existing.promise) renderSlot(existing, postId, { priority });
     return;
   }
 
@@ -306,8 +317,7 @@ function prefetchPost(post, { priority = false } = {}) {
 
   const entry = ensureSlot(postId, post);
   if (!entry) return;
-  renderSlot(entry, postId);
-  if (priority) prioritizeSlot(entry);
+  renderSlot(entry, postId, { priority });
 }
 
 /* ----------------------------------------------------------------
@@ -629,7 +639,7 @@ function openPostPopup(post) {
   if (loadingEl) loadingEl.style.display = 'flex';
   prioritizeSlot(entry);
 
-  renderSlot(entry, postId).then(() => {
+  renderSlot(entry, postId, { priority: true }).then(() => {
     if (activePostId !== postId) return;
     if (loadingEl) loadingEl.style.display = 'none';
   });
@@ -669,8 +679,9 @@ function clearPostWidgetCache() {
   const wasOpen = isPostPopupOpen();
   const post = currentPost;
 
-  renderQueue = [];
+  renderQueue.clear();
   for (const entry of embedSlots.values()) {
+    entry.disposed = true;
     if (entry.el && entry.el.parentNode) {
       entry.el.parentNode.removeChild(entry.el);
     }

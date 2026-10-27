@@ -145,6 +145,9 @@ function processAndSortPosts(posts) {
       if (Array.isArray(p.attachments) && p.attachments.length > 0 && (!Array.isArray(prev.attachments) || prev.attachments.length === 0)) {
         prev.attachments = p.attachments;
       }
+      if (p.linkTitles && typeof p.linkTitles === 'object') {
+        prev.linkTitles = Object.assign({}, p.linkTitles, prev.linkTitles || {});
+      }
     }
   }
   const uniquePosts = Array.from(uniqueMap.values());
@@ -270,7 +273,7 @@ function hasChineseText(str) {
   return CJK_TEXT_RE.test(String(str || ''));
 }
 
-function joinSameMinuteTexts(segments) {
+function joinSameMinuteTexts(segments, options = {}) {
   if (!Array.isArray(segments)) return '';
   const cleaned = segments
     .map(s => String(s || '').trim())
@@ -278,7 +281,7 @@ function joinSameMinuteTexts(segments) {
   if (cleaned.length === 0) return '';
   if (cleaned.length === 1) return cleaned[0];
 
-  const anyChinese = cleaned.some(s => hasChineseText(s));
+  const anyChinese = Boolean(options && options.forceChinese) || cleaned.some(s => hasChineseText(s));
   let result = cleaned[0];
 
   for (let i = 1; i < cleaned.length; i++) {

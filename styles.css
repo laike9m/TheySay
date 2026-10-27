@@ -1617,6 +1617,15 @@ body {
   margin-left: 1px;
 }
 
+.im-inline-link {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  text-decoration-color: rgba(56, 189, 248, 0.45);
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .im-bubble.has-popup {
   cursor: pointer;
 }
@@ -2389,7 +2398,8 @@ body {
   color: var(--accent-blue);
   text-decoration: none;
   cursor: pointer;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .popup-inline-link:hover {

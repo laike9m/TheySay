@@ -580,7 +580,31 @@ function buildDiscordExtractionScript(guildId, channelId) {
           }
         }
 
-        // 2. Supplement from Discord's React Fiber message state (covers offscreen / lazy-loaded images)
+        const linkTitles = {};
+        const addLinkTitle = (urlStr, titleStr) => {
+          const u = String(urlStr || '').trim().replace(/[),.!?'\"]+$/, '');
+          const t = String(titleStr || '').replace(/[\\r\\n\\t]+/g, ' ').trim();
+          if (!u || !t || !/^https?:\\/\\//i.test(u)) return;
+          if (t === u || /^https?:\\/\\//i.test(t)) return;
+          if (!linkTitles[u]) linkTitles[u] = t;
+        };
+
+        if (acc) {
+          const embedEls = acc.querySelectorAll('[class*="embedFull"], [class*="embedWrapper"], article[class*="embed"]');
+          for (let i = 0; i < embedEls.length; i++) {
+            const embEl = embedEls[i];
+            const titleLink = embEl.querySelector('[class*="embedTitle"] a[href], a[class*="embedTitleLink"][href], [class*="embedTitle"]');
+            if (titleLink) {
+              const titleText = (titleLink.innerText || titleLink.textContent || '').trim();
+              const href = titleLink.getAttribute ? (titleLink.getAttribute('href') || titleLink.href || '') : '';
+              if (href && titleText) {
+                addLinkTitle(href, titleText);
+              }
+            }
+          }
+        }
+
+        // 2. Supplement from Discord's React Fiber message state (covers offscreen / lazy-loaded images & embeds)
         try {
           const findReactMessage = (rootEl, targetMsgId) => {
             const candidates = [rootEl, rootEl && rootEl.firstElementChild, acc].filter(Boolean);
@@ -628,6 +652,11 @@ function buildDiscordExtractionScript(guildId, channelId) {
             for (let i = 0; i < embeds.length; i++) {
               const emb = embeds[i];
               if (!emb || typeof emb !== 'object') continue;
+              const embTitle = emb.rawTitle || emb.title || '';
+              const embUrl = emb.url || '';
+              if (embUrl && embTitle) {
+                addLinkTitle(embUrl, embTitle);
+              }
               if (emb.image && typeof emb.image === 'object') {
                 addImage(emb.image.proxyURL || emb.image.proxy_url || emb.image.url || '');
               }
@@ -712,7 +741,8 @@ function buildDiscordExtractionScript(guildId, channelId) {
           replyAuthor: replyAuthor,
           replyText: replyText,
           images: images,
-          attachments: attachments
+          attachments: attachments,
+          linkTitles: Object.keys(linkTitles).length > 0 ? linkTitles : undefined
         });
       }
 
@@ -1243,6 +1273,13 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
             if (freshMsg.avatarUrl && !m.avatarUrl) {
               m.avatarUrl = freshMsg.avatarUrl;
               backfillChanged = true;
+            }
+            if (freshMsg.linkTitles && typeof freshMsg.linkTitles === 'object') {
+              const mergedTitles = Object.assign({}, freshMsg.linkTitles, m.linkTitles || {});
+              if (JSON.stringify(m.linkTitles || {}) !== JSON.stringify(mergedTitles)) {
+                m.linkTitles = mergedTitles;
+                backfillChanged = true;
+              }
             }
           }
         });

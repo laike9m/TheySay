@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell, Notification, screen, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { getLinkPreview, getPreviewFromContent } = require('link-preview-js');
 const { DISCORD_PARTITION, THREADS_PARTITION, THREADS_LOGIN_URL } = require('./src/core/constants');
 const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/ui/tweet_embed');
 const { t, setActiveLanguageOverride } = require('./src/core/i18n');
@@ -511,11 +512,11 @@ function decodeBasicHtmlEntities(str) {
     .replace(/&#0*64;/g, '@')
     .replace(/&#x0*40;/gi, '@')
     .replace(/&#x2022;/gi, '•')
-    .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#0*39;/g, "'")
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 }
 
 async function probeTwitterHandle(cleanHandle) {
@@ -923,6 +924,66 @@ ipcMain.on('flush-storage-data', () => {
   try {
     session.defaultSession.flushStorageData();
   } catch (_) {}
+});
+
+const mainUrlTitleCache = new Map();
+
+ipcMain.handle('fetch-url-title', async (event, rawUrl) => {
+  try {
+    const cleanInput = String(rawUrl || '').trim();
+    if (!cleanInput) return { ok: false, url: cleanInput, title: '' };
+    const targetUrl = /^https?:\/\//i.test(cleanInput) ? cleanInput : `https://${cleanInput}`;
+
+    if (mainUrlTitleCache.has(targetUrl)) {
+      const cachedTitle = mainUrlTitleCache.get(targetUrl);
+      return { ok: Boolean(cachedTitle), url: cleanInput, title: cachedTitle };
+    }
+
+    const previewOptions = {
+      followRedirects: 'follow',
+      timeout: 6500,
+      headers: {
+        'user-agent': DISCORD_USER_AGENT,
+        'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+      }
+    };
+
+    let preview;
+    try {
+      preview = await getLinkPreview(targetUrl, previewOptions);
+    } catch (_) {
+      const res = await fetch(targetUrl, {
+        headers: previewOptions.headers,
+        redirect: 'follow'
+      });
+      const headers = {};
+      res.headers.forEach((v, k) => {
+        headers[k] = v;
+      });
+      preview = await getPreviewFromContent({
+        url: res.url || targetUrl,
+        headers,
+        data: await res.text()
+      });
+    }
+
+    const title = String((preview && preview.title) || '')
+      .replace(/[\r\n\t]+/g, ' ')
+      .trim();
+    const finalUrl = (preview && preview.url) || targetUrl;
+
+    if (title) {
+      mainUrlTitleCache.set(targetUrl, title);
+      if (finalUrl && finalUrl !== targetUrl) {
+        mainUrlTitleCache.set(finalUrl, title);
+      }
+      return { ok: true, url: cleanInput, finalUrl, title };
+    }
+
+    return { ok: false, url: cleanInput, title: '' };
+  } catch (err) {
+    return { ok: false, url: String(rawUrl || ''), title: '', error: err.message };
+  }
 });
 
 app.whenReady().then(() => {

@@ -2,6 +2,7 @@ const { ipcRenderer } = require('electron');
 const { processAndSortPosts, isMemberOnlyPost, isPostWithQuote } = require('../core/post');
 const { getShowMemberOnlyPosts } = require('../core/storage');
 const { SOURCE_DISCORD, SOURCE_THREADS, normalizeThreadsHandle } = require('../core/source');
+const { replaceUrlsWithTitles } = require('../core/ticker');
 const {
   t,
   translateAttachmentLabel,
@@ -85,7 +86,7 @@ function notifySlotNewMessages(slot, newItems) {
     const title = serverSubtitle ? `${channelTitle} · ${serverSubtitle}` : channelTitle;
     const subtitle = count > 1 ? t('notification.discordNewMessagesCount', { count }) : '';
 
-    let contentText = compactSingleLine(latest.text || '');
+    let contentText = compactSingleLine(replaceUrlsWithTitles(latest.text || '', latest.linkTitles));
     if (!contentText) {
       if (Array.isArray(latest.images) && latest.images.length > 0) {
         contentText = latest.images.length > 1
@@ -94,7 +95,7 @@ function notifySlotNewMessages(slot, newItems) {
       } else if (Array.isArray(latest.attachments) && latest.attachments.length > 0) {
         contentText = `[${latest.attachments.map(translateAttachmentLabel).join(' / ')}]`;
       } else if (latest.replyText) {
-        contentText = `${t('notification.replyPrefix')} ${compactSingleLine(latest.replyText, 80)}`;
+        contentText = `${t('notification.replyPrefix')} ${compactSingleLine(replaceUrlsWithTitles(latest.replyText, latest.linkTitles), 80)}`;
       } else {
         contentText = t('notification.newMessagePlaceholder');
       }
@@ -140,7 +141,8 @@ function notifySlotNewMessages(slot, newItems) {
     else if (isMemberOnlyPost(latest)) tagDesc = t('notification.memberOnlyPost');
 
     const subtitle = count > 1 ? t('notification.newPostsCount', { count }) : tagDesc;
-    const body = compactSingleLine(normalizeMediaOnlyText(latest.text || t('notification.mediaContentPlaceholder')));
+    const resolvedPostText = replaceUrlsWithTitles(latest.text || '', latest.linkTitles);
+    const body = compactSingleLine(normalizeMediaOnlyText(resolvedPostText || t('notification.mediaContentPlaceholder')));
 
     sendSystemNotification({
       title,

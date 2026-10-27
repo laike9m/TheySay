@@ -34,6 +34,7 @@ const STORAGE_MUTED_SLOTS_KEY = 'theysay_slot_muted';
 const STORAGE_TICKER_FG_COLOR_KEY = 'theysay_ticker_fg_color';
 const STORAGE_TICKER_BG_COLOR_KEY = 'theysay_ticker_bg_color';
 const STORAGE_TICKER_REMOTE_CACHE_KEY = 'theysay_ticker_remote_cache';
+const STORAGE_URL_TITLES_CACHE_KEY = 'theysay_url_titles_cache';
 const STORAGE_HEADER_BG_COLOR_KEY = 'theysay_header_bg_color';
 const STORAGE_LANGUAGE_KEY = 'theysay_language';
 
@@ -183,6 +184,7 @@ module.exports = {
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
+  STORAGE_URL_TITLES_CACHE_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,

@@ -11,6 +11,7 @@ const {
   getPostDateLabel,
   formatTelegramTime,
   getPostMinuteKey,
+  hasChineseText,
   joinSameMinuteTexts,
   shouldShowPostPopup,
   isPostWithQuote,
@@ -48,7 +49,14 @@ const {
   getCanonicalTargetKey
 } = require('../core/source');
 const { requestNotificationPermission } = require('./notification');
-const { formatTextWithTickers } = require('../core/ticker');
+const {
+  formatTextWithTickers,
+  registerUrlTitlesMap,
+  extractUrlsFromText,
+  replaceUrlsWithTitles,
+  sliceTextWithUrlTitles,
+  fetchUrlTitle
+} = require('../core/ticker');
 const { isPlatformLoginExpired, openPlatformLoginWindow } = require('./auth');
 const {
   t,
@@ -543,8 +551,8 @@ function trimIncompleteTrailingToken(sliceStr, fullStr) {
   return sliceStr;
 }
 
-function renderTruncatedTextHtml(previewSlice, fullText) {
-  return `<span class="im-text-preview">${formatTextWithTickers(previewSlice, fullText)}<span class="im-text-ellipsis">...</span></span>`;
+function renderTruncatedTextHtml(previewSlice, fullText, linkTitles = null) {
+  return `<span class="im-text-preview">${formatTextWithTickers(previewSlice, fullText, { linkTitles })}<span class="im-text-ellipsis">...</span></span>`;
 }
 
 function expandBubbleLastLine(bubble) {
@@ -552,8 +560,14 @@ function expandBubbleLastLine(bubble) {
   const textContentEl = bubble.querySelector('.im-text-content[data-full-text]');
   if (!textContentEl) return;
   const effectiveText = textContentEl.getAttribute('data-full-text') || '';
-  const chars = Array.from(effectiveText);
-  if (chars.length <= BASE_PREVIEW_CHARS) return;
+  const linkTitles = (bubble._post && bubble._post.linkTitles) || null;
+  const displayText = replaceUrlsWithTitles(effectiveText, linkTitles);
+  const chars = Array.from(displayText);
+  if (chars.length <= BASE_PREVIEW_CHARS) {
+    textContentEl.innerHTML = formatTextWithTickers(effectiveText, effectiveText, { linkTitles });
+    textContentEl.removeAttribute('data-full-text');
+    return;
+  }
 
   const measureEl = bubble.querySelector('.im-bubble-left') || bubble;
   const baseBoxHeight = measureEl.getBoundingClientRect().height;
@@ -578,7 +592,7 @@ function expandBubbleLastLine(bubble) {
   // If there are no more newlines after BASE_PREVIEW_CHARS, check if the entire remaining
   // text fits on this last line without needing an ellipsis at all.
   if (maxLineIdx === chars.length) {
-    textContentEl.innerHTML = formatTextWithTickers(effectiveText);
+    textContentEl.innerHTML = formatTextWithTickers(effectiveText, effectiveText, { linkTitles });
     if (fitsOnSameLastLine()) {
       return;
     }
@@ -590,8 +604,8 @@ function expandBubbleLastLine(bubble) {
 
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
-    const candidate = chars.slice(0, mid).join('').trimEnd();
-    textContentEl.innerHTML = renderTruncatedTextHtml(candidate, effectiveText);
+    const { slicedText, linkTitles: slicedTitles } = sliceTextWithUrlTitles(effectiveText, mid, linkTitles);
+    textContentEl.innerHTML = renderTruncatedTextHtml(slicedText.trimEnd(), effectiveText, slicedTitles);
     if (fitsOnSameLastLine()) {
       bestK = mid;
       low = mid + 1;
@@ -600,9 +614,9 @@ function expandBubbleLastLine(bubble) {
     }
   }
 
-  const rawSlice = chars.slice(0, bestK).join('');
+  const { slicedText: rawSlice, linkTitles: bestSlicedTitles } = sliceTextWithUrlTitles(effectiveText, bestK, linkTitles);
   const cleanSlice = trimIncompleteTrailingToken(rawSlice, effectiveText).trimEnd();
-  textContentEl.innerHTML = renderTruncatedTextHtml(cleanSlice, effectiveText);
+  textContentEl.innerHTML = renderTruncatedTextHtml(cleanSlice, effectiveText, bestSlicedTitles);
 }
 
 function extractCleanPostText(post, { isDiscord = false } = {}) {
@@ -656,14 +670,26 @@ function groupSameMinutePosts(posts, { isDiscord = false } = {}) {
 
   return groups.map((group) => {
     if (group.length === 1) {
+      if (group[0] && group[0].linkTitles) {
+        registerUrlTitlesMap(group[0].linkTitles, { persist: false });
+      }
       return group[0];
     }
 
     const basePost = group[0];
+    const mergedLinkTitles = {};
+    for (const p of group) {
+      if (p && p.linkTitles && typeof p.linkTitles === 'object') {
+        Object.assign(mergedLinkTitles, p.linkTitles);
+      }
+    }
+    registerUrlTitlesMap(mergedLinkTitles, { persist: false });
+
     const cleanSegments = group
       .map(p => extractCleanPostText(p, { isDiscord }))
       .filter(Boolean);
-    const mergedText = joinSameMinuteTexts(cleanSegments);
+    const forceChinese = cleanSegments.some(s => hasChineseText(replaceUrlsWithTitles(s, mergedLinkTitles)));
+    const mergedText = joinSameMinuteTexts(cleanSegments, { forceChinese });
 
     const mergedImages = [];
     const seenImages = new Set();
@@ -711,6 +737,7 @@ function groupSameMinutePosts(posts, { isDiscord = false } = {}) {
       isPinned: group.some(p => p.isPinned),
       isRetweet: group.some(p => p.isRetweet),
       isUnread: group.some(p => p.isUnread),
+      linkTitles: Object.keys(mergedLinkTitles).length > 0 ? mergedLinkTitles : undefined,
       isMerged: true,
       mergedPosts: group
     };
@@ -718,14 +745,20 @@ function groupSameMinutePosts(posts, { isDiscord = false } = {}) {
 }
 
 function buildDiscordBubbleHtml(msg, { showAuthor }) {
+  if (msg && msg.linkTitles) {
+    registerUrlTitlesMap(msg.linkTitles, { persist: false });
+  }
   const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
   const rawText = stripEmptyLines(normalizeMediaOnlyText(stripDiscordEditedText(msg.text || '')));
   const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
   const effectiveText = isMediaFallbackOnly ? '' : rawText;
   const cleanReplyText = stripEmptyLines(stripDiscordEditedText(msg.replyText || ''));
-  const chars = Array.from(effectiveText);
+  const displayText = replaceUrlsWithTitles(effectiveText, msg.linkTitles);
+  const chars = Array.from(displayText);
   const isLong = !msg.isMerged && chars.length > BASE_PREVIEW_CHARS;
-  const previewText = isLong ? chars.slice(0, BASE_PREVIEW_CHARS).join('').trimEnd() : effectiveText;
+  const { slicedText: previewText, linkTitles: previewTitles } = isLong
+    ? sliceTextWithUrlTitles(effectiveText, BASE_PREVIEW_CHARS, msg.linkTitles)
+    : { slicedText: effectiveText, linkTitles: msg.linkTitles };
 
   let html = '';
 
@@ -738,7 +771,7 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     html += `
       <span class="im-reply-ref">
         <span class="im-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="im-reply-text">${formatTextWithTickers(cleanReplyText)}</span>
+        <span class="im-reply-text">${formatTextWithTickers(cleanReplyText, cleanReplyText, { linkTitles: msg.linkTitles })}</span>
       </span>
     `;
   }
@@ -750,8 +783,8 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 
   if (effectiveText) {
     html += isLong
-      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText, effectiveText)}</span>`
-      : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
+      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles)}</span>`
+      : `<span class="im-text-content">${formatTextWithTickers(effectiveText, effectiveText, { linkTitles: msg.linkTitles })}</span>`;
   }
 
   if (visibleAttachments.length > 0) {
@@ -766,6 +799,9 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
 }
 
 function buildPostBubbleHtml(post) {
+  if (post && post.linkTitles) {
+    registerUrlTitlesMap(post.linkTitles, { persist: false });
+  }
   const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   if (typeof post.text === 'string' && post.text.includes('\n')) {
     post.text = cleanInlineEntityNewlines(post.text);
@@ -775,9 +811,12 @@ function buildPostBubbleHtml(post) {
   const effectiveText = isMediaFallbackOnly
     ? ''
     : (rawText || (images.length === 0 ? t('scraper.mediaOnlyFallback') : ''));
-  const chars = Array.from(effectiveText);
+  const displayText = replaceUrlsWithTitles(effectiveText, post.linkTitles);
+  const chars = Array.from(displayText);
   const isLong = !post.isMerged && chars.length > BASE_PREVIEW_CHARS;
-  const previewText = isLong ? chars.slice(0, BASE_PREVIEW_CHARS).join('').trimEnd() : effectiveText;
+  const { slicedText: previewText, linkTitles: previewTitles } = isLong
+    ? sliceTextWithUrlTitles(effectiveText, BASE_PREVIEW_CHARS, post.linkTitles)
+    : { slicedText: effectiveText, linkTitles: post.linkTitles };
 
   let tagHtml = '';
   if (post.isPinned) tagHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
@@ -788,8 +827,8 @@ function buildPostBubbleHtml(post) {
   let textHtml = '';
   if (effectiveText) {
     textHtml = isLong
-      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText, effectiveText)}</span>`
-      : `<span class="im-text-content">${formatTextWithTickers(effectiveText)}</span>`;
+      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles)}</span>`
+      : `<span class="im-text-content">${formatTextWithTickers(effectiveText, effectiveText, { linkTitles: post.linkTitles })}</span>`;
   }
 
   return `${tagHtml}${textHtml}`;
@@ -1025,6 +1064,8 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
 
     const bubble = document.createElement('div');
     bubble.className = 'im-bubble';
+    bubble._post = post;
+    bubble._isDiscord = isDiscord;
     if (post.isUnread) {
       bubble.classList.add('unread');
     }
@@ -1173,6 +1214,10 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
 
   persistSlot(slot, { handle, displayName, userHandle, posts, avatarUrl: finalAvatar }, slots);
 
+  if (Array.isArray(posts) && posts.length > 0) {
+    resolveSlotUrlTitles(slot, slots);
+  }
+
   // Background idle prefetch for posts eligible for popups.
   // The list auto-scrolls to the bottom, so the newest posts are the ones on
   // screen and the most likely to be clicked.
@@ -1184,6 +1229,145 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
       }, 1000);
     }
     backfillTwitterSlotImages(slot, slots);
+  }
+}
+
+function refreshSlotBubbleTextsWithTitles(slot) {
+  if (!slot || !slot.postsList) return;
+  const isDiscord = isDiscordSlot(slot);
+  const bubbles = slot.postsList.querySelectorAll('.im-bubble');
+  bubbles.forEach((bubble) => {
+    const post = bubble._post;
+    if (!post) return;
+
+    if (post.isMerged && Array.isArray(post.mergedPosts)) {
+      const mergedLinkTitles = Object.assign({}, post.linkTitles || {});
+      for (const mp of post.mergedPosts) {
+        if (mp && mp.linkTitles && typeof mp.linkTitles === 'object') {
+          Object.assign(mergedLinkTitles, mp.linkTitles);
+        }
+      }
+      if (Object.keys(mergedLinkTitles).length > 0) {
+        post.linkTitles = mergedLinkTitles;
+        registerUrlTitlesMap(mergedLinkTitles, { persist: false });
+      }
+      const cleanSegments = post.mergedPosts
+        .map(p => extractCleanPostText(p, { isDiscord }))
+        .filter(Boolean);
+      const forceChinese = cleanSegments.some(s => hasChineseText(replaceUrlsWithTitles(s, post.linkTitles)));
+      post.text = joinSameMinuteTexts(cleanSegments, { forceChinese });
+    } else if (post.linkTitles) {
+      registerUrlTitlesMap(post.linkTitles, { persist: false });
+    }
+
+    const replyTextEl = bubble.querySelector('.im-reply-text');
+    if (replyTextEl && post.replyText) {
+      const cleanReply = stripEmptyLines(stripDiscordEditedText(post.replyText || ''));
+      replyTextEl.innerHTML = formatTextWithTickers(cleanReply, cleanReply, { linkTitles: post.linkTitles });
+    }
+
+    const textContentEl = bubble.querySelector('.im-text-content');
+    if (!textContentEl) return;
+
+    const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
+    const rawText = isDiscord
+      ? stripEmptyLines(normalizeMediaOnlyText(stripDiscordEditedText(post.text || '')))
+      : stripEmptyLines(normalizeMediaOnlyText((post.text || '').trim()));
+    const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
+    const effectiveText = isMediaFallbackOnly
+      ? ''
+      : (rawText || (!isDiscord && images.length === 0 ? t('scraper.mediaOnlyFallback') : ''));
+
+    if (!effectiveText) return;
+
+    const displayText = replaceUrlsWithTitles(effectiveText, post.linkTitles);
+    const chars = Array.from(displayText);
+    const isLong = !post.isMerged && chars.length > BASE_PREVIEW_CHARS;
+
+    if (isLong) {
+      const { slicedText: previewText, linkTitles: previewTitles } = sliceTextWithUrlTitles(
+        effectiveText,
+        BASE_PREVIEW_CHARS,
+        post.linkTitles
+      );
+      textContentEl.setAttribute('data-full-text', effectiveText);
+      textContentEl.innerHTML = renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles);
+      expandBubbleLastLine(bubble);
+    } else {
+      textContentEl.removeAttribute('data-full-text');
+      textContentEl.innerHTML = formatTextWithTickers(effectiveText, effectiveText, { linkTitles: post.linkTitles });
+    }
+  });
+}
+
+async function resolveSlotUrlTitles(slot, slots = []) {
+  if (!slot || slot._isResolvingUrlTitles) return;
+  const posts = Array.isArray(slot.loadedPosts) ? slot.loadedPosts : [];
+  if (posts.length === 0) return;
+
+  const urlToPosts = new Map();
+  for (const p of posts) {
+    if (!p) continue;
+    if (p.linkTitles && typeof p.linkTitles === 'object') {
+      registerUrlTitlesMap(p.linkTitles, { persist: false });
+    }
+    const texts = [p.text, p.replyText, p.quoteText].filter(Boolean);
+    for (const txt of texts) {
+      const urls = extractUrlsFromText(txt);
+      for (const u of urls) {
+        const existingLocal = p.linkTitles && p.linkTitles[u];
+        if (existingLocal) continue;
+        if (!urlToPosts.has(u)) {
+          urlToPosts.set(u, []);
+        }
+        urlToPosts.get(u).push(p);
+      }
+    }
+  }
+
+  if (urlToPosts.size === 0) return;
+
+  slot._isResolvingUrlTitles = true;
+  let anyResolved = false;
+
+  try {
+    const entries = Array.from(urlToPosts.entries());
+    const batchSize = 4;
+    for (let i = 0; i < entries.length; i += batchSize) {
+      const batch = entries.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async ([url, targetPosts]) => {
+          try {
+            const title = await fetchUrlTitle(url);
+            if (title) {
+              anyResolved = true;
+              for (const tp of targetPosts) {
+                if (!tp.linkTitles || typeof tp.linkTitles !== 'object') {
+                  tp.linkTitles = {};
+                }
+                tp.linkTitles[url] = title;
+              }
+            }
+          } catch (_) {}
+        })
+      );
+    }
+
+    if (anyResolved && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
+      refreshSlotBubbleTextsWithTitles(slot);
+      const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
+      const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || '';
+      persistSlot(slot, {
+        handle,
+        displayName: slot.authorName ? slot.authorName.innerText : '',
+        userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+        posts: slot.loadedPosts,
+        avatarUrl
+      }, slots);
+      archiveSlotScrapedData(slot);
+    }
+  } finally {
+    slot._isResolvingUrlTitles = false;
   }
 }
 

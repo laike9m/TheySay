@@ -1345,6 +1345,132 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(menuDot).toHaveClass(/has-login/);
     await expect(menuDot).not.toHaveClass(/has-expired/);
   });
+
+  test('17. Long URLs in messages resolve and display webpage <title> instead of raw links in bubbles and popups', async () => {
+    const http = require('http');
+    const server = http.createServer((req, res) => {
+      const reqUrl = req.url || '';
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      if (reqUrl.startsWith('/p/10262026-trading-recap-and-outlook')) {
+        res.end('<!doctype html><html><head><title>10/26/2026 Trading Recap and Outlook - Alpha&#x27;s Substack</title></head><body>Recap</body></html>');
+      } else if (reqUrl.startsWith('/p/10262026')) {
+        res.end('<!doctype html><html><head><title>10/26/2026 复盘与展望 - Alpha&#x27;s Substack</title></head><body>复盘</body></html>');
+      } else {
+        res.end('<!doctype html><html><head><title>Default Page Title</title></head><body>ok</body></html>');
+      }
+    });
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    const longUrl1 = `http://127.0.0.1:${port}/p/10262026?r=2wn5pz&utm_campaign=post&utm_medium=web&showWelcomeOnShare=true`;
+    const longUrl2 = `http://127.0.0.1:${port}/p/10262026-trading-recap-and-outlook?r=2wn5pz&utm_campaign=post&utm_medium=web&showWelcomeOnShare=true`;
+
+    try {
+      await page.evaluate(
+        ({ handlesKey, cacheKey, u1, u2 }) => {
+          localStorage.removeItem('theysay_url_titles_cache');
+          const handles = [
+            'https://discord.com/channels/100000000000000001/200000000000000002',
+            '',
+            '',
+            ''
+          ];
+          while (handles.length < 16) handles.push('');
+          localStorage.setItem(handlesKey, JSON.stringify(handles));
+          localStorage.setItem('theysay_discord_logged_in', '1');
+
+          const cache = {
+            0: {
+              handle: 'https://discord.com/channels/100000000000000001/200000000000000002',
+              source: 'discord',
+              sourceTitle: '#general',
+              sourceSubtitle: 'AlphaResearch',
+              displayName: '#general',
+              userHandle: 'AlphaResearch',
+              avatarUrl: '',
+              lastFetchedAt: Date.now(),
+              posts: [
+                {
+                  id: '1499000000000000001',
+                  text: u1,
+                  datetime: '2026-10-26T11:44:10.000Z',
+                  time: '2026-10-26T11:44:10.000Z',
+                  displayName: 'AlphaAnalyst',
+                  url: 'https://discord.com/channels/100000000000000001/200000000000000002/1499000000000000001',
+                  isUnread: false,
+                  images: [],
+                  attachments: ['嵌入卡片']
+                },
+                {
+                  id: '1499000000000000002',
+                  text: u2,
+                  datetime: '2026-10-26T11:44:25.000Z',
+                  time: '2026-10-26T11:44:25.000Z',
+                  displayName: 'AlphaAnalyst',
+                  url: 'https://discord.com/channels/100000000000000001/200000000000000002/1499000000000000002',
+                  isUnread: false,
+                  images: [],
+                  attachments: ['嵌入卡片']
+                },
+                {
+                  id: '1499000000000000003',
+                  text: u2,
+                  datetime: '2026-10-26T11:50:00.000Z',
+                  time: '2026-10-26T11:50:00.000Z',
+                  displayName: 'AlphaAnalyst',
+                  url: 'https://discord.com/channels/100000000000000001/200000000000000002/1499000000000000003',
+                  isUnread: false,
+                  images: []
+                }
+              ]
+            }
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cache));
+        },
+        {
+          handlesKey: STORAGE_HANDLES_KEY,
+          cacheKey: STORAGE_CACHE_KEY,
+          u1: longUrl1,
+          u2: longUrl2
+        }
+      );
+
+      await page.reload({ waitUntil: 'domcontentloaded' });
+
+      const bubbles = page.locator('#slot-posts-list-0 .im-bubble');
+      await expect(bubbles).toHaveCount(2);
+
+      const mergedBubbleText = bubbles.nth(0).locator('.im-text-content');
+      const singleBubbleText = bubbles.nth(1).locator('.im-text-content');
+
+      // Wait for async URL title resolution to update both bubbles in place
+      await expect(mergedBubbleText).toContainText("10/26/2026 复盘与展望 - Alpha's Substack");
+      await expect(mergedBubbleText).toContainText("10/26/2026 Trading Recap and Outlook - Alpha's Substack");
+      await expect(mergedBubbleText).not.toContainText('showWelcomeOnShare=true');
+
+      // Single post with >100-char raw URL should display its 55-char title without '...' truncation
+      await expect(singleBubbleText).toHaveText("10/26/2026 Trading Recap and Outlook - Alpha's Substack");
+      await expect(singleBubbleText.locator('.im-text-ellipsis')).toHaveCount(0);
+
+      // Click the merged bubble to open the popup and verify popup links show titles and keep original URLs
+      await bubbles.nth(0).click();
+      const overlay = page.locator('#tweet-popup-overlay');
+      await expect(overlay).not.toHaveClass(/is-closed/);
+
+      const popupLinks = overlay.locator('.discord-popup-text .popup-inline-link');
+      await expect(popupLinks).toHaveCount(2);
+      await expect(popupLinks.nth(0)).toHaveText("10/26/2026 复盘与展望 - Alpha's Substack");
+      await expect(popupLinks.nth(0)).toHaveAttribute('data-url', longUrl1);
+      await expect(popupLinks.nth(1)).toHaveText("10/26/2026 Trading Recap and Outlook - Alpha's Substack");
+      await expect(popupLinks.nth(1)).toHaveAttribute('data-url', longUrl2);
+
+      await page.keyboard.press('Escape');
+      await expect(overlay).toHaveClass(/is-closed/);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
 });
+
 
 

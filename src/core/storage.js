@@ -28,6 +28,7 @@ const {
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
   STORAGE_TICKER_REMOTE_CACHE_KEY,
+  STORAGE_URL_TITLES_CACHE_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
@@ -736,6 +737,25 @@ function saveTickerRemoteCache(data) {
   } catch (e) {}
 }
 
+function getUrlTitlesCache() {
+  try {
+    const raw = localStorage.getItem(STORAGE_URL_TITLES_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {}
+  return {};
+}
+
+function saveUrlTitlesCache(cacheObj) {
+  try {
+    if (cacheObj && typeof cacheObj === 'object') {
+      localStorage.setItem(STORAGE_URL_TITLES_CACHE_KEY, JSON.stringify(cacheObj));
+    }
+  } catch (e) {}
+}
+
 function getHeaderBgColor() {
   try {
     const raw = localStorage.getItem(STORAGE_HEADER_BG_COLOR_KEY);
@@ -985,6 +1005,8 @@ module.exports = {
   saveTickerBgColor,
   getTickerRemoteCache,
   saveTickerRemoteCache,
+  getUrlTitlesCache,
+  saveUrlTitlesCache,
   getHeaderBgColor,
   saveHeaderBgColor,
   getLanguage,

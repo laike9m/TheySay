@@ -1,7 +1,7 @@
 const { shell, ipcRenderer } = require('electron');
 const { getPostId, isMemberOnlyPost } = require('../core/post');
 const { escapeHtml, stripDiscordEditedText } = require('../core/utils');
-const { formatTextWithTickers } = require('../core/ticker');
+const { formatTextWithTickers, registerUrlTitlesMap, fetchUrlTitle } = require('../core/ticker');
 const { installRendererEmbedHooks } = require('./tweet_embed');
 const {
   t,
@@ -169,9 +169,38 @@ function deactivateSlot(postId) {
    Fallback card (offline / deleted / protected posts)
    ---------------------------------------------------------------- */
 
+function resolvePopupLinksInElement(containerEl, post) {
+  if (!containerEl) return;
+  const linkEls = containerEl.querySelectorAll('.popup-inline-link[data-raw-url]');
+  linkEls.forEach((linkEl) => {
+    const rawUrl = linkEl.getAttribute('data-raw-url') || linkEl.getAttribute('data-url') || '';
+    if (!rawUrl) return;
+    const currentText = (linkEl.textContent || '').trim();
+    if (currentText !== rawUrl) return;
+    fetchUrlTitle(rawUrl)
+      .then((title) => {
+        if (!title) return;
+        if (post) {
+          if (!post.linkTitles || typeof post.linkTitles !== 'object') {
+            post.linkTitles = {};
+          }
+          post.linkTitles[rawUrl] = title;
+        }
+        if (linkEl.isConnected) {
+          linkEl.textContent = title;
+        }
+      })
+      .catch(() => {});
+  });
+}
+
 function renderFallbackInto(entry) {
   const post = entry.post;
   if (!entry.el || !post) return;
+
+  if (post.linkTitles) {
+    registerUrlTitlesMap(post.linkTitles, { persist: false });
+  }
 
   const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const rawText = normalizeMediaOnlyText((post.text || '').trim());
@@ -227,7 +256,7 @@ function renderFallbackInto(entry) {
       </div>
     </div>
     ${memberInfoHtml}
-    ${effectiveText ? `<div class="tweet-popup-fallback-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true })}</div>` : ''}
+    ${effectiveText ? `<div class="tweet-popup-fallback-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true, linkTitles: post.linkTitles })}</div>` : ''}
     ${imagesHtml}
     ${quoteInfoHtml}
     <div class="tweet-popup-fallback-footer">
@@ -243,6 +272,8 @@ function renderFallbackInto(entry) {
       if (url) shell.openExternal(url);
     });
   });
+
+  resolvePopupLinksInElement(fallbackDiv, post);
 
   entry.el.innerHTML = '';
   entry.el.appendChild(fallbackDiv);
@@ -299,6 +330,9 @@ function getDiscordSlotEl() {
 }
 
 function renderDiscordCardInto(el, msg) {
+  if (msg && msg.linkTitles) {
+    registerUrlTitlesMap(msg.linkTitles, { persist: false });
+  }
   const rawText = stripDiscordEditedText(msg.text || '');
   const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
   const timeDisplay = msg.datetime ? new Date(msg.datetime).toLocaleString() : (msg.time || '');
@@ -308,7 +342,7 @@ function renderDiscordCardInto(el, msg) {
     replyHtml = `
       <div class="discord-popup-reply">
         <span class="discord-popup-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="discord-popup-reply-text">${formatTextWithTickers(cleanReplyText, undefined, { linkifyUrls: true })}</span>
+        <span class="discord-popup-reply-text">${formatTextWithTickers(cleanReplyText, undefined, { linkifyUrls: true, linkTitles: msg.linkTitles })}</span>
       </div>
     `;
   }
@@ -353,7 +387,7 @@ function renderDiscordCardInto(el, msg) {
         </div>
       </div>
       ${replyHtml}
-      ${rawText ? `<div class="discord-popup-text">${formatTextWithTickers(rawText, undefined, { linkifyUrls: true })}</div>` : ''}
+      ${rawText ? `<div class="discord-popup-text">${formatTextWithTickers(rawText, undefined, { linkifyUrls: true, linkTitles: msg.linkTitles })}</div>` : ''}
       ${imagesHtml}
       ${attachmentsHtml}
       <div class="discord-popup-footer">
@@ -389,6 +423,8 @@ function renderDiscordCardInto(el, msg) {
       if (url) shell.openExternal(url);
     });
   });
+
+  resolvePopupLinksInElement(el, msg);
 }
 
 function openDiscordPopup(msg) {
@@ -426,6 +462,9 @@ function getThreadsSlotEl() {
 }
 
 function renderThreadsCardInto(el, post) {
+  if (post && post.linkTitles) {
+    registerUrlTitlesMap(post.linkTitles, { persist: false });
+  }
   const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const rawText = normalizeMediaOnlyText((post.text || '').trim());
   const isMediaFallbackOnly = images.length > 0 && rawText === t('scraper.mediaOnlyFallback');
@@ -451,7 +490,7 @@ function renderThreadsCardInto(el, post) {
           ${qAuthor ? `<span class="threads-popup-quote-author">${escapeHtml(qAuthor)}</span>` : ''}
           ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedPost'))}</a>` : ''}
         </div>
-        ${qText ? `<div class="threads-popup-quote-text">${formatTextWithTickers(qText, undefined, { linkifyUrls: true })}</div>` : ''}
+        ${qText ? `<div class="threads-popup-quote-text">${formatTextWithTickers(qText, undefined, { linkifyUrls: true, linkTitles: post.linkTitles })}</div>` : ''}
       </div>
     `;
   }
@@ -485,7 +524,7 @@ function renderThreadsCardInto(el, post) {
             : ''}
         </div>
       </div>
-      ${effectiveText ? `<div class="discord-popup-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true })}</div>` : ''}
+      ${effectiveText ? `<div class="discord-popup-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true, linkTitles: post.linkTitles })}</div>` : ''}
       ${imagesHtml}
       ${quoteHtml}
       <div class="discord-popup-footer">
@@ -509,6 +548,8 @@ function renderThreadsCardInto(el, post) {
       if (url) shell.openExternal(url);
     });
   });
+
+  resolvePopupLinksInElement(el, post);
 }
 
 function openThreadsPopup(post) {

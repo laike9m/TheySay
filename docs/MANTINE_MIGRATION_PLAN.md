@@ -43,15 +43,15 @@
 
 ---
 
-### 第二阶段 (Step 2)：监控槽位卡片 (Slot Card) 与消息时间线组件化
+### 第二阶段 (Step 2)：监控槽位卡片 (Slot Card) 与消息时间线组件化（已完成）
 **目标**：将 `src/ui/slot.js` 中的 16 个监控槽位内部 UI 迁移至 React + Mantine 组件，同时保持 GridStack 拖拽与滚动位置零回退：
-1. **GridStack + React Portal 桥接**：
+1. **GridStack + React 子树同步挂载桥接**：
    - 由 GridStack 管理外层 `.grid-stack-item` 容器的坐标（`gs-x`, `gs-y`, `gs-w`, `gs-h`）与拖拽句柄（`.slot-drag-handle`）。
-   - 使用 `createPortal` 将每个槽位的 React `<SlotCard />` 渲染至对应的 `.grid-stack-item-content` 容器内，确保 GridStack 移动节点时 React 组件状态与 DOM 滚动条（`scrollTop`）完全保留。
+   - 使用 `createRoot` + `flushSync` 将每个槽位的 React `<SlotCard />` 挂载至对应的 `.grid-stack-item-content` 容器内，确保 GridStack 移动节点时 React 组件状态与 DOM 滚动条（`scrollTop`）完全保留。
 2. **槽位 Header 与操作栏 Mantine 化**：
-   - 使用 Mantine `<Avatar>`、`<Badge>`（未读计数）、`<TextInput>`（用户名/频道输入）、`<Popover>`（卡片尺寸切换菜单与双平台同名账号选择下拉框）、`<ActionIcon>`（静音开关、立即刷新、清空）。
+   - 使用 Mantine `<Paper>`、`<Box>`、`<Badge>`（未读计数）、`<ActionIcon>`（静音开关、尺寸展开、清空输入）与 `<UnstyledButton>`（卡片尺寸切换菜单项与双平台同名账号选择下拉框）构建槽位头部与菜单。
 3. **消息气泡流与媒体网格组件化**：
-   - 将推文、Threads 与 Discord 消息气泡拆分为 `<PostBubble />`、`<MediaGrid />` 与 `<SlotExpiredBanner />` React 组件。
+   - 将推文、Threads 与 Discord 消息气泡拆分为 `<PostTimeline />`、`<PostBubble />`、`<DateDivider />`、`<MediaGrid />` 与 `<SlotExpiredBanner />` React + Mantine 组件，完整保留行末二分自适应展开（`expandBubbleLastLine`）与左右对半分栏缩略图排版。
 
 ---
 
@@ -71,20 +71,30 @@
 
 ```text
 src/ui/
-├── mantine-shell.jsx                        # 渲染挂载入口 (MantineProvider + Notifications 桥接)
+├── mantine-shell.jsx                        # 渲染挂载入口 (MantineProvider + Notifications + Slot 挂载桥接)
 └── components/
     ├── theme.js                             # Mantine createTheme 配置与配色预设常量
-    ├── ColorSchemeSync.jsx                  # data-theme <-> data-mantine-color-scheme 同步组件
+    ├── ColorSchemeSync.jsx                  # data-theme <-> data-mantine-color-scheme 双向同步组件
     ├── icons/
     │   └── PlatformIcons.jsx                # 品牌 Logo 与 Discord 等平台专属图标组件
     ├── nav/
     │   ├── TopNav.jsx                       # 顶部全局导航栏 (全部已读、网格布局选择、深浅色切换、设置按钮)
     │   ├── LoginDropdownMenu.jsx            # 登录账号管理与 Profile 导入/导出下拉菜单
     │   └── AuthExpiredBanner.jsx            # 顶部登录过期常驻警告横幅与 Toast 容器
-    └── settings/
-        ├── SettingsModal.jsx                # 偏好设置弹窗主容器 (Header / Body / Footer)
-        ├── GeneralSettingsSection.jsx       # 通用设置分组 (语言、三平台轮询周期、仅会员、声音、图标角标)
-        ├── AppearanceSettingsSection.jsx    # 外观设置分组 (Title 栏配色、Ticker 配色、实时预览卡片、词库同步)
-        └── BackupSettingsSection.jsx        # 备份设置分组 (Profile 导入与导出)
+    ├── settings/
+    │   ├── SettingsModal.jsx                # 偏好设置弹窗主容器 (Header / Body / Footer)
+    │   ├── GeneralSettingsSection.jsx       # 通用设置分组 (语言、三平台轮询周期、仅会员、声音、图标角标)
+    │   ├── AppearanceSettingsSection.jsx    # 外观设置分组 (Title 栏配色、Ticker 配色、实时预览卡片、词库同步)
+    │   └── BackupSettingsSection.jsx        # 备份设置分组 (Profile 导入与导出)
+    └── slot/
+        ├── SlotCard.jsx                     # 监控槽位外层卡片容器 (Mantine Paper + Loader + 空状态/错误态)
+        ├── SlotHeader.jsx                   # 紧凑型 28px 标题栏 (头像、身份徽章、输入框、静音/尺寸按钮)
+        ├── SlotIcons.jsx                    # 槽位铃铛静音与网格尺寸方向 Tabler 图标组件
+        ├── SlotSourceDropdown.jsx           # 双平台同名账号选择下拉菜单 (Twitter / Threads)
+        ├── SlotSizeMenu.jsx                 # 卡片占用空间调整与清空频道下拉菜单 (1×1 / 2×1 / 3×1 / 2×2)
+        ├── SlotExpiredBanner.jsx            # 单槽位底部登录过期常驻提示条与一键重登入口
+        ├── MediaGrid.jsx                    # 消息气泡内单图/多图自适应缩略图网格与 Discord CDN 容错
+        └── PostBubble.jsx                   # 消息时间线 (PostTimeline)、日期分割胶囊 (DateDivider) 与消息气泡 (PostBubble)
 ```
+
 

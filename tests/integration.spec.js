@@ -107,7 +107,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(4);
 
     // Toggle slot 0 mute button
+    await expect(page.locator('#slot-card-0')).toHaveClass(/mantine-Paper-root/);
     const muteBtn0 = page.locator('#btn-mute-0');
+    await expect(muteBtn0).toHaveClass(/mantine-ActionIcon-root/);
     await expect(muteBtn0).toHaveClass(/is-muted/);
     await muteBtn0.click();
     await expect(muteBtn0).not.toHaveClass(/is-muted/);
@@ -124,9 +126,14 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.locator('#handle-input-2').dispatchEvent('input');
 
     // Open slot 0 expand/size menu and resize to 2 rows x 1 col (gs-h="2")
+    await expect(page.locator('#btn-expand-0')).toHaveClass(/mantine-ActionIcon-root/);
     await page.locator('#btn-expand-0').click();
     const sizeMenu0 = page.locator('#size-menu-0');
     await expect(sizeMenu0).toBeVisible();
+    await expect(sizeMenu0).toHaveClass(/mantine-Paper-root/);
+    await expect(sizeMenu0.locator('.size-menu-item[data-r="2"][data-c="1"]')).toHaveClass(
+      /mantine-UnstyledButton-root/
+    );
     await sizeMenu0.locator('.size-menu-item[data-r="2"][data-c="1"]').click();
     await expect(page.locator('.grid-stack-item[gs-id="slot-0"]')).toHaveAttribute('gs-h', '2');
     await expect(page.locator('#slot-card-0')).toHaveClass(/is-priority/);
@@ -234,6 +241,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#author-name-0')).toHaveText('Elon Musk');
     await expect(page.locator('#author-handle-0')).toHaveText('@elonmusk');
     await expect(page.locator('#slot-unread-badge-0')).toBeVisible();
+    await expect(page.locator('#slot-unread-badge-0')).toHaveClass(/mantine-Badge-root/);
     await expect(page.locator('#slot-unread-badge-0')).toContainText('1');
 
     await page.evaluate(async () => {
@@ -271,8 +279,12 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(settingsOverlay).toHaveClass(/is-closed/);
 
     // Verify post bubble and stock ticker highlights ($NVDA and AAPL)
+    await expect(page.locator('#slot-content-0 .im-date-pill').first()).toHaveClass(
+      /mantine-Badge-root/
+    );
     const postBubble = page.locator('#slot-content-0 .im-bubble').first();
     await expect(postBubble).toBeVisible();
+    await expect(postBubble).toHaveClass(/mantine-Paper-root/);
     await expect(postBubble).toHaveClass(/unread/);
 
     const tickerChips = postBubble.locator('.ticker-highlight');
@@ -707,7 +719,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(threadsBubble.locator('.ticker-highlight').nth(0)).toHaveText('$META');
     await expect(threadsBubble.locator('.ticker-highlight').nth(1)).toHaveText('NVDA');
     await expect(threadsBubble.locator('.tweet-tag.pinned')).toBeVisible();
+    await expect(threadsBubble.locator('.tweet-tag.pinned')).toHaveClass(/mantine-Badge-root/);
     await expect(threadsBubble.locator('.tweet-tag.quote')).toBeVisible();
+    await expect(threadsBubble.locator('.tweet-tag.quote')).toHaveClass(/mantine-Badge-root/);
 
     // 3. Click the Threads bubble to open the zero-latency local Threads popup modal
     await threadsBubble.click();
@@ -774,10 +788,17 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     const dropdown1 = page.locator('#slot-source-dropdown-1');
     await expect(dropdown1).toBeVisible();
+    await expect(dropdown1).toHaveClass(/mantine-Paper-root/);
     await expect(dropdown1.locator('.source-dropdown-item[data-source="twitter"]')).toBeVisible();
+    await expect(dropdown1.locator('.source-dropdown-item[data-source="twitter"]')).toHaveClass(
+      /mantine-UnstyledButton-root/
+    );
     await expect(dropdown1.locator('.source-dropdown-item[data-source="threads"]')).toBeVisible();
     await expect(dropdown1.locator('.source-dropdown-item[data-source="threads"] .source-dropdown-name')).toHaveText(
       'Adam Mosseri'
+    );
+    await expect(dropdown1.locator('.source-dropdown-badge.threads')).toHaveClass(
+      /mantine-Badge-root/
     );
 
     await dropdown1.locator('.source-dropdown-item[data-source="threads"]').click();

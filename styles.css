@@ -3354,3 +3354,90 @@ body {
   cursor: pointer;
 }
 
+/* ====================================================
+   Mantine Slot Cards & Timeline Integration (Phase 2)
+   ==================================================== */
+.mantine-ActionIcon-root.slot-btn-mute,
+.mantine-ActionIcon-root.slot-btn-expand {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+}
+
+.mantine-ActionIcon-root.slot-btn-clear {
+  position: absolute;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+}
+
+.mantine-Badge-root.slot-unread-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: none;
+  background-color: #1d9bf0;
+  color: #ffffff;
+}
+
+.mantine-Badge-root.im-date-pill {
+  height: auto;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: none;
+  background-color: var(--bg-date-pill);
+  color: var(--text-date-pill);
+}
+
+.mantine-Badge-root.tweet-tag {
+  display: inline-block;
+  height: auto;
+  padding: 1px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: none;
+  vertical-align: 1px;
+}
+
+.mantine-Badge-root.tweet-tag .mantine-Badge-label,
+.mantine-Badge-root.im-date-pill .mantine-Badge-label,
+.mantine-Badge-root.im-attachment-chip .mantine-Badge-label,
+.mantine-Badge-root.source-dropdown-badge .mantine-Badge-label {
+  display: inline;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.mantine-Badge-root.im-attachment-chip {
+  height: auto;
+  padding: 1px 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.mantine-Badge-root.source-dropdown-badge {
+  height: auto;
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+

@@ -67,23 +67,16 @@ const {
   normalizeDiscordChannelFallback,
   normalizeMediaOnlyText
 } = require('../core/i18n');
-
-const BELL_OFF_SVG = `
-  <svg class="mute-icon bell-off" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-    <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
-    <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
-    <path d="M18 8a6 6 0 0 0-9.33-5"></path>
-    <line x1="1" y1="1" x2="23" y2="23"></line>
-  </svg>
-`;
-
-const BELL_ON_SVG = `
-  <svg class="mute-icon bell-on" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-  </svg>
-`;
+const {
+  mountMantineSlotCard,
+  renderMantineMuteIcon,
+  renderMantineExpandIcon,
+  renderMantineSlotSourceDropdown,
+  clearMantineSlotSourceDropdown,
+  renderMantineSlotSizeMenu,
+  renderMantineSlotPosts,
+  clearMantineSlotPosts
+} = require('./dist/mantine-shell');
 
 function createSlotWidget(index) {
   const widget = document.createElement('div');
@@ -91,80 +84,23 @@ function createSlotWidget(index) {
   widget.setAttribute('gs-id', `slot-${index}`);
   widget.setAttribute('data-slot-index', index);
 
-  widget.innerHTML = `
-    <div class="grid-stack-item-content">
-      <div class="slot-card" id="slot-card-${index}">
-        <!-- Compact Header (~28px) with User Avatar & Identity -->
-        <div class="slot-header slot-drag-handle">
-          <span class="slot-drag-indicator" title="${escapeHtml(t('slot.dragHandleTitle'))}">⠿</span>
+  const itemContent = document.createElement('div');
+  itemContent.className = 'grid-stack-item-content';
+  widget.appendChild(itemContent);
 
-          <!-- User Profile Avatar in Header -->
-          <div class="slot-avatar" id="slot-avatar-${index}" title="${escapeHtml(t('slot.avatarTitle'))}">
-            <img class="slot-avatar-img" id="slot-avatar-img-${index}" referrerpolicy="no-referrer" alt="" style="display: none;">
-            <span class="slot-avatar-placeholder" id="slot-avatar-placeholder-${index}">👤</span>
-          </div>
-
-          <!-- Identity Area: Displays Author Name / Handle next to Avatar, or Input Field -->
-          <div class="slot-identity-area" id="slot-identity-${index}">
-            <!-- Author display badge next to avatar (shown when posts loaded) -->
-            <div class="slot-author-header" id="slot-author-header-${index}" style="display: none;" title="${escapeHtml(t('slot.clickEditAccount'))}">
-              <span class="slot-author-name" id="author-name-${index}"></span>
-              <span class="slot-author-handle" id="author-handle-${index}"></span>
-              <span class="slot-author-edit-hint" title="${escapeHtml(t('slot.editHint'))}">✎</span>
-            </div>
-            <span class="slot-unread-badge" id="slot-unread-badge-${index}" style="display: none;"></span>
-
-            <!-- Handle input field (shown initially or when editing) -->
-            <div class="slot-input-wrapper" id="slot-input-wrapper-${index}">
-              <span class="slot-input-prefix" id="slot-input-prefix-${index}">@</span>
-              <input type="text" class="slot-handle-input" id="handle-input-${index}" placeholder="${escapeHtml(t('slot.inputPlaceholder'))}" autocomplete="off" spellcheck="false">
-              <button class="slot-btn-clear" id="btn-clear-${index}" title="${escapeHtml(t('slot.clearBtnTitle'))}" style="display: none;">✕</button>
-            </div>
-          </div>
-
-          <button class="slot-btn-mute is-muted" id="btn-mute-${index}" title="${escapeHtml(t('slot.mutedTitle'))}" aria-label="${escapeHtml(t('slot.muteAriaLabel'))}" aria-pressed="false">
-            <span class="mute-icon-wrap" id="mute-icon-${index}">${BELL_OFF_SVG}</span>
-          </button>
-          <button class="slot-btn-expand" id="btn-expand-${index}" title="${escapeHtml(t('slot.expandBtnTitle'))}">
-            <span class="expand-icon" id="expand-icon-${index}">
-              <svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <polyline points="9 21 3 21 3 15"></polyline>
-                <line x1="21" y1="3" x2="3" y2="21"></line>
-              </svg>
-            </span>
-          </button>
-          <!-- Platform Source Picker Dropdown (shown when a handle exists on both Twitter & Threads) -->
-          <div class="slot-source-dropdown" id="slot-source-dropdown-${index}" style="display: none;"></div>
-          <!-- Size Options Dropdown Popover Menu -->
-          <div class="slot-size-menu" id="size-menu-${index}" style="display: none;"></div>
-        </div>
-
-        <!-- Scrollable Content Viewport -->
-        <div class="slot-content-container" id="slot-content-${index}">
-          <div class="slot-placeholder" id="slot-placeholder-${index}">
-            <span class="slot-placeholder-icon">💬</span>
-            <p>${escapeHtml(t('slot.placeholderText'))}</p>
-          </div>
-          <div class="slot-loading" id="slot-loading-${index}" style="display: none;">
-            <div class="spinner-small"></div>
-            <span class="slot-loading-text" id="slot-loading-text-${index}">${escapeHtml(t('slot.loadingText'))}</span>
-          </div>
-          <div class="slot-error" id="slot-error-${index}" style="display: none;"></div>
-          <div class="slot-posts-list" id="slot-posts-list-${index}" style="display: none;"></div>
-        </div>
-
-        <!-- Persistent Login Expired Strip for this Slot -->
-        <div class="slot-expired-banner" id="slot-expired-banner-${index}" style="display: none;">
-          <span class="slot-expired-banner-label">
-            <span class="slot-expired-banner-dot"></span>
-            <span class="slot-expired-banner-text" id="slot-expired-text-${index}"></span>
-          </span>
-          <button type="button" class="slot-expired-login-btn" id="slot-expired-btn-${index}"></button>
-        </div>
-      </div>
-    </div>
-  `;
+  mountMantineSlotCard(itemContent, index, {
+    dragHandleTitle: t('slot.dragHandleTitle'),
+    avatarTitle: t('slot.avatarTitle'),
+    clickEditAccount: t('slot.clickEditAccount'),
+    editHint: t('slot.editHint'),
+    inputPlaceholder: t('slot.inputPlaceholder'),
+    clearBtnTitle: t('slot.clearBtnTitle'),
+    mutedTitle: t('slot.mutedTitle'),
+    muteAriaLabel: t('slot.muteAriaLabel'),
+    expandBtnTitle: t('slot.expandBtnTitle'),
+    placeholderText: t('slot.placeholderText'),
+    loadingText: t('slot.loadingText')
+  });
 
   return widget;
 }
@@ -222,7 +158,7 @@ function updateSlotMuteUI(slot) {
   slot.btnMute.setAttribute('aria-label', t('slot.muteAriaLabel'));
 
   if (slot.muteIcon) {
-    slot.muteIcon.innerHTML = isMuted ? BELL_OFF_SVG : BELL_ON_SVG;
+    renderMantineMuteIcon(slot.muteIcon, isMuted);
   }
 
   slot.btnMute.title = isMuted ? t('slot.mutedTitle') : t('slot.unmutedTitle');
@@ -770,7 +706,7 @@ function groupSameMinutePosts(posts, { isDiscord = false } = {}) {
   });
 }
 
-function buildDiscordBubbleHtml(msg, { showAuthor }) {
+function buildDiscordBubbleData(msg, { showAuthor }) {
   if (msg && msg.linkTitles) {
     registerUrlTitlesMap(msg.linkTitles, { persist: false });
   }
@@ -786,45 +722,42 @@ function buildDiscordBubbleHtml(msg, { showAuthor }) {
     ? sliceTextWithUrlTitles(effectiveText, BASE_PREVIEW_CHARS, msg.linkTitles)
     : { slicedText: effectiveText, linkTitles: msg.linkTitles };
 
-  let html = '';
-
-  if (showAuthor && msg.displayName) {
-    html += `<span class="im-author" style="color: ${authorColor(msg.displayName)}">${escapeHtml(msg.displayName)}</span>`;
-    if (msg.isBot) html += '<span class="tweet-tag bot">BOT</span>';
-  }
-
-  if (cleanReplyText || msg.replyAuthor) {
-    html += `
-      <span class="im-reply-ref">
-        <span class="im-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="im-reply-text">${formatTextWithTickers(cleanReplyText, cleanReplyText, { linkTitles: msg.linkTitles })}</span>
-      </span>
-    `;
-  }
-
   const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
-  const visibleAttachments = images.length > 0
+  const visibleAttachments = (images.length > 0
     ? rawAttachments.filter(a => !isImageAttachmentLabel(a))
-    : rawAttachments;
+    : rawAttachments
+  ).map(a => translateAttachmentLabel(a));
 
-  if (effectiveText) {
-    html += isLong
-      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles)}</span>`
-      : `<span class="im-text-content">${formatTextWithTickers(effectiveText, effectiveText, { linkTitles: msg.linkTitles })}</span>`;
-  }
+  const reply = (cleanReplyText || msg.replyAuthor)
+    ? {
+        author: msg.replyAuthor || '',
+        html: formatTextWithTickers(cleanReplyText, cleanReplyText, { linkTitles: msg.linkTitles })
+      }
+    : null;
 
-  if (visibleAttachments.length > 0) {
-    html += '<span class="im-attachments">';
-    visibleAttachments.forEach(a => {
-      html += `<span class="im-attachment-chip">${escapeHtml(translateAttachmentLabel(a))}</span>`;
-    });
-    html += '</span>';
-  }
+  const text = effectiveText
+    ? {
+        isLong,
+        fullText: effectiveText,
+        html: isLong
+          ? renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles)
+          : formatTextWithTickers(effectiveText, effectiveText, { linkTitles: msg.linkTitles })
+      }
+    : null;
 
-  return html;
+  return {
+    showAuthor: Boolean(showAuthor && msg.displayName),
+    authorName: msg.displayName || '',
+    authorColor: msg.displayName ? authorColor(msg.displayName) : '',
+    isBot: Boolean(msg.isBot),
+    tags: [],
+    reply,
+    text,
+    attachments: visibleAttachments
+  };
 }
 
-function buildPostBubbleHtml(post) {
+function buildPostBubbleData(post) {
   if (post && post.linkTitles) {
     registerUrlTitlesMap(post.linkTitles, { persist: false });
   }
@@ -844,20 +777,38 @@ function buildPostBubbleHtml(post) {
     ? sliceTextWithUrlTitles(effectiveText, BASE_PREVIEW_CHARS, post.linkTitles)
     : { slicedText: effectiveText, linkTitles: post.linkTitles };
 
-  let tagHtml = '';
-  if (post.isPinned) tagHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
-  if (post.isRetweet) tagHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
-  if (isPostWithQuote(post)) tagHtml += `<span class="tweet-tag quote">${escapeHtml(t('slot.tagQuote'))}</span>`;
-  if (isMemberOnlyPost(post)) tagHtml += `<span class="tweet-tag member" title="${escapeHtml(t('slot.tagMemberOnlyTitle'))}">${escapeHtml(t('slot.tagMemberOnly'))}</span>`;
-
-  let textHtml = '';
-  if (effectiveText) {
-    textHtml = isLong
-      ? `<span class="im-text-content" data-full-text="${escapeHtml(effectiveText)}">${renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles)}</span>`
-      : `<span class="im-text-content">${formatTextWithTickers(effectiveText, effectiveText, { linkTitles: post.linkTitles })}</span>`;
+  const tags = [];
+  if (post.isPinned) tags.push({ type: 'pinned', label: t('slot.tagPinned') });
+  if (post.isRetweet) tags.push({ type: 'repost', label: t('slot.tagRepost') });
+  if (isPostWithQuote(post)) tags.push({ type: 'quote', label: t('slot.tagQuote') });
+  if (isMemberOnlyPost(post)) {
+    tags.push({
+      type: 'member',
+      label: t('slot.tagMemberOnly'),
+      title: t('slot.tagMemberOnlyTitle')
+    });
   }
 
-  return `${tagHtml}${textHtml}`;
+  const text = effectiveText
+    ? {
+        isLong,
+        fullText: effectiveText,
+        html: isLong
+          ? renderTruncatedTextHtml(previewText.trimEnd(), effectiveText, previewTitles)
+          : formatTextWithTickers(effectiveText, effectiveText, { linkTitles: post.linkTitles })
+      }
+    : null;
+
+  return {
+    showAuthor: false,
+    authorName: '',
+    authorColor: '',
+    isBot: false,
+    tags,
+    reply: null,
+    text,
+    attachments: []
+  };
 }
 
 /**
@@ -1013,8 +964,6 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
     updateSlotAvatar(slot, avatarUrl);
   }
 
-  slot.postsList.innerHTML = '';
-
   const finalAvatar = avatarUrl || (slot.avatarImg && slot.avatarImg.src) || '';
 
   const markBubbleAsRead = (postObj, bubbleEl) => {
@@ -1074,162 +1023,81 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
   let lastDateKey = null;
   let lastAuthorName = null;
 
-  groupedDisplayPosts.forEach((post) => {
+  const timelineItems = groupedDisplayPosts.map((post, idx) => {
     const dateKey = getPostDateKey(post);
     const dateLabel = getPostDateLabel(post);
     let startedNewDay = false;
+    let dateDividerLabel = null;
 
     if (dateKey && dateKey !== lastDateKey) {
       lastDateKey = dateKey;
       startedNewDay = true;
-      const dateDivider = document.createElement('div');
-      dateDivider.className = 'im-date-divider';
-      dateDivider.innerHTML = `<span class="im-date-pill">${escapeHtml(dateLabel)}</span>`;
-      slot.postsList.appendChild(dateDivider);
+      dateDividerLabel = dateLabel;
     }
-
-    const bubble = document.createElement('div');
-    bubble.className = 'im-bubble';
-    bubble._post = post;
-    bubble._isDiscord = isDiscord;
-    if (post.isUnread) {
-      bubble.classList.add('unread');
-    }
-    if (isMemberOnlyPost(post)) {
-      bubble.classList.add('is-member-only');
-    }
-
-    // Restore to normal bubble color once hovered or clicked
-    bubble.addEventListener('mouseenter', () => {
-      markBubbleAsRead(post, bubble);
-    });
 
     const timeDisplay = formatTelegramTime(post);
     const linkTitle = isDiscord
       ? t('slot.openOriginalDiscord')
       : (isThreads ? t('slot.openOriginalThreads') : t('slot.openOriginalPost'));
 
-    let bodyHtml;
+    let body;
+    let isGrouped = false;
     if (isDiscord) {
-      // Consecutive messages from the same person collapse into one visual
-      // group, the way every chat client renders them.
       const showAuthor = startedNewDay || post.displayName !== lastAuthorName;
-      bodyHtml = buildDiscordBubbleHtml(post, { showAuthor });
-      bubble.classList.add('discord');
-      if (!showAuthor) bubble.classList.add('grouped');
+      body = buildDiscordBubbleData(post, { showAuthor });
+      isGrouped = !showAuthor;
       lastAuthorName = post.displayName;
     } else {
-      bodyHtml = buildPostBubbleHtml(post);
-      if (isThreads) bubble.classList.add('threads');
+      body = buildPostBubbleData(post);
     }
 
     const images = Array.isArray(post.images) ? post.images.filter(Boolean) : [];
     const hasMedia = images.length > 0;
-    const timeHtml = `<span class="im-time">${escapeHtml(timeDisplay)}</span>`;
-    const linkHtml = post.url
-      ? `<a class="im-btn-link" data-url="${escapeHtml(post.url)}" title="${escapeHtml(linkTitle)}">↗</a>`
-      : '';
+    const isMediaOnly =
+      hasMedia &&
+      !body.text &&
+      !body.reply &&
+      (!Array.isArray(body.attachments) || body.attachments.length === 0);
 
-    if (hasMedia) {
-      bubble.classList.add('has-media');
-      const isMediaOnly =
-        !bodyHtml.includes('im-text-content') &&
-        !bodyHtml.includes('im-reply-ref') &&
-        !bodyHtml.includes('im-attachments');
-      if (isMediaOnly) {
-        bubble.classList.add('media-only');
-        const headerHtml = bodyHtml ? `<div class="im-media-only-header">${bodyHtml}</div>` : '';
-        bubble.innerHTML = `${headerHtml}${buildMediaThumbsHtml(images)}${timeHtml}${linkHtml}`;
-      } else {
-        bubble.innerHTML = `<div class="im-bubble-left">${bodyHtml}${timeHtml}</div>${buildMediaThumbsHtml(images)}${linkHtml}`;
-      }
-    } else {
-      bubble.innerHTML = `${bodyHtml}${timeHtml}${linkHtml}`;
-    }
-
-    // Handle inline image load (keep bottom scroll alignment) and error fallback
-    const mediaImgs = bubble.querySelectorAll('.im-media-img');
-    if (mediaImgs.length > 0) {
-      mediaImgs.forEach((imgEl) => {
-        imgEl.addEventListener('load', () => {
-          if (slot.contentContainer) {
-            const c = slot.contentContainer;
-            if (c.scrollHeight - c.scrollTop - c.clientHeight < 220) {
-              c.scrollTop = c.scrollHeight;
-            }
-          }
-        });
-        imgEl.addEventListener('error', () => {
-          if (!imgEl.dataset.retried) {
-            imgEl.dataset.retried = '1';
-            const src = imgEl.getAttribute('src') || '';
-            if (src.includes('media.discordapp.net/attachments/')) {
-              imgEl.src = src.replace('media.discordapp.net/attachments/', 'cdn.discordapp.com/attachments/');
-              return;
-            }
-            if (src.includes('cdn.discordapp.com/attachments/')) {
-              imgEl.src = src.replace('cdn.discordapp.com/attachments/', 'media.discordapp.net/attachments/');
-              return;
-            }
-          }
-          imgEl.style.display = 'none';
-          const thumb = imgEl.closest('.im-media-thumb');
-          if (thumb) thumb.style.display = 'none';
-          const grid = imgEl.closest('.im-media-grid');
-          if (grid && !Array.from(grid.querySelectorAll('.im-media-img')).some(el => el.style.display !== 'none')) {
-            grid.style.display = 'none';
-            bubble.classList.remove('has-media');
-          }
-        });
-      });
-    }
-
-    // Open external post link (hover button in top-right)
-    if (post.url) {
-      const linkBtn = bubble.querySelector('.im-btn-link');
-      if (linkBtn) {
-        linkBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          markBubbleAsRead(post, bubble);
-          shell.openExternal(post.url);
-        });
-      }
-    }
-
-    // Click on bubble to open centered popup (click-to-open, no hover trigger)
-    const hasPopup = shouldShowPostPopup(post);
-    if (hasPopup) {
-      bubble.classList.add('has-popup');
-      if (!isDiscord && !isThreads) {
-        // Hovering is a strong hint the user is about to click, so jump this
-        // post to the front of the embed render queue. Discord and Threads messages
-        // are rendered locally and need no warm-up.
-        bubble.addEventListener('mouseenter', () => {
-          prefetchPost(post, { priority: true });
-        });
-      }
-      bubble.addEventListener('click', (e) => {
-        if (e.target.closest('.im-btn-link')) return;
-        markBubbleAsRead(post, bubble);
-        openPostPopup(post);
-      });
-    } else {
-      bubble.addEventListener('click', () => {
-        markBubbleAsRead(post, bubble);
-      });
-    }
-
-    slot.postsList.appendChild(bubble);
-    expandBubbleLastLine(bubble);
+    return {
+      key: `${getPostKey(post) || idx}-${idx}`,
+      dateDividerLabel,
+      post,
+      isDiscord,
+      isThreads,
+      isUnread: Boolean(post.isUnread),
+      isMemberOnly: isMemberOnlyPost(post),
+      isGrouped,
+      hasPopup: shouldShowPostPopup(post),
+      hasMedia,
+      isMediaOnly,
+      images,
+      imageAlt: t('slot.imageAlt'),
+      timeDisplay,
+      linkUrl: post.url || '',
+      linkTitle,
+      body
+    };
   });
 
-  if (displayPosts.length === 0 && posts.length > 0 && !isDiscord && !isThreads) {
-    const emptyNotice = document.createElement('div');
-    emptyNotice.className = 'im-filtered-empty-notice';
-    emptyNotice.innerText = t('slot.hiddenMemberPosts', { count: posts.length });
-    slot.postsList.appendChild(emptyNotice);
-  }
+  const emptyNoticeText =
+    displayPosts.length === 0 && posts.length > 0 && !isDiscord && !isThreads
+      ? t('slot.hiddenMemberPosts', { count: posts.length })
+      : '';
+
+  renderMantineSlotPosts(slot.postsList, {
+    items: timelineItems,
+    emptyNoticeText,
+    contentContainer: slot.contentContainer,
+    onMarkRead: markBubbleAsRead,
+    onOpenExternal: (url) => shell.openExternal(url),
+    onPrefetch: (p) => prefetchPost(p, { priority: true }),
+    onOpenPopup: (p) => openPostPopup(p)
+  });
+
+  slot.postsList.querySelectorAll('.im-bubble').forEach((bubble) => {
+    expandBubbleLastLine(bubble);
+  });
 
   // Auto-scroll to bottom to show the latest messages (Telegram style)
   requestAnimationFrame(() => {
@@ -1576,7 +1444,7 @@ function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
   slot.sourceTitle = '';
   slot.sourceSubtitle = '';
   slot.lastFetchedAt = null;
-  slot.postsList.innerHTML = '';
+  clearMantineSlotPosts(slot.postsList);
   slot.postsList.style.display = 'none';
   slot.loading.style.display = 'none';
   slot.error.style.display = 'none';
@@ -1608,7 +1476,7 @@ function clearSlot(slot, { slots } = {}) {
   slot.source = '';
   slot.sourceTitle = '';
   slot.sourceSubtitle = '';
-  slot.postsList.innerHTML = '';
+  clearMantineSlotPosts(slot.postsList);
   slot.postsList.style.display = 'none';
   slot.loading.style.display = 'none';
   slot.error.style.display = 'none';
@@ -1634,21 +1502,17 @@ function updateSlotSizeUI(slot, w, h) {
   const c = w; // 列
   const isExpanded = (r > 1 || c > 1);
 
+  if (slot.expandIcon) {
+    renderMantineExpandIcon(slot.expandIcon, r, c);
+  }
+
   if (isExpanded) {
     slot.card.classList.add('is-priority');
     slot.btnExpand.classList.add('expanded');
-    if (r > 1 && c === 1) {
-      slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 12 2 17 7"></polyline><polyline points="7 17 12 22 17 17"></polyline><line x1="12" y1="2" x2="12" y2="22"></line></svg>`;
-    } else if (c > 1 && r === 1) {
-      slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 2 12 7 17"></polyline><polyline points="17 7 22 12 17 17"></polyline><line x1="2" y1="12" x2="22" y2="12"></line></svg>`;
-    } else {
-      slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`;
-    }
     slot.btnExpand.title = t('slot.currentSizeTitle', { r, c });
   } else {
     slot.card.classList.remove('is-priority');
     slot.btnExpand.classList.remove('expanded');
-    slot.expandIcon.innerHTML = `<svg class="expand-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="3" y2="21"></line></svg>`;
     slot.btnExpand.title = t('slot.resizeCardTitle');
   }
 }
@@ -1667,7 +1531,7 @@ function syncSlotHeaderOpenMenuState(slot) {
 function closeSlotSourceDropdown(slot) {
   if (!slot || !slot.sourceDropdown) return;
   slot.sourceDropdown.style.display = 'none';
-  slot.sourceDropdown.innerHTML = '';
+  clearMantineSlotSourceDropdown(slot.sourceDropdown);
   slot._dropdownHandle = '';
   slot._dropdownOnSelect = null;
   syncSlotHeaderOpenMenuState(slot);
@@ -1741,62 +1605,35 @@ function showSlotSourceDropdown(slot, { handle, twitter, threads, onSelect, slot
   if (slot.authorHeader) slot.authorHeader.style.display = 'none';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
 
-  slot.sourceDropdown.innerHTML = `
-    <div class="source-dropdown-title">${escapeHtml(t('slot.choosePlatformTitle', { handle: cleanHandle }))}</div>
-    <button type="button" class="source-dropdown-item" data-source="twitter">
-      <div class="source-dropdown-avatar-wrap">
-        ${twAvatar
-          ? `<img class="source-dropdown-avatar" src="${escapeHtml(twAvatar)}" alt="" referrerpolicy="no-referrer">`
-          : '<span class="source-dropdown-avatar-fallback">𝕏</span>'}
-      </div>
-      <div class="source-dropdown-info">
-        <span class="source-dropdown-name">${escapeHtml(twName)}</span>
-        <span class="source-dropdown-handle">@${escapeHtml(twHandle)}</span>
-      </div>
-      <span class="source-dropdown-badge twitter">${escapeHtml(t('slot.platformTwitterBadge'))}</span>
-    </button>
-    <button type="button" class="source-dropdown-item" data-source="threads">
-      <div class="source-dropdown-avatar-wrap">
-        ${thAvatar
-          ? `<img class="source-dropdown-avatar" src="${escapeHtml(thAvatar)}" alt="" referrerpolicy="no-referrer">`
-          : '<span class="source-dropdown-avatar-fallback">@</span>'}
-      </div>
-      <div class="source-dropdown-info">
-        <span class="source-dropdown-name">${escapeHtml(thName)}</span>
-        <span class="source-dropdown-handle">threads:@${escapeHtml(thHandle)}</span>
-      </div>
-      <span class="source-dropdown-badge threads">${escapeHtml(t('slot.platformThreadsBadge'))}</span>
-    </button>
-  `;
-
-  slot.sourceDropdown.style.display = 'flex';
   slot._dropdownHandle = cleanHandle.toLowerCase();
   slot._dropdownOnSelect = onSelect;
+
+  renderMantineSlotSourceDropdown(slot.sourceDropdown, {
+    titleText: t('slot.choosePlatformTitle', { handle: cleanHandle }),
+    twName,
+    twHandle,
+    twAvatar,
+    twBadgeText: t('slot.platformTwitterBadge'),
+    thName,
+    thHandle,
+    thAvatar,
+    thBadgeText: t('slot.platformThreadsBadge'),
+    onSelect: (chosenSource) => {
+      const cb = slot._dropdownOnSelect;
+      closeSlotSourceDropdown(slot);
+      if (typeof cb === 'function') {
+        cb(chosenSource);
+      }
+    }
+  });
+
+  slot.sourceDropdown.style.display = 'flex';
   syncSlotHeaderOpenMenuState(slot);
 
   slot.sourceDropdown.onmousedown = (e) => {
     e.preventDefault();
     e.stopPropagation();
   };
-
-  slot.sourceDropdown.querySelectorAll('.source-dropdown-avatar').forEach(imgEl => {
-    imgEl.addEventListener('error', () => {
-      imgEl.style.display = 'none';
-    });
-  });
-
-  slot.sourceDropdown.querySelectorAll('.source-dropdown-item').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const chosenSource = btn.getAttribute('data-source');
-      const cb = slot._dropdownOnSelect;
-      closeSlotSourceDropdown(slot);
-      if (typeof cb === 'function') {
-        cb(chosenSource);
-      }
-    });
-  });
 }
 
 function closeAllSizeMenus(slots) {
@@ -1827,59 +1664,43 @@ function toggleSlotSizeMenu(slot, { slots, getGridDimensions, onResize }) {
     { r: 2, c: 2, label: '2 × 2', desc: t('slot.size2x2Desc') }
   ];
 
-  let menuHtml = `<div class="size-menu-title">${escapeHtml(t('slot.sizeMenuTitle'))}</div>`;
-
-  options.forEach(opt => {
+  const items = options.map((opt) => {
     const key = `${opt.r}x${opt.c}`;
-    const isActive = (curKey === key);
-    const disabled = (opt.r > currentRows || opt.c > currentCols);
+    const isActive = curKey === key;
+    const disabled = opt.r > currentRows || opt.c > currentCols;
     let hint = opt.desc;
     if (opt.r > currentRows) hint = t('slot.needRows', { r: opt.r });
     else if (opt.c > currentCols) hint = t('slot.needCols', { c: opt.c });
 
-    menuHtml += `
-      <button class="size-menu-item ${isActive ? 'active' : ''}" data-r="${opt.r}" data-c="${opt.c}" ${disabled ? 'style="opacity: 0.45;"' : ''}>
-        <div>
-          <span class="size-label">${opt.label}</span>
-          <span class="size-desc">${escapeHtml(hint)}</span>
-        </div>
-        ${isActive ? '<span class="size-check">✓</span>' : ''}
-      </button>
-    `;
+    return {
+      r: opt.r,
+      c: opt.c,
+      label: opt.label,
+      hint,
+      isActive,
+      disabled
+    };
   });
 
-  menuHtml += `
-    <div class="size-menu-divider"></div>
-    <button class="size-menu-item danger" data-action="clear">
-      <div>
-        <span class="size-label">${escapeHtml(t('slot.clearSlotLabel'))}</span>
-        <span class="size-desc">${escapeHtml(t('slot.clearSlotDesc'))}</span>
-      </div>
-      <span>🗑️</span>
-    </button>
-  `;
-
-  slot.sizeMenu.innerHTML = menuHtml;
-  slot.sizeMenu.style.display = 'flex';
-  syncSlotHeaderOpenMenuState(slot);
-
-  slot.sizeMenu.querySelectorAll('.size-menu-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
+  renderMantineSlotSizeMenu(slot.sizeMenu, {
+    titleText: t('slot.sizeMenuTitle'),
+    items,
+    clearLabel: t('slot.clearSlotLabel'),
+    clearDesc: t('slot.clearSlotDesc'),
+    onSelectSize: (targetR, targetC) => {
       closeAllSizeMenus(slots);
-      const action = item.getAttribute('data-action');
-      if (action === 'clear') {
-        clearSlot(slot, { slots });
-        return;
-      }
-      const targetR = parseInt(item.getAttribute('data-r'), 10);
-      const targetC = parseInt(item.getAttribute('data-c'), 10);
-      // 行在前 (targetR = h), 列在后 (targetC = w)
       if (onResize) {
         onResize(slot, targetC, targetR);
       }
-    });
+    },
+    onClearSlot: () => {
+      closeAllSizeMenus(slots);
+      clearSlot(slot, { slots });
+    }
   });
+
+  slot.sizeMenu.style.display = 'flex';
+  syncSlotHeaderOpenMenuState(slot);
 }
 
 function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {

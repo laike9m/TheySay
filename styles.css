@@ -3283,3 +3283,74 @@ body {
   color: #10b981;
 }
 
+/* ====================================================
+   Mantine UI Shell Integration (Phase 1)
+   ==================================================== */
+.mantine-shell-mount {
+  display: contents;
+}
+
+.mantine-layout-select-root .mantine-NativeSelect-wrapper {
+  height: 26px;
+}
+
+.mantine-layout-select-root .mantine-NativeSelect-section {
+  display: none;
+}
+
+.mantine-layout-select-root .layout-select {
+  height: 26px;
+  min-height: 26px;
+  background: transparent;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 2px;
+  line-height: 26px;
+}
+
+.mantine-settings-select-root .mantine-NativeSelect-input.settings-select {
+  height: 28px;
+  min-height: 28px;
+  min-width: 150px;
+  background-color: var(--bg-control);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0 24px 0 9px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 26px;
+}
+
+.mantine-settings-select-root .mantine-NativeSelect-input.settings-select:focus {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-input-focus);
+}
+
+.mantine-ActionIcon-root.btn-settings {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  background-color: var(--bg-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.mantine-ActionIcon-root.btn-settings:hover {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-control-hover);
+}
+
+.mantine-ColorSwatch-root.ticker-preset-chip {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+}
+

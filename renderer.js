@@ -69,6 +69,10 @@ const { initTickers, applyTickerColors } = require('./src/core/ticker');
 const { getCanonicalTargetKey } = require('./src/core/source');
 const { showToast } = require('./src/core/utils');
 const { t, applyPageLocalization } = require('./src/core/i18n');
+const { mountMantineShell } = require('./src/ui/dist/mantine-shell');
+
+// Mount React + Mantine outer shell synchronously before binding global UI elements
+mountMantineShell();
 
 // UI Elements - Global
 const btnThemeToggle = document.getElementById('btn-theme-toggle');

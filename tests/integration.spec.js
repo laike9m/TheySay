@@ -76,10 +76,14 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     await expect(page).toHaveTitle(/TheySay/);
     await expect(page.locator('.brand-title')).toHaveText('TheySay');
+    await expect(page.locator('header.top-nav')).toHaveClass(/mantine-Paper-root/);
     await expect(page.locator('#btn-mark-all-read')).toBeVisible();
+    await expect(page.locator('#btn-mark-all-read')).toHaveClass(/mantine-UnstyledButton-root/);
     await expect(page.locator('#layout-select')).toBeVisible();
+    await expect(page.locator('#layout-select')).toHaveClass(/mantine-NativeSelect-input/);
     await expect(page.locator('#btn-theme-toggle')).toBeVisible();
     await expect(page.locator('#btn-settings')).toBeVisible();
+    await expect(page.locator('#btn-settings')).toHaveClass(/mantine-ActionIcon-root/);
     await expect(page.locator('#btn-login-menu')).toBeVisible();
   });
 
@@ -138,16 +142,20 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       document.documentElement.getAttribute('data-theme')
     );
     await page.locator('#btn-theme-toggle').click();
-    const toggledTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute('data-theme')
-    );
-    expect(toggledTheme).toBe(initialTheme === 'dark' ? 'light' : 'dark');
+    const toggledTheme = await page.evaluate(() => ({
+      dataTheme: document.documentElement.getAttribute('data-theme'),
+      mantineScheme: document.documentElement.getAttribute('data-mantine-color-scheme')
+    }));
+    const expectedTheme = initialTheme === 'dark' ? 'light' : 'dark';
+    expect(toggledTheme.dataTheme).toBe(expectedTheme);
+    expect(toggledTheme.mantineScheme).toBe(expectedTheme);
 
     // Open Settings Modal
     const settingsOverlay = page.locator('#settings-modal-overlay');
     await expect(settingsOverlay).toHaveClass(/is-closed/);
     await page.locator('#btn-settings').click();
     await expect(settingsOverlay).not.toHaveClass(/is-closed/);
+    await expect(settingsOverlay.locator('.settings-modal-dialog')).toHaveClass(/mantine-Paper-root/);
 
     // Press Escape to verify main process before-input-event -> global-escape closes modal
     await page.keyboard.press('Escape');
@@ -157,8 +165,11 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.locator('#btn-settings').click();
     await expect(settingsOverlay).not.toHaveClass(/is-closed/);
 
+    await expect(page.locator('#setting-twitter-interval')).toHaveClass(/mantine-NativeSelect-input/);
     await page.selectOption('#setting-twitter-interval', '15');
-    await page.locator('#setting-header-presets .header-preset-chip[data-bg="#2563eb"]').click();
+    const bluePresetChip = page.locator('#setting-header-presets .header-preset-chip[data-bg="#2563eb"]');
+    await expect(bluePresetChip).toHaveClass(/mantine-ColorSwatch-root/);
+    await bluePresetChip.click();
     await page.locator('#btn-settings-close').click();
     await expect(settingsOverlay).toHaveClass(/is-closed/);
 
@@ -298,10 +309,12 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     // Open Login/Profile dropdown menu and trigger Export Profile
     await page.locator('#btn-login-menu').click();
     await expect(page.locator('#login-dropdown-menu')).toBeVisible();
+    await expect(page.locator('#login-dropdown-menu')).toHaveClass(/mantine-Paper-root/);
     await page.locator('#item-export-profile').click();
 
-    // Wait for file to be written on disk
+    // Wait for file to be written on disk and Mantine Notification toast to appear
     await expect.poll(() => fs.existsSync(exportFilePath)).toBe(true);
+    await expect(page.locator('.mantine-Notification-root.mantine-toast-item').first()).toBeVisible();
     const exportedJson = JSON.parse(fs.readFileSync(exportFilePath, 'utf8'));
     expect(exportedJson.app).toBe('TheySay');
     expect(exportedJson.settings.gridPreset).toBe('2x2');

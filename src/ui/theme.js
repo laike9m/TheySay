@@ -68,6 +68,7 @@ function applyHeaderColor(bgHex) {
 
 function applyTheme(theme, btnThemeToggle) {
   document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-mantine-color-scheme', theme === 'light' ? 'light' : 'dark');
   saveStoredTheme(theme);
   if (typeof clearPostWidgetCache === 'function') {
     clearPostWidgetCache();

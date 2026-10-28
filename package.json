@@ -7,13 +7,14 @@
   "description": "Twitter / X & Discord dynamic parallel dashboard",
   "main": "main.js",
   "scripts": {
-    "start": "node scripts/brand-app.js && electron .",
-    "postinstall": "node scripts/brand-app.js",
-    "test": "playwright test",
-    "dist:mac": "electron-builder --mac --arm64",
-    "dist:mac:quick": "THEYSAY_SKIP_NOTARIZE=1 electron-builder --mac --arm64",
-    "dist:win": "electron-builder --win --x64",
-    "dist:linux": "electron-builder --linux --x64",
+    "build:ui": "node scripts/build-ui.js",
+    "start": "node scripts/build-ui.js && node scripts/brand-app.js && electron .",
+    "postinstall": "node scripts/build-ui.js && node scripts/brand-app.js",
+    "test": "node scripts/build-ui.js && playwright test",
+    "dist:mac": "node scripts/build-ui.js && electron-builder --mac --arm64",
+    "dist:mac:quick": "node scripts/build-ui.js && THEYSAY_SKIP_NOTARIZE=1 electron-builder --mac --arm64",
+    "dist:win": "node scripts/build-ui.js && electron-builder --win --x64",
+    "dist:linux": "node scripts/build-ui.js && electron-builder --linux --x64",
     "dist:all": "npm run dist:mac && npm run dist:win && npm run dist:linux",
     "dist:all:quick": "npm run dist:mac:quick && npm run dist:win && npm run dist:linux"
   },
@@ -105,9 +106,14 @@
   "devDependencies": {
     "@playwright/test": "^1.53.0",
     "electron": "^44.2.0",
-    "electron-builder": "^26.17.0"
+    "electron-builder": "^26.17.0",
+    "esbuild": "^0.25.5"
   },
   "dependencies": {
+    "@mantine/core": "^8.1.1",
+    "@mantine/hooks": "^8.1.1",
+    "@mantine/notifications": "^8.1.1",
+    "@tabler/icons-react": "^3.34.0",
     "an-array-of-english-words": "^2.0.0",
     "colord": "^2.10.0",
     "electron-store": "^8.2.0",
@@ -118,6 +124,8 @@
     "normalize-url": "^6.1.0",
     "p-limit": "^3.1.0",
     "p-queue": "^6.6.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "tlds": "^1.259.0"
   }
 }

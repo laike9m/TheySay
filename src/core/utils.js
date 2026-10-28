@@ -25,6 +25,11 @@ function formatFetchTime(timestamp) {
 }
 
 function showToast(message, type = 'warning', duration = 4000) {
+  if (typeof window !== 'undefined' && typeof window.__THEYSAY_MANTINE_NOTIFY === 'function') {
+    window.__THEYSAY_MANTINE_NOTIFY({ message, type, duration });
+    return;
+  }
+
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');

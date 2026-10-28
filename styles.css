@@ -3440,4 +3440,42 @@ body {
   text-transform: none;
 }
 
+/* ====================================================
+   Mantine Post Popup & Detail Cards Integration (Phase 3)
+   ==================================================== */
+.mantine-Paper-root.tweet-popup-dialog {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
 
+.mantine-Paper-root.tweet-popup-loading {
+  background: rgba(20, 20, 25, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.mantine-Paper-root.tweet-popup-fallback,
+.mantine-Paper-root.discord-popup-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.mantine-UnstyledButton-root.tweet-popup-fallback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: transparent;
+  border: 1px solid rgba(29, 155, 240, 0.25);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mantine-UnstyledButton-root.tweet-popup-fallback-btn:hover {
+  background-color: rgba(29, 155, 240, 0.12);
+}

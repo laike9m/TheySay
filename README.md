@@ -23,3 +23,5 @@
 - **Bilingual Interface (English & Chinese)**: Automatically adapts to your system language (defaults to English unless your system is set to Simplified or Traditional Chinese), with instant language switching in Settings.  
   **中英双语界面**：自动根据系统语言切换界面语言（系统为简/繁体中文时默认显示中文，其他语言环境默认显示英文），并支持在设置中随时手动切换。
 
+- **Mantine UI + GridStack Desktop Architecture**: Built with Electron, React 19, [Mantine v8](https://mantine.dev/), and GridStack—combining Mantine's dark/light theme engine, notifications, slot cards, timeline bubbles, and popup reader modals with smooth drag-and-drop grid resizing and background Twitter widget pre-rendering.  
+  **Mantine UI + GridStack 桌面架构**：基于 Electron、React 19、[Mantine v8](https://mantine.dev/) 与 GridStack 构建，将 Mantine 的深浅色主题系统、全局通知、监控槽位卡片、消息气泡流与详情弹窗组件同丝滑的网格拖拽缩放及 Twitter 嵌入卡片后台预渲染深度融合。

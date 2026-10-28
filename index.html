@@ -42,20 +42,7 @@
     <div class="background-webviews-container" id="bg-webviews-container"></div>
   </div>
 
-  <!-- 全局推文 Embed 悬浮弹窗 Modal (居中浮层，挡住原本底下的内容且不影响底层排版) -->
-  <!-- 注意: 关闭态使用 .is-closed 而非 display:none —— 隐藏元素宽度为 0，
-       会导致 Twitter 无法在后台预渲染嵌入卡片 -->
-  <div id="tweet-popup-overlay" class="tweet-popup-overlay is-closed" tabindex="-1" aria-hidden="true">
-    <div class="tweet-popup-dialog" role="dialog" aria-modal="true" data-i18n-aria-label="popup.dialogAriaLabel" aria-label="推文详情">
-      <div class="tweet-popup-loading" id="tweet-popup-loading">
-        <div class="spinner-small"></div>
-        <span data-i18n="popup.loadingEmbed">正在加载嵌入推文...</span>
-      </div>
-      <div class="tweet-popup-embed-container" id="tweet-popup-embed-container"></div>
-    </div>
-  </div>
-
-  <!-- Mantine 偏好设置 Modal 挂载点 -->
+  <!-- Mantine 详情悬浮弹窗与偏好设置 Modal 挂载点 -->
   <div id="mantine-modals-root" class="mantine-shell-mount"></div>
 
   <!-- 引入 GridStack 运行时与渲染脚本 -->

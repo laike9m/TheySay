@@ -24,7 +24,7 @@
 
 ## 2. 分阶段迁移路线图 (Phased Roadmap)
 
-### 第一阶段 (Step 1)：基础架构搭建与外围 App Shell 迁移（当前阶段）
+### 第一阶段 (Step 1)：基础架构搭建与外围 App Shell 迁移（已完成）
 **目标**：保持 `src/core/` 与 `src/data/` 抓取/存储逻辑不变，引入 React 19 + Mantine + Tabler Icons + `esbuild` 构建管线，将**外围全局 UI** 全面迁移为 React + Mantine 组件：
 1. **工程与样式基建**：
    - 引入 `react`、`react-dom`、`@mantine/core`、`@mantine/hooks`、`@mantine/notifications`、`@tabler/icons-react` 与 `esbuild`。
@@ -55,13 +55,14 @@
 
 ---
 
-### 第三阶段 (Step 3)：详情悬浮弹窗 (Popup Modal) 迁移与样式收尾
-**目标**：完成 `src/ui/popup.js` 迁移并清理遗留手写样式：
-1. **详情弹窗 Mantine 化**：
-   - 使用 Mantine `<Modal keepMounted />` 重构 `#tweet-popup-overlay`，确保关闭态保留非零宽度 DOM 以支持 Twitter 嵌入卡片后台预渲染，同时用 Mantine `<Card>`、`<Avatar>`、`<Badge>`、`<Button>` 重构 Threads / Discord 本地零延迟详情卡片与多图 Lightbox。
-2. **样式精简与收尾**：
-   - 移除 `styles.css` 中已被 Mantine 组件替代的冗余 CSS 规则，仅保留 GridStack 布局样式与自定义主题变量映射。
-   - 全量运行 Playwright 集成测试与多平台打包验证。
+### 第三阶段 (Step 3)：详情悬浮弹窗 (Popup Modal) 迁移与样式收尾（已完成）
+**目标**：完成 `src/ui/popup.js` 迁移并整合 Mantine 弹窗详情卡片体系：
+1. **详情弹窗容器与加载指示器 Mantine 化 (`PostPopupOverlay`)**：
+   - 在 `#mantine-modals-root` 中挂载常驻 `<PostPopupOverlay />`（基于 Mantine `<Box>`、`<Paper>` 与 `<Loader>`），关闭态通过 `.is-closed` 保持非零宽度 DOM 布局以支持 Twitter `widgets.js` 后台预渲染嵌入卡片且不触发 iframe 重载。
+2. **三平台本地零延迟详情卡片与多图画廊组件化**：
+   - 拆分为 `<TwitterFallbackCard />`（离线/仅会员/同分钟合并推文详情卡片）、`<DiscordPopupCard />`（Discord 频道消息详情卡片）、`<ThreadsPopupCard />`（Threads 帖子详情与引用卡片）以及 `<PopupImageGallery />`（支持单图/多图画廊与 Discord CDN 备用域名自动重试），全部使用 Mantine `<Paper>`、`<Box>`、`<Badge>`、`<UnstyledButton>` 驱动渲染。
+3. **样式整合与全量验证**：
+   - 统一 Mantine 组件样式映射，并通过全部 15 项 Playwright 端到端集成测试验证。
 
 ---
 
@@ -71,7 +72,7 @@
 
 ```text
 src/ui/
-├── mantine-shell.jsx                        # 渲染挂载入口 (MantineProvider + Notifications + Slot 挂载桥接)
+├── mantine-shell.jsx                        # 渲染挂载入口 (MantineProvider + Notifications + Slot/Popup 挂载桥接)
 └── components/
     ├── theme.js                             # Mantine createTheme 配置与配色预设常量
     ├── ColorSchemeSync.jsx                  # data-theme <-> data-mantine-color-scheme 双向同步组件
@@ -86,15 +87,19 @@ src/ui/
     │   ├── GeneralSettingsSection.jsx       # 通用设置分组 (语言、三平台轮询周期、仅会员、声音、图标角标)
     │   ├── AppearanceSettingsSection.jsx    # 外观设置分组 (Title 栏配色、Ticker 配色、实时预览卡片、词库同步)
     │   └── BackupSettingsSection.jsx        # 备份设置分组 (Profile 导入与导出)
-    └── slot/
-        ├── SlotCard.jsx                     # 监控槽位外层卡片容器 (Mantine Paper + Loader + 空状态/错误态)
-        ├── SlotHeader.jsx                   # 紧凑型 28px 标题栏 (头像、身份徽章、输入框、静音/尺寸按钮)
-        ├── SlotIcons.jsx                    # 槽位铃铛静音与网格尺寸方向 Tabler 图标组件
-        ├── SlotSourceDropdown.jsx           # 双平台同名账号选择下拉菜单 (Twitter / Threads)
-        ├── SlotSizeMenu.jsx                 # 卡片占用空间调整与清空频道下拉菜单 (1×1 / 2×1 / 3×1 / 2×2)
-        ├── SlotExpiredBanner.jsx            # 单槽位底部登录过期常驻提示条与一键重登入口
-        ├── MediaGrid.jsx                    # 消息气泡内单图/多图自适应缩略图网格与 Discord CDN 容错
-        └── PostBubble.jsx                   # 消息时间线 (PostTimeline)、日期分割胶囊 (DateDivider) 与消息气泡 (PostBubble)
+    ├── slot/
+    │   ├── SlotCard.jsx                     # 监控槽位外层卡片容器 (Mantine Paper + Loader + 空状态/错误态)
+    │   ├── SlotHeader.jsx                   # 紧凑型 28px 标题栏 (头像、身份徽章、输入框、静音/尺寸按钮)
+    │   ├── SlotIcons.jsx                    # 槽位铃铛静音与网格尺寸方向 Tabler 图标组件
+    │   ├── SlotSourceDropdown.jsx           # 双平台同名账号选择下拉菜单 (Twitter / Threads)
+    │   ├── SlotSizeMenu.jsx                 # 卡片占用空间调整与清空频道下拉菜单 (1×1 / 2×1 / 3×1 / 2×2)
+    │   ├── SlotExpiredBanner.jsx            # 单槽位底部登录过期常驻提示条与一键重登入口
+    │   ├── MediaGrid.jsx                    # 消息气泡内单图/多图自适应缩略图网格与 Discord CDN 容错
+    │   └── PostBubble.jsx                   # 消息时间线 (PostTimeline)、日期分割胶囊 (DateDivider) 与消息气泡 (PostBubble)
+    └── popup/
+        ├── PostPopupOverlay.jsx             # 居中推文/消息详情悬浮遮罩与预渲染宿主容器 (Mantine Paper + Loader)
+        ├── PopupImageGallery.jsx            # 详情弹窗内单图/多图高清画廊与 Discord CDN 容错
+        ├── TwitterFallbackCard.jsx          # Twitter 离线/仅会员/同分钟合并推文 Mantine 详情卡片
+        ├── DiscordPopupCard.jsx             # Discord 频道消息本地零延迟 Mantine 详情卡片
+        └── ThreadsPopupCard.jsx             # Threads 帖子与引用内容本地零延迟 Mantine 详情卡片
 ```
-
-

@@ -724,18 +724,32 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(threadsBubble.locator('.tweet-tag.quote')).toHaveClass(/mantine-Badge-root/);
 
     // 3. Click the Threads bubble to open the zero-latency local Threads popup modal
+    const closedPopupWidth = await page
+      .locator('#tweet-popup-embed-container')
+      .evaluate((el) => el.getBoundingClientRect().width);
+    expect(closedPopupWidth).toBeGreaterThan(0);
+
     await threadsBubble.click();
     const popupOverlay = page.locator('#tweet-popup-overlay');
     await expect(popupOverlay).not.toHaveClass(/is-closed/);
+    await expect(popupOverlay.locator('.tweet-popup-dialog')).toHaveClass(/mantine-Paper-root/);
     const threadsPopupCard = popupOverlay.locator('.threads-popup-card');
     await expect(threadsPopupCard).toBeVisible();
+    await expect(threadsPopupCard).toHaveClass(/mantine-Paper-root/);
     await expect(threadsPopupCard.locator('.discord-popup-name')).toHaveText('Mark Zuckerberg');
     await expect(threadsPopupCard.locator('.tweet-tag.threads')).toHaveText('Threads');
+    await expect(threadsPopupCard.locator('.tweet-tag.threads')).toHaveClass(/mantine-Badge-root/);
+    await expect(threadsPopupCard.locator('.threads-popup-quote .tweet-tag.quote')).toHaveClass(
+      /mantine-Badge-root/
+    );
     await expect(threadsPopupCard.locator('.threads-popup-quote-author')).toHaveText('@mosseri');
     await expect(threadsPopupCard.locator('.threads-popup-quote-text')).toContainText(
       'Threads web updates rolling out today.'
     );
     await expect(threadsPopupCard.locator('.discord-popup-open-btn')).toBeVisible();
+    await expect(threadsPopupCard.locator('.discord-popup-open-btn')).toHaveClass(
+      /mantine-UnstyledButton-root/
+    );
 
     // Press Escape to close the Threads popup modal
     await page.keyboard.press('Escape');
@@ -1017,6 +1031,34 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(backfilledBubble.locator('.im-media-grid .im-media-thumb .im-media-img')).toBeVisible();
     const cleanedText = await backfilledBubble.locator('.im-text-content').textContent();
     expect(cleanedText).toBe('Long term $QQQ model continues to track extremely well.');
+
+    // 5. Verify Twitter fallback popup card renders via Mantine Paper, Badge, and UnstyledButton
+    await page.evaluate(() => {
+      const { openPostPopup } = require('./src/ui/popup');
+      openPostPopup({
+        id: '998877665544332211',
+        source: 'twitter',
+        displayName: 'vitalik.eth',
+        userHandle: '@VitalikButerin',
+        text: 'Subscriber alpha on $ETH and $QQQ.',
+        time: '12:00 PM',
+        url: 'https://x.com/VitalikButerin/status/998877665544332211',
+        isMemberOnly: true,
+        hasQuote: true,
+        quoteUrl: 'https://x.com/ethereum/status/112233'
+      });
+    });
+    await expect(popupOverlay).not.toHaveClass(/is-closed/);
+    const fallbackCard = popupOverlay.locator('.tweet-popup-fallback');
+    await expect(fallbackCard).toBeVisible();
+    await expect(fallbackCard).toHaveClass(/mantine-Paper-root/);
+    await expect(fallbackCard.locator('.tweet-tag.member')).toHaveClass(/mantine-Badge-root/);
+    await expect(fallbackCard.locator('.tweet-tag.quote')).toHaveClass(/mantine-Badge-root/);
+    await expect(fallbackCard.locator('.tweet-popup-fallback-btn')).toHaveClass(
+      /mantine-UnstyledButton-root/
+    );
+    await page.keyboard.press('Escape');
+    await expect(popupOverlay).toHaveClass(/is-closed/);
   });
 
   test('12. Same-minute message merging: Chinese (。) & English (.) separators and full display without truncation', async () => {
@@ -1165,6 +1207,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#slot-unread-badge-0')).toBeHidden();
     const popupOverlay = page.locator('#tweet-popup-overlay');
     await expect(popupOverlay).not.toHaveClass(/is-closed/);
+    await expect(popupOverlay.locator('.discord-embed-slot .discord-popup-card')).toHaveClass(
+      /mantine-Paper-root/
+    );
     await expect(popupOverlay.locator('.discord-popup-text')).toHaveText(chineseText);
     await page.keyboard.press('Escape');
     await expect(popupOverlay).toHaveClass(/is-closed/);

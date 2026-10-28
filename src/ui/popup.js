@@ -2,7 +2,7 @@ const { shell, ipcRenderer } = require('electron');
 const PQueue = require('p-queue').default;
 const { LRUCache } = require('lru-cache');
 const { getPostId, isMemberOnlyPost } = require('../core/post');
-const { escapeHtml, stripDiscordEditedText } = require('../core/utils');
+const { stripDiscordEditedText } = require('../core/utils');
 const { formatTextWithTickers, registerUrlTitlesMap, fetchUrlTitle } = require('../core/ticker');
 const { installRendererEmbedHooks } = require('./tweet_embed');
 const {
@@ -11,6 +11,11 @@ const {
   isImageAttachmentLabel,
   normalizeMediaOnlyText
 } = require('../core/i18n');
+const {
+  renderMantineTwitterFallbackCard,
+  renderMantineDiscordPopupCard,
+  renderMantineThreadsPopupCard
+} = require('./dist/mantine-shell');
 
 // Maximum number of simultaneously pre-rendered Twitter embeds kept alive.
 // Each embed is a real iframe, so this is a memory/latency trade-off.
@@ -221,73 +226,39 @@ function renderFallbackInto(entry) {
   const displayName = post.displayName || post.userHandle || '';
   const userHandle = post.userHandle || '';
   const avatarUrl = post.avatarUrl || '';
+  const effectiveTextHtml = effectiveText
+    ? formatTextWithTickers(effectiveText, undefined, {
+        linkifyUrls: true,
+        linkTitles: post.linkTitles
+      })
+    : '';
 
-  const fallbackDiv = document.createElement('div');
-  fallbackDiv.className = 'tweet-popup-fallback';
-
-  let memberInfoHtml = '';
-  if (isMemberOnlyPost(post)) {
-    memberInfoHtml = `
-      <div class="tweet-popup-fallback-member">
-        <span class="tweet-tag member">${escapeHtml(t('popup.memberOnlyTag'))}</span>
-        <span class="tweet-member-notice">${escapeHtml(t('popup.memberOnlyNotice'))}</span>
-      </div>
-    `;
-  }
-
-  let quoteInfoHtml = '';
-  if (post.hasQuote || post.quoteUrl) {
-    quoteInfoHtml = `
-      <div class="tweet-popup-fallback-quote">
-        <span class="tweet-tag quote">${escapeHtml(t('popup.quoteTag'))}</span>
-        ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedPost'))}</a>` : ''}
-      </div>
-    `;
-  }
-
-  let imagesHtml = '';
-  if (images.length > 0) {
-    imagesHtml = `
-      <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
-        ${images.map(url => `
-          <div class="discord-popup-image-wrap">
-            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="${escapeHtml(t('slot.imageAlt'))}" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="${escapeHtml(t('popup.viewOriginalImageTitle'))}">
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  fallbackDiv.innerHTML = `
-    <div class="tweet-popup-fallback-header">
-      ${avatarUrl ? `<img class="tweet-popup-fallback-avatar" src="${escapeHtml(avatarUrl)}" alt="">` : '<div class="tweet-popup-fallback-avatar-placeholder">👤</div>'}
-      <div class="tweet-popup-fallback-names">
-        <span class="tweet-popup-fallback-name">${escapeHtml(displayName)}</span>
-        <span class="tweet-popup-fallback-handle">${escapeHtml(userHandle)}</span>
-      </div>
-    </div>
-    ${memberInfoHtml}
-    ${effectiveText ? `<div class="tweet-popup-fallback-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true, linkTitles: post.linkTitles })}</div>` : ''}
-    ${imagesHtml}
-    ${quoteInfoHtml}
-    <div class="tweet-popup-fallback-footer">
-      <span class="tweet-popup-fallback-time">${escapeHtml(timeDisplay)}</span>
-      ${post.url ? `<button class="tweet-popup-fallback-btn" data-url="${escapeHtml(post.url)}">${escapeHtml(t('popup.openOnTwitter'))}</button>` : ''}
-    </div>
-  `;
-
-  fallbackDiv.querySelectorAll('[data-url]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const url = btn.getAttribute('data-url');
+  renderMantineTwitterFallbackCard(entry.el, {
+    avatarUrl,
+    displayName,
+    userHandle,
+    isMemberOnly: isMemberOnlyPost(post),
+    effectiveTextHtml,
+    images,
+    hasQuote: Boolean(post.hasQuote || post.quoteUrl),
+    quoteUrl: post.quoteUrl || '',
+    timeDisplay,
+    postUrl: post.url || '',
+    labels: {
+      memberOnlyTag: t('popup.memberOnlyTag'),
+      memberOnlyNotice: t('popup.memberOnlyNotice'),
+      imageAlt: t('slot.imageAlt'),
+      viewOriginalImageTitle: t('popup.viewOriginalImageTitle'),
+      quoteTag: t('popup.quoteTag'),
+      viewQuotedPost: t('popup.viewQuotedPost'),
+      openOnTwitter: t('popup.openOnTwitter')
+    },
+    onOpenExternal: (url) => {
       if (url) shell.openExternal(url);
-    });
+    }
   });
 
-  resolvePopupLinksInElement(fallbackDiv, post);
-
-  entry.el.innerHTML = '';
-  entry.el.appendChild(fallbackDiv);
+  resolvePopupLinksInElement(entry.el, post);
 }
 
 /* ----------------------------------------------------------------
@@ -347,91 +318,47 @@ function renderDiscordCardInto(el, msg) {
   const cleanReplyText = stripDiscordEditedText(msg.replyText || '');
   const timeDisplay = msg.datetime ? new Date(msg.datetime).toLocaleString() : (msg.time || '');
 
-  let replyHtml = '';
-  if (cleanReplyText || msg.replyAuthor) {
-    replyHtml = `
-      <div class="discord-popup-reply">
-        <span class="discord-popup-reply-author">↩ ${escapeHtml(msg.replyAuthor || '')}</span>
-        <span class="discord-popup-reply-text">${formatTextWithTickers(cleanReplyText, undefined, { linkifyUrls: true, linkTitles: msg.linkTitles })}</span>
-      </div>
-    `;
-  }
+  const hasReply = Boolean(cleanReplyText || msg.replyAuthor);
+  const replyTextHtml = hasReply
+    ? formatTextWithTickers(cleanReplyText, undefined, {
+        linkifyUrls: true,
+        linkTitles: msg.linkTitles
+      })
+    : '';
+  const textHtml = rawText
+    ? formatTextWithTickers(rawText, undefined, {
+        linkifyUrls: true,
+        linkTitles: msg.linkTitles
+      })
+    : '';
 
   const images = Array.isArray(msg.images) ? msg.images.filter(Boolean) : [];
-  let imagesHtml = '';
-  if (images.length > 0) {
-    imagesHtml = `
-      <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
-        ${images.map(url => `
-          <div class="discord-popup-image-wrap">
-            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="${escapeHtml(t('slot.imageAlt'))}" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="${escapeHtml(t('popup.viewOriginalImageTitle'))}">
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
   const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
   const visibleAttachments = images.length > 0
     ? rawAttachments.filter(a => !isImageAttachmentLabel(a))
     : rawAttachments;
+  const attachmentLabels = visibleAttachments.map(a => translateAttachmentLabel(a));
 
-  let attachmentsHtml = '';
-  if (visibleAttachments.length > 0) {
-    attachmentsHtml = `
-      <div class="discord-popup-attachments">
-        ${visibleAttachments.map(a => `<span class="im-attachment-chip">${escapeHtml(translateAttachmentLabel(a))}</span>`).join('')}
-      </div>
-    `;
-  }
-
-  el.innerHTML = `
-    <div class="discord-popup-card ${images.length > 0 ? 'has-images' : ''}">
-      <div class="discord-popup-header">
-        ${msg.avatarUrl
-          ? `<img class="discord-popup-avatar" src="${escapeHtml(msg.avatarUrl)}" alt="">`
-          : '<div class="discord-popup-avatar-placeholder">#</div>'}
-        <div class="discord-popup-names">
-          <span class="discord-popup-name">${escapeHtml(msg.displayName || '')}</span>
-          ${msg.isBot ? '<span class="tweet-tag bot">BOT</span>' : ''}
-        </div>
-      </div>
-      ${replyHtml}
-      ${rawText ? `<div class="discord-popup-text">${formatTextWithTickers(rawText, undefined, { linkifyUrls: true, linkTitles: msg.linkTitles })}</div>` : ''}
-      ${imagesHtml}
-      ${attachmentsHtml}
-      <div class="discord-popup-footer">
-        <span class="discord-popup-time">${escapeHtml(timeDisplay)}</span>
-        ${msg.url ? '<button class="tweet-popup-fallback-btn" data-url="' + escapeHtml(msg.url) + '">' + escapeHtml(t('popup.openInDiscord')) + '</button>' : ''}
-      </div>
-    </div>
-  `;
-
-  el.querySelectorAll('.discord-popup-image').forEach(imgEl => {
-    imgEl.addEventListener('error', () => {
-      if (!imgEl.dataset.retried) {
-        imgEl.dataset.retried = '1';
-        const src = imgEl.getAttribute('src') || '';
-        if (src.includes('media.discordapp.net/attachments/')) {
-          imgEl.src = src.replace('media.discordapp.net/attachments/', 'cdn.discordapp.com/attachments/');
-          return;
-        }
-        if (src.includes('cdn.discordapp.com/attachments/')) {
-          imgEl.src = src.replace('cdn.discordapp.com/attachments/', 'media.discordapp.net/attachments/');
-          return;
-        }
-      }
-      const wrap = imgEl.closest('.discord-popup-image-wrap');
-      if (wrap) wrap.style.display = 'none';
-    });
-  });
-
-  el.querySelectorAll('[data-url]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const url = btn.getAttribute('data-url');
+  renderMantineDiscordPopupCard(el, {
+    avatarUrl: msg.avatarUrl || '',
+    displayName: msg.displayName || '',
+    isBot: Boolean(msg.isBot),
+    hasReply,
+    replyAuthor: msg.replyAuthor || '',
+    replyTextHtml,
+    textHtml,
+    images,
+    attachmentLabels,
+    timeDisplay,
+    msgUrl: msg.url || '',
+    labels: {
+      imageAlt: t('slot.imageAlt'),
+      viewOriginalImageTitle: t('popup.viewOriginalImageTitle'),
+      openInDiscord: t('popup.openInDiscord')
+    },
+    onOpenExternal: (url) => {
       if (url) shell.openExternal(url);
-    });
+    }
   });
 
   resolvePopupLinksInElement(el, msg);
@@ -482,81 +409,57 @@ function renderThreadsCardInto(el, post) {
   const timeDisplay = post.datetime ? new Date(post.datetime).toLocaleString() : (post.time || '');
   const displayName = post.displayName || post.userHandle || '';
   const userHandle = post.userHandle || '';
+  const showUserHandle = Boolean(
+    userHandle && userHandle.toLowerCase() !== displayName.toLowerCase()
+  );
 
-  let tagsHtml = '<span class="tweet-tag threads threads-badge">Threads</span>';
-  if (post.isPinned) tagsHtml += `<span class="tweet-tag pinned">${escapeHtml(t('slot.tagPinned'))}</span>`;
-  if (post.isRetweet) tagsHtml += `<span class="tweet-tag repost">${escapeHtml(t('slot.tagRepost'))}</span>`;
+  const hasQuote = Boolean(
+    post.hasQuote || post.quoteUrl || post.quoteText || post.quoteAuthor
+  );
+  const quoteAuthor = post.quoteAuthor
+    ? (post.quoteAuthor.startsWith('@') ? post.quoteAuthor : `@${post.quoteAuthor}`)
+    : '';
+  const qText = (post.quoteText || '').trim();
+  const quoteTextHtml = qText
+    ? formatTextWithTickers(qText, undefined, {
+        linkifyUrls: true,
+        linkTitles: post.linkTitles
+      })
+    : '';
+  const effectiveTextHtml = effectiveText
+    ? formatTextWithTickers(effectiveText, undefined, {
+        linkifyUrls: true,
+        linkTitles: post.linkTitles
+      })
+    : '';
 
-  let quoteHtml = '';
-  if (post.hasQuote || post.quoteUrl || post.quoteText || post.quoteAuthor) {
-    const qAuthor = post.quoteAuthor
-      ? (post.quoteAuthor.startsWith('@') ? post.quoteAuthor : `@${post.quoteAuthor}`)
-      : '';
-    const qText = (post.quoteText || '').trim();
-    quoteHtml = `
-      <div class="threads-popup-quote">
-        <div class="threads-popup-quote-header">
-          <span class="tweet-tag quote">${escapeHtml(t('popup.quoteTag'))}</span>
-          ${qAuthor ? `<span class="threads-popup-quote-author">${escapeHtml(qAuthor)}</span>` : ''}
-          ${post.quoteUrl ? `<a href="#" class="tweet-fallback-quote-link" data-url="${escapeHtml(post.quoteUrl)}">${escapeHtml(t('popup.viewQuotedPost'))}</a>` : ''}
-        </div>
-        ${qText ? `<div class="threads-popup-quote-text">${formatTextWithTickers(qText, undefined, { linkifyUrls: true, linkTitles: post.linkTitles })}</div>` : ''}
-      </div>
-    `;
-  }
-
-  let imagesHtml = '';
-  if (images.length > 0) {
-    imagesHtml = `
-      <div class="discord-popup-images ${images.length > 1 ? 'multi' : 'single'}">
-        ${images.map(url => `
-          <div class="discord-popup-image-wrap">
-            <img class="discord-popup-image" src="${escapeHtml(url)}" alt="${escapeHtml(t('slot.imageAlt'))}" referrerpolicy="no-referrer" data-url="${escapeHtml(url)}" title="${escapeHtml(t('popup.viewOriginalImageTitle'))}">
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  el.innerHTML = `
-    <div class="discord-popup-card threads-popup-card ${images.length > 0 ? 'has-images' : ''}">
-      <div class="discord-popup-header">
-        ${post.avatarUrl
-          ? `<img class="discord-popup-avatar" src="${escapeHtml(post.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
-          : '<div class="discord-popup-avatar-placeholder threads-avatar-placeholder">@</div>'}
-        <div class="tweet-popup-fallback-names">
-          <div class="discord-popup-names">
-            <span class="discord-popup-name">${escapeHtml(displayName)}</span>
-            ${tagsHtml}
-          </div>
-          ${userHandle && userHandle.toLowerCase() !== displayName.toLowerCase()
-            ? `<span class="tweet-popup-fallback-handle">${escapeHtml(userHandle)}</span>`
-            : ''}
-        </div>
-      </div>
-      ${effectiveText ? `<div class="discord-popup-text">${formatTextWithTickers(effectiveText, undefined, { linkifyUrls: true, linkTitles: post.linkTitles })}</div>` : ''}
-      ${imagesHtml}
-      ${quoteHtml}
-      <div class="discord-popup-footer">
-        <span class="discord-popup-time">${escapeHtml(timeDisplay)}</span>
-        ${post.url ? '<button class="tweet-popup-fallback-btn discord-popup-open-btn" data-url="' + escapeHtml(post.url) + '">' + escapeHtml(t('popup.openOnThreads')) + '</button>' : ''}
-      </div>
-    </div>
-  `;
-
-  el.querySelectorAll('.discord-popup-image').forEach(imgEl => {
-    imgEl.addEventListener('error', () => {
-      const wrap = imgEl.closest('.discord-popup-image-wrap');
-      if (wrap) wrap.style.display = 'none';
-    });
-  });
-
-  el.querySelectorAll('[data-url]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const url = btn.getAttribute('data-url');
+  renderMantineThreadsPopupCard(el, {
+    avatarUrl: post.avatarUrl || '',
+    displayName,
+    userHandle,
+    showUserHandle,
+    isPinned: Boolean(post.isPinned),
+    isRetweet: Boolean(post.isRetweet),
+    effectiveTextHtml,
+    images,
+    hasQuote,
+    quoteAuthor,
+    quoteUrl: post.quoteUrl || '',
+    quoteTextHtml,
+    timeDisplay,
+    postUrl: post.url || '',
+    labels: {
+      tagPinned: t('slot.tagPinned'),
+      tagRepost: t('slot.tagRepost'),
+      imageAlt: t('slot.imageAlt'),
+      viewOriginalImageTitle: t('popup.viewOriginalImageTitle'),
+      quoteTag: t('popup.quoteTag'),
+      viewQuotedPost: t('popup.viewQuotedPost'),
+      openOnThreads: t('popup.openOnThreads')
+    },
+    onOpenExternal: (url) => {
       if (url) shell.openExternal(url);
-    });
+    }
   });
 
   resolvePopupLinksInElement(el, post);

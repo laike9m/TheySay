@@ -13,9 +13,14 @@ import { SlotMuteIcon, SlotExpandIcon } from './components/slot/SlotIcons';
 import { SlotSourceDropdownContent } from './components/slot/SlotSourceDropdown';
 import { SlotSizeMenuContent } from './components/slot/SlotSizeMenu';
 import { PostTimeline } from './components/slot/PostBubble';
+import { PostPopupOverlay } from './components/popup/PostPopupOverlay';
+import { TwitterFallbackCard } from './components/popup/TwitterFallbackCard';
+import { DiscordPopupCard } from './components/popup/DiscordPopupCard';
+import { ThreadsPopupCard } from './components/popup/ThreadsPopupCard';
 
 let isMounted = false;
 let timelineRenderSeq = 0;
+let popupRenderSeq = 0;
 const elementRoots = new WeakMap();
 
 function getCurrentScheme() {
@@ -88,6 +93,7 @@ export function mountMantineShell() {
         withCssVariables={false}
         withGlobalClasses={false}
       >
+        <PostPopupOverlay />
         <SettingsModal />
       </MantineProvider>
     );
@@ -175,3 +181,28 @@ export function clearMantineSlotPosts(postsListEl) {
     postsListEl.innerHTML = '';
   }
 }
+
+export function renderMantineTwitterFallbackCard(containerEl, props) {
+  popupRenderSeq += 1;
+  renderInSubtreeRoot(
+    containerEl,
+    <TwitterFallbackCard key={popupRenderSeq} {...props} />
+  );
+}
+
+export function renderMantineDiscordPopupCard(containerEl, props) {
+  popupRenderSeq += 1;
+  renderInSubtreeRoot(
+    containerEl,
+    <DiscordPopupCard key={popupRenderSeq} {...props} />
+  );
+}
+
+export function renderMantineThreadsPopupCard(containerEl, props) {
+  popupRenderSeq += 1;
+  renderInSubtreeRoot(
+    containerEl,
+    <ThreadsPopupCard key={popupRenderSeq} {...props} />
+  );
+}
+

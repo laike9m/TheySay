@@ -1,3 +1,4 @@
+const { ipcRenderer } = require('electron');
 const PQueue = require('p-queue').default;
 const {
   DISCORD_PARTITION,
@@ -976,8 +977,9 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     }
   }
 
-  const deadline = Date.now() + timeout;
+  let deadline = Date.now() + timeout;
   let lastState = '';
+  let attemptedTokenRestore = false;
 
   while (Date.now() < deadline) {
     if (!isNetworkOnline()) {
@@ -986,8 +988,32 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
     const probe = await runScript(wv, buildReadinessScript(channelId));
     if (probe) {
       lastState = probe.state;
-      if (probe.state === 'ready') return { ok: true };
+      if (probe.state === 'ready') {
+        runScript(wv, CAPTURE_DISCORD_TOKEN_SCRIPT)
+          .then((captured) => {
+            if (captured && captured.token) {
+              ipcRenderer.send('discord-auth-captured', captured);
+            }
+          })
+          .catch(() => {});
+        return { ok: true };
+      }
       if (probe.state === 'login') {
+        if (!attemptedTokenRestore) {
+          attemptedTokenRestore = true;
+          try {
+            const restoreRes = await ipcRenderer.invoke('verify-and-get-discord-auth-backup');
+            if (restoreRes && restoreRes.ok && restoreRes.backup && restoreRes.backup.token) {
+              await runScript(wv, buildRestoreDiscordTokenScript(restoreRes.backup));
+              const reloadRes = await loadWebviewTarget(wv, targetUrl);
+              if (!reloadRes || !reloadRes.offline) {
+                deadline = Date.now() + BOOT_TIMEOUT_MS;
+                await sleep(500);
+                continue;
+              }
+            }
+          } catch (_) {}
+        }
         saveDiscordLoggedIn(false);
         try {
           wv.setAttribute('src', 'about:blank');
@@ -1003,6 +1029,169 @@ async function ensureDiscordChannel(wv, guildId, channelId, onProgress) {
   }
   return { ok: false, error: t('discord.loadTimeoutError') };
 }
+
+function buildRestoreDiscordTokenScript(backup) {
+  return `
+  (() => {
+    try {
+      const BACKUP = ${JSON.stringify(backup || null)};
+      if (!BACKUP || !BACKUP.token) return { ok: false };
+
+      let ls = null;
+      try {
+        ls = window.localStorage || window.__theysayDiscordLS || window.__d6gp33cibjs || null;
+      } catch (_) {}
+      if (!ls && window.Storage) {
+        try {
+          const names = Object.getOwnPropertyNames(window);
+          for (let i = 0; i < names.length; i++) {
+            try {
+              const v = window[names[i]];
+              if (v && v instanceof window.Storage && v !== window.sessionStorage) {
+                ls = v;
+                break;
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+      if (!ls && document && (document.head || document.documentElement)) {
+        try {
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          (document.head || document.documentElement).appendChild(iframe);
+          ls = iframe.contentWindow && iframe.contentWindow.localStorage;
+          iframe.remove();
+        } catch (_) {}
+      }
+      if (!ls) return { ok: false, error: 'NO_LOCAL_STORAGE' };
+
+      const origSetItem = (window.Storage && window.Storage.prototype && window.Storage.prototype.setItem) || ls.setItem;
+      const origGetItem = (window.Storage && window.Storage.prototype && window.Storage.prototype.getItem) || ls.getItem;
+      const rawToken = String(BACKUP.token).replace(/^"+|"+$/g, '').trim();
+      if (!rawToken) return { ok: false };
+
+      let userId = BACKUP.userId ? String(BACKUP.userId).replace(/^"+|"+$/g, '').trim() : '';
+      if (!userId) {
+        try {
+          const rawUid = origGetItem.call(ls, 'user_id_cache');
+          if (rawUid) userId = JSON.parse(rawUid);
+        } catch (_) {}
+      }
+
+      origSetItem.call(ls, 'token', JSON.stringify(rawToken));
+      if (userId) {
+        origSetItem.call(ls, 'user_id_cache', JSON.stringify(userId));
+        let tokensMap = {};
+        try {
+          const cur = origGetItem.call(ls, 'tokens');
+          if (cur) tokensMap = JSON.parse(cur) || {};
+        } catch (_) {}
+        tokensMap[userId] = rawToken;
+        origSetItem.call(ls, 'tokens', JSON.stringify(tokensMap));
+
+        try {
+          const rawMAS = origGetItem.call(ls, 'MultiAccountStore');
+          if (rawMAS) {
+            const parsed = JSON.parse(rawMAS);
+            const users = parsed && parsed._state && Array.isArray(parsed._state.users) ? parsed._state.users : null;
+            if (users) {
+              let changed = false;
+              for (let i = 0; i < users.length; i++) {
+                if (users[i] && (users[i].id === userId || users[i].tokenStatus === 0)) {
+                  users[i].tokenStatus = 2;
+                  changed = true;
+                }
+              }
+              if (changed) origSetItem.call(ls, 'MultiAccountStore', JSON.stringify(parsed));
+            }
+          }
+        } catch (_) {}
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e) };
+    }
+  })()
+  `;
+}
+
+const CAPTURE_DISCORD_TOKEN_SCRIPT = `
+(() => {
+  try {
+    let ls = null;
+    try {
+      ls = window.localStorage || window.__theysayDiscordLS || window.__d6gp33cibjs || null;
+    } catch (_) {}
+    if (!ls && window.Storage) {
+      const names = Object.getOwnPropertyNames(window);
+      for (let i = 0; i < names.length; i++) {
+        try {
+          const v = window[names[i]];
+          if (v && v instanceof window.Storage && v !== window.sessionStorage) {
+            ls = v;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+    if (!ls) return null;
+    const getItem = (k) => {
+      try {
+        return window.Storage.prototype.getItem.call(ls, k);
+      } catch (_) {
+        return null;
+      }
+    };
+    let token = null;
+    const rawToken = getItem('token');
+    if (rawToken) {
+      try {
+        token = JSON.parse(rawToken);
+      } catch (_) {
+        token = String(rawToken).replace(/^"+|"+$/g, '');
+      }
+    }
+    let userId = null;
+    const rawUid = getItem('user_id_cache');
+    if (rawUid) {
+      try {
+        userId = JSON.parse(rawUid);
+      } catch (_) {
+        userId = String(rawUid).replace(/^"+|"+$/g, '');
+      }
+    }
+    let tokens = null;
+    const rawTokens = getItem('tokens');
+    if (rawTokens) {
+      try {
+        tokens = JSON.parse(rawTokens);
+      } catch (_) {}
+    }
+    if (!token && tokens && typeof tokens === 'object') {
+      if (userId && tokens[userId]) token = tokens[userId];
+      else {
+        const keys = Object.keys(tokens);
+        if (keys.length > 0) {
+          userId = userId || keys[0];
+          token = tokens[keys[0]];
+        }
+      }
+    }
+    if (!token || typeof token !== 'string' || token.length < 20) return null;
+    let multiAccountStore = null;
+    const rawMAS = getItem('MultiAccountStore');
+    if (rawMAS) {
+      try {
+        multiAccountStore = JSON.parse(rawMAS);
+      } catch (_) {}
+    }
+    return { token, userId, tokens, multiAccountStore };
+  } catch (_) {
+    return null;
+  }
+})()
+`;
 
 /** Scrolls to the newest message, skipping any unread backlog. */
 async function jumpToPresent(wv) {

@@ -1631,6 +1631,48 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       expect(linkifyCheck.normalizedHex).toBe('#1e293b');
       expect(linkifyCheck.darkPalette.text).toBe('#f8fafc');
       expect(linkifyCheck.lightPalette.text).toBe('#0f1419');
+
+      // Verify .background-webviews-container matches window innerWidth/innerHeight (preventing Discord DevTools hideToken)
+      // and verify Discord auth token backup / LevelDB recovery IPC round-trip
+      const discordGuardCheck = await page.evaluate(async () => {
+        const { ipcRenderer } = require('electron');
+        const bg = document.querySelector('.background-webviews-container');
+        const rect = bg.getBoundingClientRect();
+        const widthDiff = Math.abs(rect.width - window.innerWidth);
+        const heightDiff = Math.abs(rect.height - window.innerHeight);
+
+        const sampleToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GaBcDe.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-';
+        ipcRenderer.send('discord-auth-captured', {
+          token: sampleToken,
+          userId: '100000000000000001',
+          tokens: { '100000000000000001': sampleToken },
+          multiAccountStore: {
+            _state: { users: [{ id: '100000000000000001', username: 'test_user', tokenStatus: 0 }] },
+            _version: 2
+          }
+        });
+        const backup = await ipcRenderer.invoke('get-discord-auth-backup');
+        await ipcRenderer.invoke('clear-discord-auth-backup');
+        const afterClear = await ipcRenderer.invoke('get-discord-auth-backup');
+
+        return {
+          widthDiff,
+          heightDiff,
+          backedUpToken: backup && backup.token,
+          backedUpStatus:
+            backup &&
+            backup.multiAccountStore &&
+            backup.multiAccountStore._state.users[0].tokenStatus,
+          afterClear
+        };
+      });
+      expect(discordGuardCheck.widthDiff).toBeLessThanOrEqual(1);
+      expect(discordGuardCheck.heightDiff).toBeLessThanOrEqual(1);
+      expect(discordGuardCheck.backedUpToken).toBe(
+        'MTIzNDU2Nzg5MDEyMzQ1Njc4.GaBcDe.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-'
+      );
+      expect(discordGuardCheck.backedUpStatus).toBe(2);
+      expect(discordGuardCheck.afterClear).toBeNull();
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }

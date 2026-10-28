@@ -1737,13 +1737,19 @@ body {
   line-height: 1.4;
 }
 
-/* Offscreen background webviews for parallel scraping */
+/* Offscreen background webviews for parallel scraping.
+   IMPORTANT: Use 100vw x 100vh so the guest webview's innerWidth/innerHeight
+   match mainWindow's outerWidth/outerHeight. Discord's web bundle runs a
+   500ms DevTools size check ((outerWidth - innerWidth > 160) XOR
+   (outerHeight - innerHeight > 160)) that calls TokenManager.hideToken() and
+   deletes `token`/`tokens` from localStorage when a fixed-size container
+   diverges from the resized host window by more than 160px. */
 .background-webviews-container {
   position: fixed;
   top: 0;
   left: -99999px;
-  width: 1280px;
-  height: 900px;
+  width: 100vw;
+  height: 100vh;
   opacity: 0.01;
   pointer-events: none;
   z-index: -9999;

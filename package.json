@@ -40,7 +40,8 @@
     ],
     "asarUnpack": [
       "data/**",
-      "src/ui/tweet-embed-frame.html"
+      "src/ui/tweet-embed-frame.html",
+      "src/data/discord-preload.js"
     ],
     "afterAllArtifactBuild": "scripts/notarize-mac.js",
     "mac": {

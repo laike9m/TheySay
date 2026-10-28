@@ -421,6 +421,30 @@ async function checkThreadsLoginStatus() {
   }
 }
 
+async function checkDiscordLoginStatus() {
+  try {
+    const res = await ipcRenderer.invoke('check-discord-login-status');
+    if (!res) return;
+    if (res.loggedIn) {
+      const wasExpiredOrLoggedOut = !getDiscordLoggedIn() || getDiscordLoginExpired();
+      saveDiscordLoggedIn(true);
+      markPlatformLoginSuccess('discord');
+      if (wasExpiredOrLoggedOut && typeof authCallbacks.onLoginSuccess === 'function') {
+        authCallbacks.onLoginSuccess('discord');
+      }
+    } else if (res.revoked) {
+      saveDiscordLoggedIn(false);
+      if (getDiscordEverLoggedIn()) {
+        markPlatformLoginExpired('discord');
+      } else {
+        updateDiscordStatusUI(false);
+      }
+    }
+  } catch (e) {
+    updateDiscordStatusUI(getDiscordLoggedIn());
+  }
+}
+
 function initAuth({ onExportProfile, onImportProfile, onLoginSuccess, onExpiredStateChange } = {}) {
   if (typeof onLoginSuccess === 'function') {
     authCallbacks.onLoginSuccess = onLoginSuccess;
@@ -566,6 +590,7 @@ function initAuth({ onExportProfile, onImportProfile, onLoginSuccess, onExpiredS
   checkTwitterLoginStatus();
   checkThreadsLoginStatus();
   updateDiscordStatusUI(getDiscordLoggedIn());
+  checkDiscordLoginStatus();
 
   // Periodically check discord status
   setInterval(() => {
@@ -579,6 +604,7 @@ module.exports = {
   updateDiscordLoginUI: updateDiscordStatusUI,
   checkLoginStatus: checkTwitterLoginStatus,
   checkThreadsLoginStatus,
+  checkDiscordLoginStatus,
   markPlatformLoginExpired,
   markPlatformLoginSuccess,
   isPlatformLoginExpired,

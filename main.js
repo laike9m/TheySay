@@ -299,9 +299,7 @@ function createWindow() {
   mainWindow.on('leave-full-screen', scheduleSaveWindowState);
   mainWindow.on('close', () => {
     writeWindowStateSync();
-    try {
-      session.defaultSession.flushStorageData();
-    } catch (_) {}
+    flushAllSessionsStorageData();
   });
 
   mainWindow.loadFile('index.html');
@@ -358,6 +356,543 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+const DISCORD_PRELOAD_RAW_PATH = path.join(__dirname, 'src', 'data', 'discord-preload.js');
+const DISCORD_PRELOAD_UNPACKED_PATH = DISCORD_PRELOAD_RAW_PATH.replace('app.asar', 'app.asar.unpacked');
+const DISCORD_PRELOAD_PATH = fs.existsSync(DISCORD_PRELOAD_UNPACKED_PATH)
+  ? DISCORD_PRELOAD_UNPACKED_PATH
+  : DISCORD_PRELOAD_RAW_PATH;
+
+let discordAllowTokenClear = false;
+
+function flushAllSessionsStorageData() {
+  try {
+    session.defaultSession.flushStorageData();
+  } catch (_) {}
+  try {
+    session.fromPartition(DISCORD_PARTITION).flushStorageData();
+  } catch (_) {}
+  try {
+    session.fromPartition(THREADS_PARTITION).flushStorageData();
+  } catch (_) {}
+  try {
+    session.fromPartition('persist:x_session').flushStorageData();
+  } catch (_) {}
+}
+
+function scanLevelDbForDiscordAuth() {
+  try {
+    const leveldbDir = path.join(
+      app.getPath('userData'),
+      'Partitions',
+      'discord_session',
+      'Local Storage',
+      'leveldb'
+    );
+    if (!fs.existsSync(leveldbDir)) return null;
+    const files = fs
+      .readdirSync(leveldbDir)
+      .filter((f) => f.endsWith('.log') || f.endsWith('.ldb'))
+      .map((f) => {
+        const fullPath = path.join(leveldbDir, f);
+        let mtime = 0;
+        try {
+          mtime = fs.statSync(fullPath).mtimeMs;
+        } catch (_) {}
+        return { f, fullPath, mtime };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+
+    let foundToken = '';
+    let foundUserId = '';
+    let foundTokensObj = null;
+    let foundMultiAccount = null;
+
+    const tokensRegex =
+      /\{[^{}]*"(\d{15,22})"\s*:\s*"((?:mfa\.[A-Za-z0-9_-]{20,}|[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{20,}))"[^{}]*\}/g;
+    const rawTokenRegex =
+      /(?:mfa\.[A-Za-z0-9_-]{20,}|[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{20,})/g;
+    const maRegex =
+      /\{"_state":\{"users":\[\{"id":"(\d{15,22})"[^\r\n]*?\}\],"canUseMultiAccountMobile":(?:true|false)\},"_version":\d+\}/g;
+
+    for (const file of files) {
+      let text = '';
+      try {
+        text = fs.readFileSync(file.fullPath).toString('latin1');
+      } catch (_) {
+        continue;
+      }
+
+      if (!foundToken) {
+        let m;
+        while ((m = tokensRegex.exec(text)) !== null) {
+          try {
+            const parsed = JSON.parse(m[0]);
+            if (parsed && typeof parsed === 'object') {
+              foundUserId = m[1];
+              foundToken = m[2];
+              foundTokensObj = parsed;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (!foundToken) {
+        const tokenMatches = text.match(rawTokenRegex);
+        if (tokenMatches && tokenMatches.length > 0) {
+          foundToken = tokenMatches[tokenMatches.length - 1];
+        }
+      }
+
+      if (!foundMultiAccount) {
+        let ma;
+        while ((ma = maRegex.exec(text)) !== null) {
+          try {
+            const parsed = JSON.parse(ma[0]);
+            if (
+              parsed &&
+              parsed._state &&
+              Array.isArray(parsed._state.users) &&
+              parsed._state.users.length > 0
+            ) {
+              parsed._state.users.forEach((u) => {
+                if (u && typeof u === 'object') u.tokenStatus = 2;
+              });
+              foundMultiAccount = parsed;
+              if (!foundUserId) foundUserId = ma[1];
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (foundToken && foundMultiAccount) break;
+    }
+
+    if (!foundToken) return null;
+    const tokens = foundTokensObj && typeof foundTokensObj === 'object' ? { ...foundTokensObj } : {};
+    if (foundUserId && !tokens[foundUserId]) {
+      tokens[foundUserId] = foundToken;
+    }
+
+    return {
+      token: foundToken,
+      userId: foundUserId || '',
+      tokens,
+      multiAccountStore: foundMultiAccount,
+      updatedAt: Date.now()
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveDiscordAuthBackup(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  try {
+    const prev = preferencesStore.get('discordAuthBackup') || {};
+    const token =
+      typeof payload.token === 'string' && payload.token.trim()
+        ? payload.token.trim().replace(/^"+|"+$/g, '')
+        : typeof prev.token === 'string'
+          ? prev.token
+          : '';
+    if (!token) return null;
+
+    let userId =
+      typeof payload.userId === 'string' && payload.userId.trim()
+        ? payload.userId.trim()
+        : typeof prev.userId === 'string'
+          ? prev.userId
+          : '';
+
+    const mergedTokens = {
+      ...(prev.tokens && typeof prev.tokens === 'object' ? prev.tokens : {}),
+      ...(payload.tokens && typeof payload.tokens === 'object' ? payload.tokens : {})
+    };
+
+    if (!userId) {
+      const uidKey = Object.keys(mergedTokens).find((k) => /^\d{15,22}$/.test(k));
+      if (uidKey) userId = uidKey;
+    }
+    if (userId) {
+      mergedTokens[userId] = token;
+    }
+
+    let multiAccountStore =
+      payload.multiAccountStore && typeof payload.multiAccountStore === 'object'
+        ? payload.multiAccountStore
+        : prev.multiAccountStore && typeof prev.multiAccountStore === 'object'
+          ? prev.multiAccountStore
+          : null;
+
+    if (
+      multiAccountStore &&
+      multiAccountStore._state &&
+      Array.isArray(multiAccountStore._state.users)
+    ) {
+      multiAccountStore._state.users.forEach((u) => {
+        if (u && typeof u === 'object') {
+          u.tokenStatus = 2;
+          if (!userId && u.id) userId = String(u.id);
+        }
+      });
+    }
+
+    const nextBackup = {
+      token,
+      userId,
+      tokens: mergedTokens,
+      multiAccountStore,
+      updatedAt: Date.now()
+    };
+
+    preferencesStore.set('discordAuthBackup', nextBackup);
+    preferencesStore.delete('discordAuthBackupCleared');
+    return nextBackup;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearDiscordAuthBackup() {
+  try {
+    preferencesStore.delete('discordAuthBackup');
+    preferencesStore.set('discordAuthBackupCleared', true);
+  } catch (_) {}
+}
+
+function getOrRecoverDiscordAuthBackup() {
+  try {
+    const saved = preferencesStore.get('discordAuthBackup');
+    if (saved && typeof saved === 'object' && typeof saved.token === 'string' && saved.token.trim()) {
+      return saved;
+    }
+    if (preferencesStore.get('discordAuthBackupCleared') === true) {
+      return null;
+    }
+    const recovered = scanLevelDbForDiscordAuth();
+    if (recovered && recovered.token) {
+      return saveDiscordAuthBackup(recovered);
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function verifyDiscordTokenOnline(token) {
+  if (!token || typeof token !== 'string') {
+    return { valid: false, revoked: false };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch('https://discord.com/api/v9/users/@me', {
+      headers: {
+        Authorization: token,
+        'User-Agent': DISCORD_USER_AGENT,
+        Accept: 'application/json'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (res.status === 200) {
+      const user = await res.json().catch(() => null);
+      if (user && user.id) {
+        return { valid: true, revoked: false, user };
+      }
+      return { valid: true, revoked: false };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, revoked: true };
+    }
+    return { valid: true, revoked: false, transient: true };
+  } catch (_) {
+    clearTimeout(timer);
+    return { valid: true, revoked: false, offline: true };
+  }
+}
+
+function enrichDiscordBackupWithUser(backup, user) {
+  if (!backup || !user || !user.id) return backup;
+  const userId = String(user.id);
+  const existingMa = backup.multiAccountStore;
+  let multiAccountStore = existingMa;
+  if (
+    !multiAccountStore ||
+    !multiAccountStore._state ||
+    !Array.isArray(multiAccountStore._state.users) ||
+    multiAccountStore._state.users.length === 0
+  ) {
+    multiAccountStore = {
+      _state: {
+        users: [
+          {
+            id: userId,
+            avatar: user.avatar || null,
+            username: user.username || '',
+            discriminator: user.discriminator || '0',
+            tokenStatus: 2,
+            pushSyncToken: null
+          }
+        ],
+        canUseMultiAccountMobile: false
+      },
+      _version: 1
+    };
+  }
+  return (
+    saveDiscordAuthBackup({
+      ...backup,
+      userId,
+      tokens: { ...(backup.tokens || {}), [userId]: backup.token },
+      multiAccountStore
+    }) || backup
+  );
+}
+
+function buildDiscordRuntimeSyncScript(backup, allowClear = false) {
+  return `
+  (() => {
+    try {
+      const BACKUP = ${JSON.stringify(backup || null)};
+      const ALLOW_CLEAR = ${JSON.stringify(Boolean(allowClear))};
+      window.__theysayAllowDiscordTokenClear = ALLOW_CLEAR;
+
+      // 1. Neutralize Discord's DevTools dimension check (outerWidth/outerHeight - innerWidth/innerHeight > 160)
+      try {
+        Object.defineProperty(window, 'outerWidth', {
+          get: () => window.innerWidth,
+          configurable: true
+        });
+        Object.defineProperty(window, 'outerHeight', {
+          get: () => window.innerHeight,
+          configurable: true
+        });
+      } catch (_) {}
+
+      // 2. Locate Discord's localStorage object even after Discord runs "delete window.localStorage"
+      const findDiscordLS = () => {
+        try {
+          if (window.localStorage) return window.localStorage;
+        } catch (_) {}
+        if (window.__theysayDiscordLS) return window.__theysayDiscordLS;
+        if (window.__d6gp33cibjs) return window.__d6gp33cibjs;
+        try {
+          const names = Object.getOwnPropertyNames(window);
+          for (let i = 0; i < names.length; i++) {
+            const k = names[i];
+            if (k === 'sessionStorage' || k === 'localStorage') continue;
+            try {
+              const val = window[k];
+              if (val && typeof window.Storage !== 'undefined' && val instanceof window.Storage) {
+                window.__theysayDiscordLS = val;
+                return val;
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+        try {
+          if (document.body || document.head) {
+            const f = document.createElement('iframe');
+            f.style.display = 'none';
+            (document.head || document.body).appendChild(f);
+            const ls = f.contentWindow && f.contentWindow.localStorage;
+            f.remove();
+            if (ls) {
+              window.__theysayDiscordLS = ls;
+              return ls;
+            }
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const origSetItem = Storage.prototype.setItem;
+      const origRemoveItem = Storage.prototype.removeItem;
+      const origGetItem = Storage.prototype.getItem;
+
+      if (!window.__theysayDiscordGuardInstalled) {
+        window.__theysayDiscordGuardInstalled = true;
+        Storage.prototype.getItem = function(key) {
+          if (this !== window.sessionStorage && !window.__theysayDiscordLS) {
+            window.__theysayDiscordLS = this;
+          }
+          return origGetItem.call(this, key);
+        };
+        Storage.prototype.setItem = function(key, value) {
+          if (this !== window.sessionStorage) {
+            window.__theysayDiscordLS = this;
+            if (!window.__theysayAllowDiscordTokenClear) {
+              if (key === 'token') {
+                const strVal = String(value || '').trim();
+                if (strVal && strVal !== 'null' && strVal !== '""') {
+                  try { origSetItem.call(this, '__theysay_discord_token_backup', strVal); } catch (_) {}
+                } else {
+                  try {
+                    const b = origGetItem.call(this, '__theysay_discord_token_backup');
+                    if (b) return;
+                  } catch (_) {}
+                }
+              } else if (key === 'tokens') {
+                const strVal = String(value || '').trim();
+                if (strVal && strVal !== '{}' && strVal !== 'null') {
+                  try { origSetItem.call(this, '__theysay_discord_tokens_backup', strVal); } catch (_) {}
+                } else if (strVal === '{}' || strVal === 'null') {
+                  try {
+                    const b = origGetItem.call(this, '__theysay_discord_tokens_backup');
+                    if (b && b !== '{}') return;
+                  } catch (_) {}
+                }
+              }
+            }
+          }
+          return origSetItem.call(this, key, value);
+        };
+        Storage.prototype.removeItem = function(key) {
+          if (this !== window.sessionStorage) {
+            window.__theysayDiscordLS = this;
+            if (!window.__theysayAllowDiscordTokenClear && (key === 'token' || key === 'tokens')) {
+              return;
+            }
+          }
+          return origRemoveItem.call(this, key);
+        };
+      }
+
+      const ls = findDiscordLS();
+      if (!ls || ALLOW_CLEAR) return { ok: false };
+
+      const parseJson = (s) => {
+        if (!s) return null;
+        try { return JSON.parse(s); } catch (_) { return null; }
+      };
+
+      let rawToken = origGetItem.call(ls, 'token');
+      let rawTokens = origGetItem.call(ls, 'tokens');
+      let rawMa = origGetItem.call(ls, 'MultiAccountStore');
+
+      let tokenVal = parseJson(rawToken);
+      if (typeof tokenVal !== 'string' || !tokenVal.trim()) {
+        tokenVal = '';
+      }
+
+      let tokensObj = parseJson(rawTokens);
+      if (!tokenVal && tokensObj && typeof tokensObj === 'object') {
+        const uidKey = Object.keys(tokensObj).find(k => /^\\d{15,22}$/.test(k) && typeof tokensObj[k] === 'string' && tokensObj[k]);
+        if (uidKey) {
+          tokenVal = tokensObj[uidKey];
+          origSetItem.call(ls, 'token', JSON.stringify(tokenVal));
+        }
+      }
+
+      if (tokenVal) {
+        origSetItem.call(ls, '__theysay_discord_token_backup', JSON.stringify(tokenVal));
+        if (tokensObj && typeof tokensObj === 'object' && Object.keys(tokensObj).length > 0) {
+          origSetItem.call(ls, '__theysay_discord_tokens_backup', JSON.stringify(tokensObj));
+        }
+        return {
+          ok: true,
+          captured: true,
+          token: tokenVal,
+          tokens: tokensObj && typeof tokensObj === 'object' ? tokensObj : null,
+          multiAccountStore: parseJson(rawMa)
+        };
+      }
+
+      if (BACKUP && BACKUP.token) {
+        const tokenJson = JSON.stringify(BACKUP.token);
+        origSetItem.call(ls, 'token', tokenJson);
+        origSetItem.call(ls, '__theysay_discord_token_backup', tokenJson);
+        const nextTokens = (BACKUP.tokens && typeof BACKUP.tokens === 'object')
+          ? Object.assign({}, BACKUP.tokens)
+          : {};
+        if (BACKUP.userId && !nextTokens[BACKUP.userId]) {
+          nextTokens[BACKUP.userId] = BACKUP.token;
+        }
+        if (Object.keys(nextTokens).length > 0) {
+          const tokensJson = JSON.stringify(nextTokens);
+          origSetItem.call(ls, 'tokens', tokensJson);
+          origSetItem.call(ls, '__theysay_discord_tokens_backup', tokensJson);
+        }
+        if (BACKUP.multiAccountStore) {
+          const ma = typeof BACKUP.multiAccountStore === 'string'
+            ? parseJson(BACKUP.multiAccountStore)
+            : BACKUP.multiAccountStore;
+          if (ma && ma._state && Array.isArray(ma._state.users)) {
+            ma._state.users.forEach(u => { if (u && typeof u === 'object') u.tokenStatus = 2; });
+            origSetItem.call(ls, 'MultiAccountStore', JSON.stringify(ma));
+          }
+        }
+        return { ok: true, restored: true };
+      }
+
+      return { ok: false };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e) };
+    }
+  })()
+  `;
+}
+
+ipcMain.on('discord-preload-sync', (event) => {
+  event.returnValue = {
+    backup: discordAllowTokenClear ? null : getOrRecoverDiscordAuthBackup(),
+    allowTokenClear: discordAllowTokenClear
+  };
+});
+
+ipcMain.on('discord-auth-captured', (event, payload) => {
+  if (!discordAllowTokenClear && payload && payload.token) {
+    saveDiscordAuthBackup(payload);
+  }
+});
+
+ipcMain.handle('get-discord-auth-backup', async () => {
+  if (discordAllowTokenClear) return null;
+  return getOrRecoverDiscordAuthBackup();
+});
+
+ipcMain.handle('clear-discord-auth-backup', async () => {
+  clearDiscordAuthBackup();
+  return { ok: true };
+});
+
+ipcMain.handle('verify-and-get-discord-auth-backup', async () => {
+  if (discordAllowTokenClear) {
+    return { ok: false, hasBackup: false };
+  }
+  let backup = getOrRecoverDiscordAuthBackup();
+  if (!backup || !backup.token) {
+    return { ok: false, hasBackup: false };
+  }
+  const verifyRes = await verifyDiscordTokenOnline(backup.token);
+  if (verifyRes.revoked) {
+    clearDiscordAuthBackup();
+    return { ok: false, revoked: true, hasBackup: false };
+  }
+  if (verifyRes.user) {
+    backup = enrichDiscordBackupWithUser(backup, verifyRes.user);
+  }
+  return { ok: true, hasBackup: true, backup };
+});
+
+ipcMain.handle('check-discord-login-status', async () => {
+  if (discordAllowTokenClear) {
+    return { loggedIn: false, revoked: false, hasBackup: false };
+  }
+  let backup = getOrRecoverDiscordAuthBackup();
+  if (!backup || !backup.token) {
+    return { loggedIn: false, revoked: false, hasBackup: false };
+  }
+  const verifyRes = await verifyDiscordTokenOnline(backup.token);
+  if (verifyRes.revoked) {
+    clearDiscordAuthBackup();
+    return { loggedIn: false, revoked: true, hasBackup: false };
+  }
+  if (verifyRes.user) {
+    backup = enrichDiscordBackupWithUser(backup, verifyRes.user);
+  }
+  return { loggedIn: true, revoked: false, hasBackup: true, backup };
+});
 
 // Check Twitter login status via persist:x_session cookies
 ipcMain.handle('check-login-status', async () => {
@@ -462,6 +997,8 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   // the Discord partition session so /login does not immediately bounce back to /app
   // and close the window. Main window's scraped data cache is never touched.
   if (payload && payload.wasLoggedIn) {
+    discordAllowTokenClear = true;
+    clearDiscordAuthBackup();
     try {
       await discordSession.clearStorageData({
         storages: ['cookies', 'localstorage', 'sessionstorage']
@@ -470,6 +1007,8 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
         mainWindow.webContents.send('discord-login-status-changed', { loggedIn: false });
       }
     } catch (e) {}
+  } else {
+    discordAllowTokenClear = false;
   }
 
   discordLoginWindow = new BrowserWindow({
@@ -491,11 +1030,29 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
 
   let reportedLoggedIn = false;
   let notifiedMainWindow = false;
-  const notifyIfLoggedIn = (url) => {
+  const captureLoginTokenFromWindow = async () => {
+    try {
+      if (discordLoginWindow && !discordLoginWindow.isDestroyed()) {
+        const res = await discordLoginWindow.webContents
+          .executeJavaScript(buildDiscordRuntimeSyncScript(null, false))
+          .catch(() => null);
+        if (res && res.captured && res.token) {
+          saveDiscordAuthBackup(res);
+        }
+      }
+    } catch (_) {}
+  };
+
+  const notifyIfLoggedIn = async (url) => {
+    if (url && url.includes('discord.com/login') && discordAllowTokenClear) {
+      discordAllowTokenClear = false;
+    }
     if (reportedLoggedIn) return;
     if (url.indexOf('discord.com/channels/') < 0 && url.indexOf('discord.com/app') < 0) return;
 
+    discordAllowTokenClear = false;
     reportedLoggedIn = true;
+    await captureLoginTokenFromWindow();
     try {
       discordSession.flushStorageData();
     } catch (_) {}
@@ -503,7 +1060,8 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
       notifiedMainWindow = true;
       mainWindow.webContents.send('discord-login-status-changed', { loggedIn: true });
     }
-    setTimeout(() => {
+    setTimeout(async () => {
+      await captureLoginTokenFromWindow();
       try {
         discordSession.flushStorageData();
       } catch (_) {}
@@ -519,6 +1077,7 @@ ipcMain.on('open-discord-login-window', async (event, payload = {}) => {
   discordLoginWindow.webContents.on('did-navigate-in-page', (event, url) => notifyIfLoggedIn(url));
 
   discordLoginWindow.on('closed', () => {
+    discordAllowTokenClear = false;
     discordLoginWindow = null;
     try {
       discordSession.flushStorageData();
@@ -950,9 +1509,7 @@ ipcMain.handle('fetch-online-tickers', async () => {
 });
 
 ipcMain.on('flush-storage-data', () => {
-  try {
-    session.defaultSession.flushStorageData();
-  } catch (_) {}
+  flushAllSessionsStorageData();
 });
 
 ipcMain.on('set-app-badge', (event, count) => {
@@ -999,22 +1556,38 @@ ipcMain.handle('fetch-url-title', async (event, rawUrl) => {
 });
 
 app.whenReady().then(() => {
-  // Ensure background webviews (especially Discord client) are never throttled
-  // and cannot override the host app's Dock / taskbar unread badge.
+  // Recover any Discord token from LevelDB if not already backed up in preferencesStore
+  getOrRecoverDiscordAuthBackup();
+
+  // Ensure background webviews (especially Discord client) are never throttled,
+  // cannot override the host app's Dock / taskbar unread badge, and never lose
+  // Discord localStorage tokens due to Discord's DevTools dimension check.
   app.on('web-contents-created', (event, contents) => {
     contents.setBackgroundThrottling(false);
-    const silenceGuestBadging = () => {
+    const onGuestPageEvent = () => {
       try {
         if (!contents.isDestroyed()) {
           contents.executeJavaScript(DISABLE_WEB_BADGING_SCRIPT).catch(() => {});
+          const url = typeof contents.getURL === 'function' ? contents.getURL() : '';
+          if (url && url.includes('discord.com')) {
+            const backup = discordAllowTokenClear ? null : getOrRecoverDiscordAuthBackup();
+            contents
+              .executeJavaScript(buildDiscordRuntimeSyncScript(backup, discordAllowTokenClear))
+              .then((res) => {
+                if (res && res.captured && res.token && !discordAllowTokenClear) {
+                  saveDiscordAuthBackup(res);
+                }
+              })
+              .catch(() => {});
+          }
         }
       } catch (_) {}
       enforceHostAppBadge();
     };
-    contents.on('dom-ready', silenceGuestBadging);
-    contents.on('did-finish-load', silenceGuestBadging);
-    contents.on('did-navigate', silenceGuestBadging);
-    contents.on('did-navigate-in-page', silenceGuestBadging);
+    contents.on('dom-ready', onGuestPageEvent);
+    contents.on('did-finish-load', onGuestPageEvent);
+    contents.on('did-navigate', onGuestPageEvent);
+    contents.on('did-navigate-in-page', onGuestPageEvent);
     contents.on('page-title-updated', () => enforceHostAppBadge());
   });
 
@@ -1023,6 +1596,19 @@ app.whenReady().then(() => {
   const discordSession = session.fromPartition(DISCORD_PARTITION);
   discordSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
   discordSession.setPermissionCheckHandler(() => false);
+  if (fs.existsSync(DISCORD_PRELOAD_PATH)) {
+    try {
+      if (typeof discordSession.registerPreloadScript === 'function') {
+        discordSession.registerPreloadScript({
+          type: 'frame',
+          id: 'theysay-discord-preload',
+          filePath: DISCORD_PRELOAD_PATH
+        });
+      } else if (typeof discordSession.setPreloads === 'function') {
+        discordSession.setPreloads([DISCORD_PRELOAD_PATH]);
+      }
+    } catch (_) {}
+  }
 
   const threadsSession = session.fromPartition(THREADS_PARTITION);
   threadsSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
@@ -1114,9 +1700,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
-  try {
-    session.defaultSession.flushStorageData();
-  } catch (_) {}
+  flushAllSessionsStorageData();
 });
 
 app.on('window-all-closed', () => {

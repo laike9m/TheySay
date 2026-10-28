@@ -1,7 +1,7 @@
 const { MAX_SLOTS } = require('../core/constants');
 const { showToast } = require('../core/utils');
 const { getSavedGridLayout, saveGridLayout } = require('../core/storage');
-const { updateSlotSizeUI, slotHasContent } = require('./slot');
+const { updateSlotSizeUI, slotHasContent, syncAppUnreadBadge } = require('./slot');
 const { t } = require('../core/i18n');
 
 function calculateCellHeight(rows) {
@@ -225,6 +225,7 @@ function applyGridLayout({ grid, gridContainer, slots, rows, cols, resetPosition
   }
 
   saveGridLayout(grid);
+  syncAppUnreadBadge(slots);
 }
 
 function requestSlotResize({ grid, slot, targetW, targetH, currentRows, currentCols, slots }) {

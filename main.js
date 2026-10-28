@@ -146,7 +146,48 @@ let mainWindow = null;
 let loginWindow = null;
 let discordLoginWindow = null;
 let threadsLoginWindow = null;
+let currentAppBadgeCount = 0;
 const activeNotifications = new Set();
+
+const DISABLE_WEB_BADGING_SCRIPT = `
+  try {
+    if (typeof Navigator !== 'undefined' && Navigator.prototype) {
+      Navigator.prototype.setAppBadge = () => Promise.resolve();
+      Navigator.prototype.clearAppBadge = () => Promise.resolve();
+    }
+  } catch (_) {}
+`;
+
+function applyAppBadgeCount(count) {
+  const nextCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+  currentAppBadgeCount = nextCount;
+  if (IS_BACKGROUND_TEST) return;
+  try {
+    if (typeof app.setBadgeCount === 'function') {
+      app.setBadgeCount(nextCount);
+    }
+  } catch (_) {}
+  if (process.platform === 'darwin' && app.dock && typeof app.dock.setBadge === 'function') {
+    try {
+      app.dock.setBadge(nextCount > 0 ? String(nextCount) : '');
+    } catch (_) {}
+  }
+}
+
+function enforceHostAppBadge() {
+  if (IS_BACKGROUND_TEST) return;
+  const expectedBadge = currentAppBadgeCount > 0 ? String(currentAppBadgeCount) : '';
+  const countDrifted =
+    typeof app.getBadgeCount === 'function' && app.getBadgeCount() !== currentAppBadgeCount;
+  const dockDrifted =
+    process.platform === 'darwin' &&
+    app.dock &&
+    typeof app.dock.getBadge === 'function' &&
+    app.dock.getBadge() !== expectedBadge;
+  if (countDrifted || dockDrifted) {
+    applyAppBadgeCount(currentAppBadgeCount);
+  }
+}
 
 function createWindow() {
   const windowState = loadWindowState();
@@ -914,6 +955,12 @@ ipcMain.on('flush-storage-data', () => {
   } catch (_) {}
 });
 
+ipcMain.on('set-app-badge', (event, count) => {
+  applyAppBadgeCount(Number(count) || 0);
+});
+
+ipcMain.handle('get-app-badge-count', () => currentAppBadgeCount);
+
 const mainUrlTitleCache = new LRUCache({ max: 1000 });
 
 ipcMain.handle('fetch-url-title', async (event, rawUrl) => {
@@ -953,8 +1000,22 @@ ipcMain.handle('fetch-url-title', async (event, rawUrl) => {
 
 app.whenReady().then(() => {
   // Ensure background webviews (especially Discord client) are never throttled
+  // and cannot override the host app's Dock / taskbar unread badge.
   app.on('web-contents-created', (event, contents) => {
     contents.setBackgroundThrottling(false);
+    const silenceGuestBadging = () => {
+      try {
+        if (!contents.isDestroyed()) {
+          contents.executeJavaScript(DISABLE_WEB_BADGING_SCRIPT).catch(() => {});
+        }
+      } catch (_) {}
+      enforceHostAppBadge();
+    };
+    contents.on('dom-ready', silenceGuestBadging);
+    contents.on('did-finish-load', silenceGuestBadging);
+    contents.on('did-navigate', silenceGuestBadging);
+    contents.on('did-navigate-in-page', silenceGuestBadging);
+    contents.on('page-title-updated', () => enforceHostAppBadge());
   });
 
   // The Discord & Threads clients run unattended in the background, so silence anything
@@ -1014,6 +1075,11 @@ app.whenReady().then(() => {
     } else {
       app.dock.setIcon(ICON_PATH);
     }
+  }
+  applyAppBadgeCount(0);
+  const badgeGuardTimer = setInterval(enforceHostAppBadge, 1500);
+  if (badgeGuardTimer && typeof badgeGuardTimer.unref === 'function') {
+    badgeGuardTimer.unref();
   }
 
   if (!process.env.THEYSAY_SYSTEM_LOCALE) {

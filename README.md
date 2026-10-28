@@ -14,8 +14,8 @@
 - **Smart Stock & ETF Ticker Highlighting**: Automatically detects and highlights US stock, ETF, and crypto tickers (with or without `$`) with customizable badge colors and NASDAQ symbol sync.  
   **股票与 ETF 代码智能高亮**：自动识别并高亮消息中的美股、ETF 及加密货币代码（无论是否带 `$` 前缀），支持自定义配色与 NASDAQ 词库在线同步。
 
-- **Unread Tracking & Per-Channel Notifications**: Highlights new messages with unread count badges and lets you toggle desktop notifications independently for each account or channel.  
-  **未读提醒与按频道独立通知**：自动高亮新消息并显示未读计数角标，支持为每个账号或频道单独开启桌面系统通知。
+- **Unread Tracking & Per-Channel Notifications**: Highlights new messages with per-slot unread count badges, keeps the OS app / Dock icon badge synchronized with the total unread count across active slots (automatically clearing when all messages are read), and lets you toggle desktop notifications independently for each account or channel.  
+  **未读提醒与按频道独立通知**：自动高亮新消息并显示栏目未读计数角标，同时将系统 Dock / 任务栏应用图标角标与当前看板的实际未读总数实时同步（全部已读时自动清零消除），并支持为每个账号或频道单独开启桌面系统通知。
 
 - **Custom Auto-Refresh, Login Expiration Alerts & Profile Backup**: Set independent background refresh intervals for Twitter, Threads, and Discord, receive prominent persistent top-banner and per-slot alerts when a previously logged-in session expires (strictly distinguished from initial unlogged-in use) with one-click re-login and instant resume, and export or import your entire layout, settings, and followed list as a `.json` profile anytime.  
   **独立自动刷新、登录过期强提示与 Profile 备份**：支持分别为 Twitter、Threads 与 Discord 设置后台刷新频率；当已登录过的平台会话过期时，在页面顶部及对应卡片内展示持久醒目的过期警告与一键重登入口（严格区分初次使用的未登录状态，重登后提示自动消失并立即恢复抓取）；同时可将全部排版、设置与关注列表一键导出/导入为 `.json` 备份文件。

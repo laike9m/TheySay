@@ -1,4 +1,4 @@
-const { shell } = require('electron');
+const { shell, ipcRenderer } = require('electron');
 const pLimit = require('p-limit');
 const { MAX_SLOTS, DEFAULT_SLOT_MUTED } = require('../core/constants');
 const { escapeHtml, showToast, formatFetchTime, stripDiscordEditedText } = require('../core/utils');
@@ -424,6 +424,8 @@ function updateAllSlotsExpiredUI(slots = []) {
   });
 }
 
+let registeredSlots = [];
+
 function getSlotUnreadCount(slot) {
   if (!slot || !Array.isArray(slot.loadedPosts) || slot.loadedPosts.length === 0) return 0;
   const isDiscord = isDiscordSlot(slot);
@@ -439,7 +441,26 @@ function getSlotUnreadCount(slot) {
   return count;
 }
 
-function updateSlotUnreadBadge(slot) {
+function syncAppUnreadBadge(slots = registeredSlots) {
+  const list = Array.isArray(slots) && slots.length > 0 ? slots : registeredSlots;
+  if (Array.isArray(slots) && slots.length > 1) {
+    registeredSlots = slots;
+  }
+  const hasAttachedSlots = list.some(s => s && s.element && s.element.parentElement);
+  let totalUnread = 0;
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (!s) continue;
+    if (hasAttachedSlots && (!s.element || !s.element.parentElement)) continue;
+    totalUnread += getSlotUnreadCount(s);
+  }
+  if (ipcRenderer && typeof ipcRenderer.send === 'function') {
+    ipcRenderer.send('set-app-badge', totalUnread);
+  }
+  return totalUnread;
+}
+
+function updateSlotUnreadBadge(slot, slots = registeredSlots) {
   if (!slot || !slot.unreadBadge) return;
   const isEditing = slot.inputWrapper && slot.inputWrapper.style.display === 'flex';
   const count = getSlotUnreadCount(slot);
@@ -451,6 +472,8 @@ function updateSlotUnreadBadge(slot) {
     slot.unreadBadge.innerText = '';
     slot.unreadBadge.style.display = 'none';
   }
+  const targetSlots = Array.isArray(slots) && slots.length > 0 ? slots : (registeredSlots.length > 0 ? registeredSlots : [slot]);
+  syncAppUnreadBadge(targetSlots);
 }
 
 function markSlotPostsAsRead(slot, slots = []) {
@@ -481,7 +504,7 @@ function markSlotPostsAsRead(slot, slots = []) {
       avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
     }, slots);
   }
-  updateSlotUnreadBadge(slot);
+  updateSlotUnreadBadge(slot, slots);
   return updated;
 }
 
@@ -2153,11 +2176,16 @@ function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetc
     bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions });
   }
 
+  registeredSlots = slots;
+  syncAppUnreadBadge(slots);
   return slots;
 }
 
 function loadSlotCache(slots) {
   try {
+    if (Array.isArray(slots) && slots.length > 0) {
+      registeredSlots = slots;
+    }
     const cache = getSlotCache();
 
     // First, ensure every existing slot cache entry is indexed in per-target cache
@@ -2401,6 +2429,7 @@ function loadSlotCache(slots) {
         }
       }
     });
+    syncAppUnreadBadge(slots);
   } catch (e) {}
 }
 
@@ -2408,6 +2437,7 @@ function markAllPostsAsRead(slots) {
   slots.forEach(slot => {
     markSlotPostsAsRead(slot, slots);
   });
+  syncAppUnreadBadge(slots);
 }
 
 function refreshSlotsContent(slots) {
@@ -2428,6 +2458,7 @@ function refreshSlotsContent(slots) {
       renderSlotPosts(slot, slot.loadedPosts, handle, avatarUrl, slots, meta);
     }
   });
+  syncAppUnreadBadge(slots);
 }
 
 function localizeSlotsUI(slots) {
@@ -2472,6 +2503,8 @@ module.exports = {
   updateSlotHeaderMeta,
   updateSlotExpiredUI,
   updateAllSlotsExpiredUI,
+  getSlotUnreadCount,
+  syncAppUnreadBadge,
   updateSlotUnreadBadge,
   markSlotPostsAsRead,
   showSlotLoading,

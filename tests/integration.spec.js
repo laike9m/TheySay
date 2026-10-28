@@ -225,6 +225,17 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#slot-unread-badge-0')).toBeVisible();
     await expect(page.locator('#slot-unread-badge-0')).toContainText('1');
 
+    await page.evaluate(async () => {
+      if (navigator.setAppBadge) {
+        await navigator.setAppBadge(99);
+      }
+    });
+
+    const unreadAppBadge = await page.evaluate(() =>
+      require('electron').ipcRenderer.invoke('get-app-badge-count')
+    );
+    expect(unreadAppBadge).toBe(1);
+
     // Verify post bubble and stock ticker highlights ($NVDA and AAPL)
     const postBubble = page.locator('#slot-content-0 .im-bubble').first();
     await expect(postBubble).toBeVisible();
@@ -239,6 +250,11 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.locator('#btn-mark-all-read').click();
     await expect(postBubble).not.toHaveClass(/unread/);
     await expect(page.locator('#slot-unread-badge-0')).toBeHidden();
+
+    const clearedAppBadge = await page.evaluate(() =>
+      require('electron').ipcRenderer.invoke('get-app-badge-count')
+    );
+    expect(clearedAppBadge).toBe(0);
   });
 
   test('5. Profile Export & Import end-to-end via Electron IPC', async () => {

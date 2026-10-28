@@ -24,6 +24,7 @@ const {
   STORAGE_THREADS_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
+  STORAGE_APP_BADGE_ENABLED_KEY,
   STORAGE_MUTED_SLOTS_KEY,
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
@@ -36,6 +37,7 @@ const {
   DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
+  DEFAULT_APP_BADGE_ENABLED,
   DEFAULT_SLOT_MUTED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
@@ -685,6 +687,22 @@ function saveDiscordSoundEnabled(enabled) {
   } catch (e) {}
 }
 
+function getAppBadgeEnabled() {
+  try {
+    const raw = localStorage.getItem(STORAGE_APP_BADGE_ENABLED_KEY);
+    if (raw !== null && raw !== '') {
+      return raw === '1' || raw === 'true';
+    }
+  } catch (e) {}
+  return DEFAULT_APP_BADGE_ENABLED;
+}
+
+function saveAppBadgeEnabled(enabled) {
+  try {
+    localStorage.setItem(STORAGE_APP_BADGE_ENABLED_KEY, enabled ? '1' : '0');
+  } catch (e) {}
+}
+
 function getTickerFgColor() {
   try {
     const raw = localStorage.getItem(STORAGE_TICKER_FG_COLOR_KEY);
@@ -914,6 +932,9 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     discordSoundEnabled: settingsOverrides.discordSoundEnabled !== undefined
       ? settingsOverrides.discordSoundEnabled
       : getDiscordSoundEnabled(),
+    appBadgeEnabled: settingsOverrides.appBadgeEnabled !== undefined
+      ? settingsOverrides.appBadgeEnabled
+      : getAppBadgeEnabled(),
     headerBgColor: settingsOverrides.headerBgColor !== undefined
       ? settingsOverrides.headerBgColor
       : getHeaderBgColor(),
@@ -999,6 +1020,8 @@ module.exports = {
   saveShowMemberOnlyPosts,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
+  getAppBadgeEnabled,
+  saveAppBadgeEnabled,
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,

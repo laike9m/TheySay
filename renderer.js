@@ -13,6 +13,7 @@ const {
   saveDiscordIntervalMinutes,
   saveShowMemberOnlyPosts,
   saveDiscordSoundEnabled,
+  saveAppBadgeEnabled,
   saveHeaderBgColor,
   saveTickerFgColor,
   saveTickerBgColor,
@@ -190,6 +191,9 @@ async function handleImportProfile() {
     }
     if (typeof settings.discordSoundEnabled === 'boolean') {
       saveDiscordSoundEnabled(settings.discordSoundEnabled);
+    }
+    if (typeof settings.appBadgeEnabled === 'boolean') {
+      saveAppBadgeEnabled(settings.appBadgeEnabled);
     }
     if (typeof settings.headerBgColor === 'string' && settings.headerBgColor.trim()) {
       saveHeaderBgColor(settings.headerBgColor.trim());

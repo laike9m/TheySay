@@ -34,7 +34,8 @@ const {
   getSlotCache,
   saveSlotCache,
   saveAllSlotCache,
-  getShowMemberOnlyPosts
+  getShowMemberOnlyPosts,
+  getAppBadgeEnabled
 } = require('../core/storage');
 const { getOrCreateSlotWebview } = require('../data/webview');
 const {
@@ -454,10 +455,11 @@ function syncAppUnreadBadge(slots = registeredSlots) {
     if (hasAttachedSlots && (!s.element || !s.element.parentElement)) continue;
     totalUnread += getSlotUnreadCount(s);
   }
+  const effectiveBadgeCount = getAppBadgeEnabled() ? totalUnread : 0;
   if (ipcRenderer && typeof ipcRenderer.send === 'function') {
-    ipcRenderer.send('set-app-badge', totalUnread);
+    ipcRenderer.send('set-app-badge', effectiveBadgeCount);
   }
-  return totalUnread;
+  return effectiveBadgeCount;
 }
 
 function updateSlotUnreadBadge(slot, slots = registeredSlots) {

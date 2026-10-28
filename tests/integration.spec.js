@@ -236,6 +236,29 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     );
     expect(unreadAppBadge).toBe(1);
 
+    // Toggle App Icon Badge setting off and verify OS app badge clears while slot unread badge remains
+    const settingsOverlay = page.locator('#settings-modal-overlay');
+    await page.locator('#btn-settings').click();
+    await expect(settingsOverlay).not.toHaveClass(/is-closed/);
+    await expect(page.locator('#setting-app-badge')).toHaveValue('true');
+    await page.selectOption('#setting-app-badge', 'false');
+    await expect
+      .poll(() =>
+        page.evaluate(() => require('electron').ipcRenderer.invoke('get-app-badge-count'))
+      )
+      .toBe(0);
+    await expect(page.locator('#slot-unread-badge-0')).toBeVisible();
+
+    // Toggle App Icon Badge setting back on and verify OS app badge restores to 1
+    await page.selectOption('#setting-app-badge', 'true');
+    await expect
+      .poll(() =>
+        page.evaluate(() => require('electron').ipcRenderer.invoke('get-app-badge-count'))
+      )
+      .toBe(1);
+    await page.locator('#btn-settings-close').click();
+    await expect(settingsOverlay).toHaveClass(/is-closed/);
+
     // Verify post bubble and stock ticker highlights ($NVDA and AAPL)
     const postBubble = page.locator('#slot-content-0 .im-bubble').first();
     await expect(postBubble).toBeVisible();
@@ -283,6 +306,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     expect(exportedJson.app).toBe('TheySay');
     expect(exportedJson.settings.gridPreset).toBe('2x2');
     expect(exportedJson.settings.headerBgColor).toBe('#2563eb');
+    expect(exportedJson.settings.appBadgeEnabled).toBe(true);
     expect(exportedJson.handles[0]).toBe('elonmusk');
 
     // Mutate current state to 3x2 layout and different theme before importing back

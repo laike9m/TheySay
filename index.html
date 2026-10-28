@@ -416,6 +416,28 @@
                 </select>
               </div>
             </div>
+
+            <!-- 应用图标未读角标 -->
+            <div class="settings-row" data-i18n-title="settings.appBadgeTip" title="控制是否在系统 Dock / 任务栏应用图标上显示未读消息数角标">
+              <div class="settings-row-main">
+                <span class="platform-icon app-badge">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                  </svg>
+                </span>
+                <div class="settings-row-text">
+                  <div class="settings-row-title" data-i18n="settings.appBadgeTitle">图标未读角标</div>
+                  <div class="settings-row-subtitle" data-i18n="settings.appBadgeSubtitle">在应用图标上显示未读消息数</div>
+                </div>
+              </div>
+              <div class="settings-input-group">
+                <select id="setting-app-badge" class="settings-select">
+                  <option value="true" selected data-i18n="settings.optionOnDefault">开启 (默认)</option>
+                  <option value="false" data-i18n="settings.optionOff">关闭</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 

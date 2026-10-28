@@ -30,6 +30,7 @@ const STORAGE_DISCORD_INTERVAL_KEY = 'theysay_discord_interval_minutes';
 const STORAGE_THREADS_INTERVAL_KEY = 'theysay_threads_interval_minutes';
 const STORAGE_SHOW_MEMBER_ONLY_KEY = 'theysay_show_member_only';
 const STORAGE_DISCORD_SOUND_KEY = 'theysay_discord_sound_enabled';
+const STORAGE_APP_BADGE_ENABLED_KEY = 'theysay_app_badge_enabled';
 const STORAGE_MUTED_SLOTS_KEY = 'theysay_slot_muted';
 const STORAGE_TICKER_FG_COLOR_KEY = 'theysay_ticker_fg_color';
 const STORAGE_TICKER_BG_COLOR_KEY = 'theysay_ticker_bg_color';
@@ -45,6 +46,7 @@ const DEFAULT_SHOW_MEMBER_ONLY = true;
 // The offscreen Discord client still plays Discord's own pings (DMs, @mentions,
 // ...). Kept on by default to match Discord itself; users can mute it in Settings.
 const DEFAULT_DISCORD_SOUND_ENABLED = true;
+const DEFAULT_APP_BADGE_ENABLED = true;
 // Per-slot system notifications default to muted (true) so users only get OS
 // notifications for channels they explicitly unmute.
 const DEFAULT_SLOT_MUTED = true;
@@ -180,6 +182,7 @@ module.exports = {
   STORAGE_THREADS_INTERVAL_KEY,
   STORAGE_SHOW_MEMBER_ONLY_KEY,
   STORAGE_DISCORD_SOUND_KEY,
+  STORAGE_APP_BADGE_ENABLED_KEY,
   STORAGE_MUTED_SLOTS_KEY,
   STORAGE_TICKER_FG_COLOR_KEY,
   STORAGE_TICKER_BG_COLOR_KEY,
@@ -192,6 +195,7 @@ module.exports = {
   DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
+  DEFAULT_APP_BADGE_ENABLED,
   DEFAULT_SLOT_MUTED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,

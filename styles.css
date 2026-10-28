@@ -2733,6 +2733,16 @@ body {
   color: #d97706;
 }
 
+.settings-row-main .platform-icon.app-badge {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+[data-theme="light"] .settings-row-main .platform-icon.app-badge {
+  background-color: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
 .settings-row-title {
   font-size: 13px;
   font-weight: 600;

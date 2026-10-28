@@ -5,6 +5,7 @@ const {
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
+  DEFAULT_APP_BADGE_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR
@@ -20,6 +21,8 @@ const {
   saveShowMemberOnlyPosts,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
+  getAppBadgeEnabled,
+  saveAppBadgeEnabled,
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,
@@ -209,6 +212,11 @@ function loadCurrentSettings() {
     discordSoundSelect.value = getDiscordSoundEnabled() ? 'true' : 'false';
   }
 
+  const appBadgeSelect = document.getElementById('setting-app-badge');
+  if (appBadgeSelect) {
+    appBadgeSelect.value = getAppBadgeEnabled() ? 'true' : 'false';
+  }
+
   setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
   setTickerColorInputs(getTickerFgColor(), getTickerBgColor());
   refreshTickerStatsLabel();
@@ -246,6 +254,7 @@ function getFormSettingsOverrides() {
   const discordCustomInput = document.getElementById('setting-discord-custom');
   const memberOnlySelect = document.getElementById('setting-show-member-only');
   const discordSoundSelect = document.getElementById('setting-discord-sound');
+  const appBadgeSelect = document.getElementById('setting-app-badge');
   const headerBgInput = document.getElementById('setting-header-bg-color');
   const headerBgHex = document.getElementById('setting-header-bg-hex');
   const tickerFgInput = document.getElementById('setting-ticker-fg-color');
@@ -297,6 +306,9 @@ function getFormSettingsOverrides() {
   const discordSoundEnabled = discordSoundSelect
     ? discordSoundSelect.value === 'true'
     : getDiscordSoundEnabled();
+  const appBadgeEnabled = appBadgeSelect
+    ? appBadgeSelect.value === 'true'
+    : getAppBadgeEnabled();
   const headerBgColor = normalizeHexColor(
     headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
     getHeaderBgColor()
@@ -317,6 +329,7 @@ function getFormSettingsOverrides() {
     discordIntervalMinutes,
     showMemberOnlyPosts,
     discordSoundEnabled,
+    appBadgeEnabled,
     headerBgColor,
     tickerFgColor,
     tickerBgColor
@@ -351,6 +364,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
 
   const memberOnlySelect = document.getElementById('setting-show-member-only');
   const discordSoundSelect = document.getElementById('setting-discord-sound');
+  const appBadgeSelect = document.getElementById('setting-app-badge');
 
   const headerBgInput = document.getElementById('setting-header-bg-color');
   const headerBgHex = document.getElementById('setting-header-bg-hex');
@@ -372,6 +386,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         discordMinutes: getDiscordIntervalMinutes(),
         showMemberOnly: getShowMemberOnlyPosts(),
         discordSoundEnabled: getDiscordSoundEnabled(),
+        appBadgeEnabled: getAppBadgeEnabled(),
         headerBgColor: getHeaderBgColor(),
         tickerFgColor: getTickerFgColor(),
         tickerBgColor: getTickerBgColor()
@@ -562,6 +577,14 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     });
   }
 
+  if (appBadgeSelect) {
+    appBadgeSelect.addEventListener('change', () => {
+      const appBadgeEnabled = appBadgeSelect.value === 'true';
+      saveAppBadgeEnabled(appBadgeEnabled);
+      notifySaved();
+    });
+  }
+
   const getCurrentFormHeaderBg = () =>
     normalizeHexColor(
       headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
@@ -711,6 +734,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       saveDiscordIntervalMinutes(DEFAULT_DISCORD_INTERVAL_MINUTES);
       saveShowMemberOnlyPosts(DEFAULT_SHOW_MEMBER_ONLY);
       saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
+      saveAppBadgeEnabled(DEFAULT_APP_BADGE_ENABLED);
       saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
       applyHeaderColor(DEFAULT_HEADER_BG_COLOR);
       saveTickerFgColor(DEFAULT_TICKER_FG_COLOR);
@@ -746,6 +770,9 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       }
       if (discordSoundSelect) {
         discordSoundSelect.value = DEFAULT_DISCORD_SOUND_ENABLED ? 'true' : 'false';
+      }
+      if (appBadgeSelect) {
+        appBadgeSelect.value = DEFAULT_APP_BADGE_ENABLED ? 'true' : 'false';
       }
       setHeaderColorInputs(DEFAULT_HEADER_BG_COLOR, { liveApply: true });
       setTickerColorInputs(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);

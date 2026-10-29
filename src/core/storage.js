@@ -48,8 +48,61 @@ const {
 const { detectSourceType, getCanonicalTargetKey } = require('./source');
 const { getPostKey, getPostTimestamp, parseFilterKeywordsInput } = require('./post');
 const { getCurrentLanguage, setActiveLanguageOverride } = require('./i18n');
+const { colord } = require('colord');
 
 const MAX_CACHE_TRACKED_KEYS = 500;
+
+function readStorage(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeStorage(key, val) {
+  try {
+    localStorage.setItem(key, String(val));
+  } catch (_) {}
+}
+
+function createBoolStorage(key, defaultValue = false) {
+  return [
+    () => {
+      const raw = readStorage(key);
+      return raw !== null && raw !== '' ? (raw === '1' || raw === 'true') : defaultValue;
+    },
+    (val) => writeStorage(key, val ? '1' : '0')
+  ];
+}
+
+function createIntervalStorage(key, defaultValue) {
+  return [
+    () => {
+      const raw = readStorage(key);
+      const val = raw !== null && raw !== '' ? parseFloat(raw) : NaN;
+      return !isNaN(val) && val > 0 ? val : defaultValue;
+    },
+    (minutes) => writeStorage(key, minutes)
+  ];
+}
+
+function createColorStorage(key, defaultValue) {
+  return [
+    () => {
+      const raw = (readStorage(key) || '').trim();
+      const parsed = raw ? colord(raw) : null;
+      return parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw) ? parsed.toHex() : defaultValue;
+    },
+    (color) => {
+      const raw = String(color || '').trim();
+      const parsed = raw ? colord(raw) : null;
+      if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+        writeStorage(key, parsed.toHex());
+      }
+    }
+  ];
+}
 
 function getEntryPosts(entry) {
   if (!entry || typeof entry !== 'object') return null;
@@ -385,250 +438,66 @@ function saveGridLayout(grid) {
   } catch (e) {}
 }
 
-function getStoredPreset() {
-  return localStorage.getItem(STORAGE_PRESET_KEY) || '2x2';
-}
+const getStoredPreset = () => readStorage(STORAGE_PRESET_KEY) || '2x2';
+const saveStoredPreset = (preset) => writeStorage(STORAGE_PRESET_KEY, preset);
 
-function saveStoredPreset(preset) {
-  localStorage.setItem(STORAGE_PRESET_KEY, preset);
-}
+const getStoredTheme = () => readStorage(STORAGE_THEME_KEY) || 'dark';
+const saveStoredTheme = (theme) => writeStorage(STORAGE_THEME_KEY, theme);
 
-function getStoredTheme() {
-  return localStorage.getItem(STORAGE_THEME_KEY) || 'dark';
-}
+const getLastFetchTime = () => readStorage(STORAGE_LAST_FETCH_KEY);
+const saveLastFetchTime = (timestamp) => writeStorage(STORAGE_LAST_FETCH_KEY, timestamp);
 
-function saveStoredTheme(theme) {
-  localStorage.setItem(STORAGE_THEME_KEY, theme);
-}
+const getLastFetchTimeTwitter = () => readStorage(STORAGE_LAST_FETCH_TWITTER_KEY) || readStorage(STORAGE_LAST_FETCH_KEY);
+const saveLastFetchTimeTwitter = (timestamp) => {
+  writeStorage(STORAGE_LAST_FETCH_TWITTER_KEY, timestamp);
+  writeStorage(STORAGE_LAST_FETCH_KEY, timestamp);
+};
 
-function getLastFetchTime() {
-  return localStorage.getItem(STORAGE_LAST_FETCH_KEY);
-}
+const getLastFetchTimeDiscord = () => readStorage(STORAGE_LAST_FETCH_DISCORD_KEY);
+const saveLastFetchTimeDiscord = (timestamp) => writeStorage(STORAGE_LAST_FETCH_DISCORD_KEY, timestamp);
 
-function saveLastFetchTime(timestamp) {
-  localStorage.setItem(STORAGE_LAST_FETCH_KEY, String(timestamp));
-}
+const getLastFetchTimeThreads = () => readStorage(STORAGE_LAST_FETCH_THREADS_KEY);
+const saveLastFetchTimeThreads = (timestamp) => writeStorage(STORAGE_LAST_FETCH_THREADS_KEY, timestamp);
 
-function getLastFetchTimeTwitter() {
-  try {
-    return localStorage.getItem(STORAGE_LAST_FETCH_TWITTER_KEY) || localStorage.getItem(STORAGE_LAST_FETCH_KEY);
-  } catch (e) {
-    return null;
-  }
-}
+const [getTwitterIntervalMinutes, saveTwitterIntervalMinutes] = createIntervalStorage(
+  STORAGE_TWITTER_INTERVAL_KEY,
+  DEFAULT_TWITTER_INTERVAL_MINUTES
+);
+const [getDiscordIntervalMinutes, saveDiscordIntervalMinutes] = createIntervalStorage(
+  STORAGE_DISCORD_INTERVAL_KEY,
+  DEFAULT_DISCORD_INTERVAL_MINUTES
+);
+const [getThreadsIntervalMinutes, saveThreadsIntervalMinutes] = createIntervalStorage(
+  STORAGE_THREADS_INTERVAL_KEY,
+  DEFAULT_THREADS_INTERVAL_MINUTES
+);
 
-function saveLastFetchTimeTwitter(timestamp) {
-  try {
-    localStorage.setItem(STORAGE_LAST_FETCH_TWITTER_KEY, String(timestamp));
-    localStorage.setItem(STORAGE_LAST_FETCH_KEY, String(timestamp));
-  } catch (e) {}
-}
+const [getTwitterEverLoggedIn, saveTwitterEverLoggedIn] = createBoolStorage(STORAGE_TWITTER_EVER_LOGGED_IN_KEY, false);
+const [getThreadsEverLoggedIn, saveThreadsEverLoggedIn] = createBoolStorage(STORAGE_THREADS_EVER_LOGGED_IN_KEY, false);
+const [getDiscordEverLoggedIn, saveDiscordEverLoggedIn] = createBoolStorage(STORAGE_DISCORD_EVER_LOGGED_IN_KEY, false);
 
-function getLastFetchTimeDiscord() {
-  try {
-    return localStorage.getItem(STORAGE_LAST_FETCH_DISCORD_KEY);
-  } catch (e) {
-    return null;
-  }
-}
+const [getTwitterLoginExpired, saveTwitterLoginExpired] = createBoolStorage(STORAGE_TWITTER_LOGIN_EXPIRED_KEY, false);
+const [getThreadsLoginExpired, saveThreadsLoginExpired] = createBoolStorage(STORAGE_THREADS_LOGIN_EXPIRED_KEY, false);
+const [getDiscordLoginExpired, saveDiscordLoginExpired] = createBoolStorage(STORAGE_DISCORD_LOGIN_EXPIRED_KEY, false);
 
-function saveLastFetchTimeDiscord(timestamp) {
-  try {
-    localStorage.setItem(STORAGE_LAST_FETCH_DISCORD_KEY, String(timestamp));
-  } catch (e) {}
-}
-
-function getLastFetchTimeThreads() {
-  try {
-    return localStorage.getItem(STORAGE_LAST_FETCH_THREADS_KEY);
-  } catch (e) {
-    return null;
-  }
-}
-
-function saveLastFetchTimeThreads(timestamp) {
-  try {
-    localStorage.setItem(STORAGE_LAST_FETCH_THREADS_KEY, String(timestamp));
-  } catch (e) {}
-}
-
-function getTwitterIntervalMinutes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_TWITTER_INTERVAL_KEY);
-    if (raw !== null && raw !== '') {
-      const val = parseFloat(raw);
-      if (!isNaN(val) && val > 0) return val;
-    }
-  } catch (e) {}
-  return DEFAULT_TWITTER_INTERVAL_MINUTES;
-}
-
-function saveTwitterIntervalMinutes(minutes) {
-  try {
-    localStorage.setItem(STORAGE_TWITTER_INTERVAL_KEY, String(minutes));
-  } catch (e) {}
-}
-
-function getDiscordIntervalMinutes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_DISCORD_INTERVAL_KEY);
-    if (raw !== null && raw !== '') {
-      const val = parseFloat(raw);
-      if (!isNaN(val) && val > 0) return val;
-    }
-  } catch (e) {}
-  return DEFAULT_DISCORD_INTERVAL_MINUTES;
-}
-
-function saveDiscordIntervalMinutes(minutes) {
-  try {
-    localStorage.setItem(STORAGE_DISCORD_INTERVAL_KEY, String(minutes));
-  } catch (e) {}
-}
-
-function getThreadsIntervalMinutes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_THREADS_INTERVAL_KEY);
-    if (raw !== null && raw !== '') {
-      const val = parseFloat(raw);
-      if (!isNaN(val) && val > 0) return val;
-    }
-  } catch (e) {}
-  return DEFAULT_THREADS_INTERVAL_MINUTES;
-}
-
-function saveThreadsIntervalMinutes(minutes) {
-  try {
-    localStorage.setItem(STORAGE_THREADS_INTERVAL_KEY, String(minutes));
-  } catch (e) {}
-}
-
-// Discord stores its auth token in localStorage instead of cookies, so the main
-// process cannot inspect the session the way it does for X. The flag below is
-// maintained optimistically: the login window sets it, and any scrape that gets
-// bounced to /login clears it again.
-function getDiscordLoggedIn() {
-  return localStorage.getItem(STORAGE_DISCORD_LOGIN_KEY) === '1';
-}
-
-function hasDiscordLoginStateBeenSet() {
-  try {
-    return localStorage.getItem(STORAGE_DISCORD_LOGIN_KEY) !== null;
-  } catch (e) {
-    return false;
-  }
-}
-
+const getDiscordLoggedIn = () => readStorage(STORAGE_DISCORD_LOGIN_KEY) === '1';
+const hasDiscordLoginStateBeenSet = () => readStorage(STORAGE_DISCORD_LOGIN_KEY) !== null;
 function saveDiscordLoggedIn(loggedIn) {
-  localStorage.setItem(STORAGE_DISCORD_LOGIN_KEY, loggedIn ? '1' : '0');
+  writeStorage(STORAGE_DISCORD_LOGIN_KEY, loggedIn ? '1' : '0');
   if (loggedIn) {
     saveDiscordEverLoggedIn(true);
     saveDiscordLoginExpired(false);
   }
 }
 
-function getThreadsLoggedIn() {
-  return localStorage.getItem(STORAGE_THREADS_LOGIN_KEY) === '1';
-}
-
-function hasThreadsLoginStateBeenSet() {
-  try {
-    return localStorage.getItem(STORAGE_THREADS_LOGIN_KEY) !== null;
-  } catch (e) {
-    return false;
-  }
-}
-
+const getThreadsLoggedIn = () => readStorage(STORAGE_THREADS_LOGIN_KEY) === '1';
+const hasThreadsLoginStateBeenSet = () => readStorage(STORAGE_THREADS_LOGIN_KEY) !== null;
 function saveThreadsLoggedIn(loggedIn) {
-  localStorage.setItem(STORAGE_THREADS_LOGIN_KEY, loggedIn ? '1' : '0');
+  writeStorage(STORAGE_THREADS_LOGIN_KEY, loggedIn ? '1' : '0');
   if (loggedIn) {
     saveThreadsEverLoggedIn(true);
     saveThreadsLoginExpired(false);
   }
-}
-
-function getTwitterEverLoggedIn() {
-  try {
-    return localStorage.getItem(STORAGE_TWITTER_EVER_LOGGED_IN_KEY) === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
-function saveTwitterEverLoggedIn(everLoggedIn) {
-  try {
-    localStorage.setItem(STORAGE_TWITTER_EVER_LOGGED_IN_KEY, everLoggedIn ? '1' : '0');
-  } catch (e) {}
-}
-
-function getThreadsEverLoggedIn() {
-  try {
-    return localStorage.getItem(STORAGE_THREADS_EVER_LOGGED_IN_KEY) === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
-function saveThreadsEverLoggedIn(everLoggedIn) {
-  try {
-    localStorage.setItem(STORAGE_THREADS_EVER_LOGGED_IN_KEY, everLoggedIn ? '1' : '0');
-  } catch (e) {}
-}
-
-function getDiscordEverLoggedIn() {
-  try {
-    return localStorage.getItem(STORAGE_DISCORD_EVER_LOGGED_IN_KEY) === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
-function saveDiscordEverLoggedIn(everLoggedIn) {
-  try {
-    localStorage.setItem(STORAGE_DISCORD_EVER_LOGGED_IN_KEY, everLoggedIn ? '1' : '0');
-  } catch (e) {}
-}
-
-function getTwitterLoginExpired() {
-  try {
-    return localStorage.getItem(STORAGE_TWITTER_LOGIN_EXPIRED_KEY) === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
-function saveTwitterLoginExpired(expired) {
-  try {
-    localStorage.setItem(STORAGE_TWITTER_LOGIN_EXPIRED_KEY, expired ? '1' : '0');
-  } catch (e) {}
-}
-
-function getThreadsLoginExpired() {
-  try {
-    return localStorage.getItem(STORAGE_THREADS_LOGIN_EXPIRED_KEY) === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
-function saveThreadsLoginExpired(expired) {
-  try {
-    localStorage.setItem(STORAGE_THREADS_LOGIN_EXPIRED_KEY, expired ? '1' : '0');
-  } catch (e) {}
-}
-
-function getDiscordLoginExpired() {
-  try {
-    return localStorage.getItem(STORAGE_DISCORD_LOGIN_EXPIRED_KEY) === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
-function saveDiscordLoginExpired(expired) {
-  try {
-    localStorage.setItem(STORAGE_DISCORD_LOGIN_EXPIRED_KEY, expired ? '1' : '0');
-  } catch (e) {}
 }
 
 function getPlatformEverLoggedIn(platform) {
@@ -657,141 +526,61 @@ function savePlatformLoginExpired(platform, val) {
   else if (platform === 'twitter') saveTwitterLoginExpired(val);
 }
 
-function getShowMemberOnlyPosts() {
-  try {
-    const raw = localStorage.getItem(STORAGE_SHOW_MEMBER_ONLY_KEY);
-    if (raw !== null && raw !== '') {
-      return raw === '1' || raw === 'true';
-    }
-  } catch (e) {}
-  return DEFAULT_SHOW_MEMBER_ONLY;
-}
+const [getShowMemberOnlyPosts, saveShowMemberOnlyPosts] = createBoolStorage(
+  STORAGE_SHOW_MEMBER_ONLY_KEY,
+  DEFAULT_SHOW_MEMBER_ONLY
+);
+const [getDiscordSoundEnabled, saveDiscordSoundEnabled] = createBoolStorage(
+  STORAGE_DISCORD_SOUND_KEY,
+  DEFAULT_DISCORD_SOUND_ENABLED
+);
+const [getAppBadgeEnabled, saveAppBadgeEnabled] = createBoolStorage(
+  STORAGE_APP_BADGE_ENABLED_KEY,
+  DEFAULT_APP_BADGE_ENABLED
+);
 
-function saveShowMemberOnlyPosts(show) {
-  try {
-    localStorage.setItem(STORAGE_SHOW_MEMBER_ONLY_KEY, show ? '1' : '0');
-  } catch (e) {}
-}
-
-function getDiscordSoundEnabled() {
-  try {
-    const raw = localStorage.getItem(STORAGE_DISCORD_SOUND_KEY);
-    if (raw !== null && raw !== '') {
-      return raw === '1' || raw === 'true';
-    }
-  } catch (e) {}
-  return DEFAULT_DISCORD_SOUND_ENABLED;
-}
-
-function saveDiscordSoundEnabled(enabled) {
-  try {
-    localStorage.setItem(STORAGE_DISCORD_SOUND_KEY, enabled ? '1' : '0');
-  } catch (e) {}
-}
-
-function getAppBadgeEnabled() {
-  try {
-    const raw = localStorage.getItem(STORAGE_APP_BADGE_ENABLED_KEY);
-    if (raw !== null && raw !== '') {
-      return raw === '1' || raw === 'true';
-    }
-  } catch (e) {}
-  return DEFAULT_APP_BADGE_ENABLED;
-}
-
-function saveAppBadgeEnabled(enabled) {
-  try {
-    localStorage.setItem(STORAGE_APP_BADGE_ENABLED_KEY, enabled ? '1' : '0');
-  } catch (e) {}
-}
-
-function getTickerFgColor() {
-  try {
-    const raw = localStorage.getItem(STORAGE_TICKER_FG_COLOR_KEY);
-    if (raw && /^#[0-9A-Fa-f]{6}$/.test(raw.trim())) {
-      return raw.trim().toLowerCase();
-    }
-  } catch (e) {}
-  return DEFAULT_TICKER_FG_COLOR;
-}
-
-function saveTickerFgColor(color) {
-  try {
-    if (color && /^#[0-9A-Fa-f]{6}$/.test(color.trim())) {
-      localStorage.setItem(STORAGE_TICKER_FG_COLOR_KEY, color.trim().toLowerCase());
-    }
-  } catch (e) {}
-}
-
-function getTickerBgColor() {
-  try {
-    const raw = localStorage.getItem(STORAGE_TICKER_BG_COLOR_KEY);
-    if (raw && /^#[0-9A-Fa-f]{6}$/.test(raw.trim())) {
-      return raw.trim().toLowerCase();
-    }
-  } catch (e) {}
-  return DEFAULT_TICKER_BG_COLOR;
-}
-
-function saveTickerBgColor(color) {
-  try {
-    if (color && /^#[0-9A-Fa-f]{6}$/.test(color.trim())) {
-      localStorage.setItem(STORAGE_TICKER_BG_COLOR_KEY, color.trim().toLowerCase());
-    }
-  } catch (e) {}
-}
+const [getTickerFgColor, saveTickerFgColor] = createColorStorage(
+  STORAGE_TICKER_FG_COLOR_KEY,
+  DEFAULT_TICKER_FG_COLOR
+);
+const [getTickerBgColor, saveTickerBgColor] = createColorStorage(
+  STORAGE_TICKER_BG_COLOR_KEY,
+  DEFAULT_TICKER_BG_COLOR
+);
+const [getHeaderBgColor, saveHeaderBgColor] = createColorStorage(
+  STORAGE_HEADER_BG_COLOR_KEY,
+  DEFAULT_HEADER_BG_COLOR
+);
 
 function getTickerRemoteCache() {
   try {
-    const raw = localStorage.getItem(STORAGE_TICKER_REMOTE_CACHE_KEY);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (e) {}
-  return null;
+    const raw = readStorage(STORAGE_TICKER_REMOTE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 function saveTickerRemoteCache(data) {
   try {
-    localStorage.setItem(STORAGE_TICKER_REMOTE_CACHE_KEY, JSON.stringify(data));
-  } catch (e) {}
+    writeStorage(STORAGE_TICKER_REMOTE_CACHE_KEY, JSON.stringify(data));
+  } catch (_) {}
 }
 
 function getUrlTitlesCache() {
   try {
-    const raw = localStorage.getItem(STORAGE_URL_TITLES_CACHE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
-    }
-  } catch (e) {}
-  return {};
+    const raw = readStorage(STORAGE_URL_TITLES_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 function saveUrlTitlesCache(cacheObj) {
-  try {
-    if (cacheObj && typeof cacheObj === 'object') {
-      localStorage.setItem(STORAGE_URL_TITLES_CACHE_KEY, JSON.stringify(cacheObj));
-    }
-  } catch (e) {}
-}
-
-function getHeaderBgColor() {
-  try {
-    const raw = localStorage.getItem(STORAGE_HEADER_BG_COLOR_KEY);
-    if (raw && /^#[0-9A-Fa-f]{6}$/.test(raw.trim())) {
-      return raw.trim().toLowerCase();
-    }
-  } catch (e) {}
-  return DEFAULT_HEADER_BG_COLOR;
-}
-
-function saveHeaderBgColor(color) {
-  try {
-    if (color && /^#[0-9A-Fa-f]{6}$/.test(color.trim())) {
-      localStorage.setItem(STORAGE_HEADER_BG_COLOR_KEY, color.trim().toLowerCase());
-    }
-  } catch (e) {}
+  if (cacheObj && typeof cacheObj === 'object') {
+    writeStorage(STORAGE_URL_TITLES_CACHE_KEY, JSON.stringify(cacheObj));
+  }
 }
 
 function getLanguage() {

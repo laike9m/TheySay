@@ -15,6 +15,50 @@ import {
 } from '@tabler/icons-react';
 import { HEADER_PRESETS, TICKER_PRESETS } from '../theme';
 
+const HEX_INPUT_CLASS_NAMES = {
+  root: 'mantine-ticker-hex-root',
+  input: 'ticker-hex-input'
+};
+
+function ColorField({
+  labelI18n,
+  labelText,
+  colorId,
+  hexId,
+  defaultValue,
+  titleI18n,
+  titleText,
+  ariaI18n,
+  ariaText
+}) {
+  return (
+    <div className="settings-color-field">
+      <span className="color-sub-label" data-i18n={labelI18n}>
+        {labelText}
+      </span>
+      <input
+        type="color"
+        id={colorId}
+        className="ticker-color-input"
+        defaultValue={defaultValue}
+        data-i18n-title={titleI18n}
+        title={titleText}
+      />
+      <TextInput
+        type="text"
+        id={hexId}
+        size="xs"
+        defaultValue={defaultValue}
+        maxLength={7}
+        spellCheck={false}
+        data-i18n-aria-label={ariaI18n}
+        aria-label={ariaText}
+        classNames={HEX_INPUT_CLASS_NAMES}
+      />
+    </div>
+  );
+}
+
 export function AppearanceSettingsSection() {
   return (
     <div className="settings-section">
@@ -73,36 +117,17 @@ export function AppearanceSettingsSection() {
             </div>
             <span className="color-inline-divider"></span>
             <div className="settings-color-custom">
-              <div className="settings-color-field">
-                <span
-                  className="color-sub-label"
-                  data-i18n="settings.customColor"
-                >
-                  自定义
-                </span>
-                <input
-                  type="color"
-                  id="setting-header-bg-color"
-                  className="ticker-color-input"
-                  defaultValue="#f3ede2"
-                  data-i18n-title="settings.headerColorInputTitle"
-                  title="自定义 Title 栏背景颜色"
-                />
-                <TextInput
-                  type="text"
-                  id="setting-header-bg-hex"
-                  size="xs"
-                  defaultValue="#f3ede2"
-                  maxLength={7}
-                  spellCheck={false}
-                  data-i18n-aria-label="settings.headerColorHexAria"
-                  aria-label="Title 栏背景色 Hex"
-                  classNames={{
-                    root: 'mantine-ticker-hex-root',
-                    input: 'ticker-hex-input'
-                  }}
-                />
-              </div>
+              <ColorField
+                labelI18n="settings.customColor"
+                labelText="自定义"
+                colorId="setting-header-bg-color"
+                hexId="setting-header-bg-hex"
+                defaultValue="#f3ede2"
+                titleI18n="settings.headerColorInputTitle"
+                titleText="自定义 Title 栏背景颜色"
+                ariaI18n="settings.headerColorHexAria"
+                ariaText="Title 栏背景色 Hex"
+              />
             </div>
           </div>
         </div>
@@ -156,66 +181,28 @@ export function AppearanceSettingsSection() {
             </div>
             <span className="color-inline-divider"></span>
             <div className="settings-color-custom">
-              <div className="settings-color-field">
-                <span
-                  className="color-sub-label"
-                  data-i18n="settings.tickerFgLabel"
-                >
-                  文字
-                </span>
-                <input
-                  type="color"
-                  id="setting-ticker-fg-color"
-                  className="ticker-color-input"
-                  defaultValue="#fde047"
-                  data-i18n-title="settings.tickerFgInputTitle"
-                  title="选择 Ticker 文字颜色"
-                />
-                <TextInput
-                  type="text"
-                  id="setting-ticker-fg-hex"
-                  size="xs"
-                  defaultValue="#fde047"
-                  maxLength={7}
-                  spellCheck={false}
-                  data-i18n-aria-label="settings.tickerFgHexAria"
-                  aria-label="Ticker 前景色 Hex"
-                  classNames={{
-                    root: 'mantine-ticker-hex-root',
-                    input: 'ticker-hex-input'
-                  }}
-                />
-              </div>
-              <div className="settings-color-field">
-                <span
-                  className="color-sub-label"
-                  data-i18n="settings.tickerBgLabel"
-                >
-                  底色
-                </span>
-                <input
-                  type="color"
-                  id="setting-ticker-bg-color"
-                  className="ticker-color-input"
-                  defaultValue="#422006"
-                  data-i18n-title="settings.tickerBgInputTitle"
-                  title="选择 Ticker 背景颜色"
-                />
-                <TextInput
-                  type="text"
-                  id="setting-ticker-bg-hex"
-                  size="xs"
-                  defaultValue="#422006"
-                  maxLength={7}
-                  spellCheck={false}
-                  data-i18n-aria-label="settings.tickerBgHexAria"
-                  aria-label="Ticker 背景色 Hex"
-                  classNames={{
-                    root: 'mantine-ticker-hex-root',
-                    input: 'ticker-hex-input'
-                  }}
-                />
-              </div>
+              <ColorField
+                labelI18n="settings.tickerFgLabel"
+                labelText="文字"
+                colorId="setting-ticker-fg-color"
+                hexId="setting-ticker-fg-hex"
+                defaultValue="#fde047"
+                titleI18n="settings.tickerFgInputTitle"
+                titleText="选择 Ticker 文字颜色"
+                ariaI18n="settings.tickerFgHexAria"
+                ariaText="Ticker 前景色 Hex"
+              />
+              <ColorField
+                labelI18n="settings.tickerBgLabel"
+                labelText="底色"
+                colorId="setting-ticker-bg-color"
+                hexId="setting-ticker-bg-hex"
+                defaultValue="#422006"
+                titleI18n="settings.tickerBgInputTitle"
+                titleText="选择 Ticker 背景颜色"
+                ariaI18n="settings.tickerBgHexAria"
+                ariaText="Ticker 背景色 Hex"
+              />
             </div>
           </div>
         </div>

@@ -53,6 +53,68 @@ const {
   setActiveLanguageOverride
 } = require('../core/i18n');
 
+const { colord } = require('colord');
+
+const INTERVAL_CONTROLS = [
+  {
+    key: 'twitterIntervalMinutes',
+    selectId: 'setting-twitter-interval',
+    wrapId: 'setting-twitter-custom-wrap',
+    inputId: 'setting-twitter-custom',
+    get: getTwitterIntervalMinutes,
+    save: saveTwitterIntervalMinutes,
+    defaultVal: DEFAULT_TWITTER_INTERVAL_MINUTES,
+    normalize: (v) => Math.max(1, Math.round(v)),
+    errKey: 'settings.toastInvalidTwitterInterval'
+  },
+  {
+    key: 'threadsIntervalMinutes',
+    selectId: 'setting-threads-interval',
+    wrapId: 'setting-threads-custom-wrap',
+    inputId: 'setting-threads-custom',
+    get: getThreadsIntervalMinutes,
+    save: saveThreadsIntervalMinutes,
+    defaultVal: DEFAULT_THREADS_INTERVAL_MINUTES,
+    normalize: (v) => Math.max(1, Math.round(v)),
+    errKey: 'settings.toastInvalidThreadsInterval'
+  },
+  {
+    key: 'discordIntervalMinutes',
+    selectId: 'setting-discord-interval',
+    wrapId: 'setting-discord-custom-wrap',
+    inputId: 'setting-discord-custom',
+    get: getDiscordIntervalMinutes,
+    save: saveDiscordIntervalMinutes,
+    defaultVal: DEFAULT_DISCORD_INTERVAL_MINUTES,
+    normalize: (v) => Math.max(0.5, Math.round(v * 10) / 10),
+    errKey: 'settings.toastInvalidDiscordInterval'
+  }
+];
+
+const BOOL_SELECT_CONTROLS = [
+  {
+    key: 'showMemberOnlyPosts',
+    id: 'setting-show-member-only',
+    get: getShowMemberOnlyPosts,
+    save: saveShowMemberOnlyPosts,
+    defaultVal: DEFAULT_SHOW_MEMBER_ONLY
+  },
+  {
+    key: 'discordSoundEnabled',
+    id: 'setting-discord-sound',
+    get: getDiscordSoundEnabled,
+    save: saveDiscordSoundEnabled,
+    defaultVal: DEFAULT_DISCORD_SOUND_ENABLED
+  },
+  {
+    key: 'appBadgeEnabled',
+    id: 'setting-app-badge',
+    get: getAppBadgeEnabled,
+    save: saveAppBadgeEnabled,
+    defaultVal: DEFAULT_APP_BADGE_ENABLED
+  }
+];
+
 let isInitialized = false;
 let onLanguageChangeCallback = null;
 let onSaveCallback = null;
@@ -98,26 +160,16 @@ function isSettingsModalOpen() {
 }
 
 function syncCustomVisibility(selectEl, customWrapEl) {
-  if (selectEl.value === 'custom') {
-    customWrapEl.style.display = 'flex';
-  } else {
-    customWrapEl.style.display = 'none';
-  }
+  customWrapEl.style.display = selectEl.value === 'custom' ? 'flex' : 'none';
 }
 
 function populateSelectAndInput(selectEl, customWrapEl, customInputEl, currentVal) {
   const matchingOption = Array.from(selectEl.options).find(
     opt => opt.value !== 'custom' && parseFloat(opt.value) === currentVal
   );
-  if (matchingOption) {
-    selectEl.value = matchingOption.value;
-    customWrapEl.style.display = 'none';
-    customInputEl.value = currentVal;
-  } else {
-    selectEl.value = 'custom';
-    customWrapEl.style.display = 'flex';
-    customInputEl.value = currentVal;
-  }
+  selectEl.value = matchingOption ? matchingOption.value : 'custom';
+  customWrapEl.style.display = matchingOption ? 'none' : 'flex';
+  customInputEl.value = currentVal;
 }
 
 function updateHeaderPreviewUI(bgColor, { liveApply = false } = {}) {
@@ -138,8 +190,7 @@ function updateHeaderPreviewUI(bgColor, { liveApply = false } = {}) {
   if (dragEl) dragEl.style.color = palette.subtext;
   if (iconEl) iconEl.style.color = palette.subtext;
 
-  const presetChips = document.querySelectorAll('#setting-header-presets .header-preset-chip');
-  presetChips.forEach(btn => {
+  document.querySelectorAll('#setting-header-presets .header-preset-chip').forEach(btn => {
     const pBg = (btn.getAttribute('data-bg') || '').toLowerCase();
     btn.classList.toggle('active', pBg === palette.bg);
   });
@@ -164,14 +215,12 @@ function updateTickerPreviewUI(fgColor, bgColor) {
   const fg = normalizeHexColor(fgColor, DEFAULT_TICKER_FG_COLOR);
   const bg = normalizeHexColor(bgColor, DEFAULT_TICKER_BG_COLOR);
 
-  const previewChips = document.querySelectorAll('#setting-ticker-preview .ticker-preview-chip');
-  previewChips.forEach(chip => {
+  document.querySelectorAll('#setting-ticker-preview .ticker-preview-chip').forEach(chip => {
     chip.style.color = fg;
     chip.style.backgroundColor = bg;
   });
 
-  const presetChips = document.querySelectorAll('#setting-ticker-presets .ticker-preset-chip');
-  presetChips.forEach(btn => {
+  document.querySelectorAll('#setting-ticker-presets .ticker-preset-chip').forEach(btn => {
     const pFg = (btn.getAttribute('data-fg') || '').toLowerCase();
     const pBg = (btn.getAttribute('data-bg') || '').toLowerCase();
     btn.classList.toggle('active', pFg === fg && pBg === bg);
@@ -209,51 +258,23 @@ function loadCurrentSettings() {
     languageSelect.value = getLanguage();
   }
 
-  const twitterSelect = document.getElementById('setting-twitter-interval');
-  const twitterCustomWrap = document.getElementById('setting-twitter-custom-wrap');
-  const twitterCustomInput = document.getElementById('setting-twitter-custom');
+  INTERVAL_CONTROLS.forEach(({ selectId, wrapId, inputId, get }) => {
+    const selectEl = document.getElementById(selectId);
+    const wrapEl = document.getElementById(wrapId);
+    const inputEl = document.getElementById(inputId);
+    if (selectEl && wrapEl && inputEl) {
+      populateSelectAndInput(selectEl, wrapEl, inputEl, get());
+    }
+  });
 
-  const threadsSelect = document.getElementById('setting-threads-interval');
-  const threadsCustomWrap = document.getElementById('setting-threads-custom-wrap');
-  const threadsCustomInput = document.getElementById('setting-threads-custom');
-
-  const discordSelect = document.getElementById('setting-discord-interval');
-  const discordCustomWrap = document.getElementById('setting-discord-custom-wrap');
-  const discordCustomInput = document.getElementById('setting-discord-custom');
-
-  if (twitterSelect && twitterCustomWrap && twitterCustomInput) {
-    const twitterVal = getTwitterIntervalMinutes();
-    populateSelectAndInput(twitterSelect, twitterCustomWrap, twitterCustomInput, twitterVal);
-  }
-
-  if (threadsSelect && threadsCustomWrap && threadsCustomInput) {
-    const threadsVal = getThreadsIntervalMinutes();
-    populateSelectAndInput(threadsSelect, threadsCustomWrap, threadsCustomInput, threadsVal);
-  }
-
-  if (discordSelect && discordCustomWrap && discordCustomInput) {
-    const discordVal = getDiscordIntervalMinutes();
-    populateSelectAndInput(discordSelect, discordCustomWrap, discordCustomInput, discordVal);
-  }
-
-  const memberOnlySelect = document.getElementById('setting-show-member-only');
-  if (memberOnlySelect) {
-    const showMemberOnly = getShowMemberOnlyPosts();
-    memberOnlySelect.value = showMemberOnly ? 'true' : 'false';
-  }
+  BOOL_SELECT_CONTROLS.forEach(({ id, get }) => {
+    const selectEl = document.getElementById(id);
+    if (selectEl) {
+      selectEl.value = get() ? 'true' : 'false';
+    }
+  });
 
   syncFilterKeywordsControl(getFilterKeywords());
-
-  const discordSoundSelect = document.getElementById('setting-discord-sound');
-  if (discordSoundSelect) {
-    discordSoundSelect.value = getDiscordSoundEnabled() ? 'true' : 'false';
-  }
-
-  const appBadgeSelect = document.getElementById('setting-app-badge');
-  if (appBadgeSelect) {
-    appBadgeSelect.value = getAppBadgeEnabled() ? 'true' : 'false';
-  }
-
   setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
   setTickerColorInputs(getTickerFgColor(), getTickerBgColor());
   refreshTickerStatsLabel();
@@ -280,103 +301,92 @@ function closeSettingsModal() {
   if (btnSettings) btnSettings.classList.remove('active');
 }
 
+function readColorFromInputs(colorId, hexId, fallback) {
+  const colorInput = document.getElementById(colorId);
+  const hexInput = document.getElementById(hexId);
+  return normalizeHexColor(
+    hexInput ? hexInput.value : (colorInput && colorInput.value),
+    fallback
+  );
+}
+
 function getFormSettingsOverrides() {
   if (!isSettingsModalOpen()) return {};
 
   const languageSelect = document.getElementById('setting-language');
-  const twitterSelect = document.getElementById('setting-twitter-interval');
-  const twitterCustomInput = document.getElementById('setting-twitter-custom');
-  const threadsSelect = document.getElementById('setting-threads-interval');
-  const threadsCustomInput = document.getElementById('setting-threads-custom');
-  const discordSelect = document.getElementById('setting-discord-interval');
-  const discordCustomInput = document.getElementById('setting-discord-custom');
-  const memberOnlySelect = document.getElementById('setting-show-member-only');
-  const discordSoundSelect = document.getElementById('setting-discord-sound');
-  const appBadgeSelect = document.getElementById('setting-app-badge');
-  const headerBgInput = document.getElementById('setting-header-bg-color');
-  const headerBgHex = document.getElementById('setting-header-bg-hex');
-  const tickerFgInput = document.getElementById('setting-ticker-fg-color');
-  const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
-  const tickerBgInput = document.getElementById('setting-ticker-bg-color');
-  const tickerBgHex = document.getElementById('setting-ticker-bg-hex');
-
   const language =
     languageSelect && (languageSelect.value === 'zh' || languageSelect.value === 'en')
       ? languageSelect.value
       : getLanguage();
 
-  let twitterIntervalMinutes = getTwitterIntervalMinutes();
-  if (twitterSelect) {
-    if (twitterSelect.value === 'custom' && twitterCustomInput) {
-      const val = parseFloat(twitterCustomInput.value);
-      if (!isNaN(val) && val > 0) twitterIntervalMinutes = Math.max(1, Math.round(val));
-    } else {
-      const val = parseFloat(twitterSelect.value);
-      if (!isNaN(val) && val > 0) twitterIntervalMinutes = val;
-    }
-  }
+  const overrides = { language };
 
-  let threadsIntervalMinutes = getThreadsIntervalMinutes();
-  if (threadsSelect) {
-    if (threadsSelect.value === 'custom' && threadsCustomInput) {
-      const val = parseFloat(threadsCustomInput.value);
-      if (!isNaN(val) && val > 0) threadsIntervalMinutes = Math.max(1, Math.round(val));
-    } else {
-      const val = parseFloat(threadsSelect.value);
-      if (!isNaN(val) && val > 0) threadsIntervalMinutes = val;
+  INTERVAL_CONTROLS.forEach(({ key, selectId, inputId, get, normalize }) => {
+    const selectEl = document.getElementById(selectId);
+    const inputEl = document.getElementById(inputId);
+    let mins = get();
+    if (selectEl) {
+      if (selectEl.value === 'custom' && inputEl) {
+        const val = parseFloat(inputEl.value);
+        if (!isNaN(val) && val > 0) mins = normalize(val);
+      } else {
+        const val = parseFloat(selectEl.value);
+        if (!isNaN(val) && val > 0) mins = val;
+      }
     }
-  }
+    overrides[key] = mins;
+  });
 
-  let discordIntervalMinutes = getDiscordIntervalMinutes();
-  if (discordSelect) {
-    if (discordSelect.value === 'custom' && discordCustomInput) {
-      const val = parseFloat(discordCustomInput.value);
-      if (!isNaN(val) && val > 0) discordIntervalMinutes = Math.max(0.5, Math.round(val * 10) / 10);
-    } else {
-      const val = parseFloat(discordSelect.value);
-      if (!isNaN(val) && val > 0) discordIntervalMinutes = val;
-    }
-  }
+  BOOL_SELECT_CONTROLS.forEach(({ key, id, get }) => {
+    const selectEl = document.getElementById(id);
+    overrides[key] = selectEl ? selectEl.value === 'true' : get();
+  });
 
-  const showMemberOnlyPosts = memberOnlySelect
-    ? memberOnlySelect.value === 'true'
-    : getShowMemberOnlyPosts();
-  const filterKeywords =
+  overrides.filterKeywords =
     typeof window !== 'undefined' && window.__THEYSAY_FILTER_KEYWORDS_BRIDGE
       ? window.__THEYSAY_FILTER_KEYWORDS_BRIDGE.getKeywords()
       : getFilterKeywords();
-  const discordSoundEnabled = discordSoundSelect
-    ? discordSoundSelect.value === 'true'
-    : getDiscordSoundEnabled();
-  const appBadgeEnabled = appBadgeSelect
-    ? appBadgeSelect.value === 'true'
-    : getAppBadgeEnabled();
-  const headerBgColor = normalizeHexColor(
-    headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
+  overrides.headerBgColor = readColorFromInputs(
+    'setting-header-bg-color',
+    'setting-header-bg-hex',
     getHeaderBgColor()
   );
-  const tickerFgColor = normalizeHexColor(
-    tickerFgHex ? tickerFgHex.value : (tickerFgInput && tickerFgInput.value),
+  overrides.tickerFgColor = readColorFromInputs(
+    'setting-ticker-fg-color',
+    'setting-ticker-fg-hex',
     getTickerFgColor()
   );
-  const tickerBgColor = normalizeHexColor(
-    tickerBgHex ? tickerBgHex.value : (tickerBgInput && tickerBgInput.value),
+  overrides.tickerBgColor = readColorFromInputs(
+    'setting-ticker-bg-color',
+    'setting-ticker-bg-hex',
     getTickerBgColor()
   );
 
-  return {
-    language,
-    twitterIntervalMinutes,
-    threadsIntervalMinutes,
-    discordIntervalMinutes,
-    showMemberOnlyPosts,
-    filterKeywords,
-    discordSoundEnabled,
-    appBadgeEnabled,
-    headerBgColor,
-    tickerFgColor,
-    tickerBgColor
-  };
+  return overrides;
+}
+
+function bindColorPair(colorInputEl, hexInputEl, defaultColor, onCommit) {
+  if (!colorInputEl || !hexInputEl) return;
+  colorInputEl.addEventListener('input', () => {
+    const hex = normalizeHexColor(colorInputEl.value, defaultColor);
+    hexInputEl.value = hex;
+    onCommit(hex);
+  });
+  hexInputEl.addEventListener('input', () => {
+    const raw = hexInputEl.value.trim();
+    const parsed = raw ? colord(raw) : null;
+    if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+      const hex = parsed.toHex();
+      colorInputEl.value = hex;
+      onCommit(hex);
+    }
+  });
+  hexInputEl.addEventListener('blur', () => {
+    const norm = normalizeHexColor(hexInputEl.value, colorInputEl.value || defaultColor);
+    hexInputEl.value = norm;
+    colorInputEl.value = norm;
+    onCommit(norm);
+  });
 }
 
 function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChange } = {}) {
@@ -401,32 +411,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   const overlay = getOverlay();
   const btnClose = document.getElementById('btn-settings-close');
   const btnReset = document.getElementById('btn-settings-reset');
-
   const languageSelect = document.getElementById('setting-language');
-
-  const twitterSelect = document.getElementById('setting-twitter-interval');
-  const twitterCustomWrap = document.getElementById('setting-twitter-custom-wrap');
-  const twitterCustomInput = document.getElementById('setting-twitter-custom');
-
-  const threadsSelect = document.getElementById('setting-threads-interval');
-  const threadsCustomWrap = document.getElementById('setting-threads-custom-wrap');
-  const threadsCustomInput = document.getElementById('setting-threads-custom');
-
-  const discordSelect = document.getElementById('setting-discord-interval');
-  const discordCustomWrap = document.getElementById('setting-discord-custom-wrap');
-  const discordCustomInput = document.getElementById('setting-discord-custom');
-
-  const memberOnlySelect = document.getElementById('setting-show-member-only');
-  const discordSoundSelect = document.getElementById('setting-discord-sound');
-  const appBadgeSelect = document.getElementById('setting-app-badge');
-
-  const headerBgInput = document.getElementById('setting-header-bg-color');
-  const headerBgHex = document.getElementById('setting-header-bg-hex');
-
-  const tickerFgInput = document.getElementById('setting-ticker-fg-color');
-  const tickerFgHex = document.getElementById('setting-ticker-fg-hex');
-  const tickerBgInput = document.getElementById('setting-ticker-bg-color');
-  const tickerBgHex = document.getElementById('setting-ticker-bg-hex');
   const btnSyncTickers = document.getElementById('btn-sync-tickers');
   const btnExportProfile = document.getElementById('btn-export-profile');
   const btnImportProfile = document.getElementById('btn-import-profile');
@@ -482,152 +467,56 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     });
   }
 
-  if (twitterSelect && twitterCustomWrap && twitterCustomInput) {
-    twitterSelect.addEventListener('change', () => {
-      syncCustomVisibility(twitterSelect, twitterCustomWrap);
-      if (twitterSelect.value === 'custom') {
-        twitterCustomInput.focus();
-        twitterCustomInput.select();
-        const val = parseFloat(twitterCustomInput.value);
+  INTERVAL_CONTROLS.forEach(({ selectId, wrapId, inputId, get, save, normalize, errKey }) => {
+    const selectEl = document.getElementById(selectId);
+    const wrapEl = document.getElementById(wrapId);
+    const inputEl = document.getElementById(inputId);
+    if (!selectEl || !wrapEl || !inputEl) return;
+
+    selectEl.addEventListener('change', () => {
+      syncCustomVisibility(selectEl, wrapEl);
+      if (selectEl.value === 'custom') {
+        inputEl.focus();
+        inputEl.select();
+        const val = parseFloat(inputEl.value);
         if (!isNaN(val) && val > 0) {
-          saveTwitterIntervalMinutes(Math.max(1, Math.round(val)));
+          save(normalize(val));
           notifySaved();
         }
       } else {
-        const mins = parseFloat(twitterSelect.value);
+        const mins = parseFloat(selectEl.value);
         if (!isNaN(mins) && mins > 0) {
-          saveTwitterIntervalMinutes(mins);
+          save(mins);
           notifySaved();
         }
       }
     });
 
-    const commitTwitterCustom = ({ showErr = false } = {}) => {
-      const val = parseFloat(twitterCustomInput.value);
+    const commitCustom = () => {
+      const val = parseFloat(inputEl.value);
       if (isNaN(val) || val <= 0) {
-        if (showErr) {
-          showToast(t('settings.toastInvalidTwitterInterval'), 'error', 2500);
-          twitterCustomInput.value = getTwitterIntervalMinutes();
-        }
+        showToast(t(errKey), 'error', 2500);
+        inputEl.value = get();
         return;
       }
-      const mins = Math.max(1, Math.round(val));
-      if (showErr) twitterCustomInput.value = mins;
-      saveTwitterIntervalMinutes(mins);
+      const mins = normalize(val);
+      inputEl.value = mins;
+      save(mins);
       notifySaved();
     };
 
-    twitterCustomInput.addEventListener('change', () => commitTwitterCustom({ showErr: true }));
-    twitterCustomInput.addEventListener('blur', () => commitTwitterCustom({ showErr: true }));
-  }
+    inputEl.addEventListener('change', commitCustom);
+    inputEl.addEventListener('blur', commitCustom);
+  });
 
-  if (threadsSelect && threadsCustomWrap && threadsCustomInput) {
-    threadsSelect.addEventListener('change', () => {
-      syncCustomVisibility(threadsSelect, threadsCustomWrap);
-      if (threadsSelect.value === 'custom') {
-        threadsCustomInput.focus();
-        threadsCustomInput.select();
-        const val = parseFloat(threadsCustomInput.value);
-        if (!isNaN(val) && val > 0) {
-          saveThreadsIntervalMinutes(Math.max(1, Math.round(val)));
-          notifySaved();
-        }
-      } else {
-        const mins = parseFloat(threadsSelect.value);
-        if (!isNaN(mins) && mins > 0) {
-          saveThreadsIntervalMinutes(mins);
-          notifySaved();
-        }
-      }
-    });
-
-    const commitThreadsCustom = ({ showErr = false } = {}) => {
-      const val = parseFloat(threadsCustomInput.value);
-      if (isNaN(val) || val <= 0) {
-        if (showErr) {
-          showToast(t('settings.toastInvalidThreadsInterval'), 'error', 2500);
-          threadsCustomInput.value = getThreadsIntervalMinutes();
-        }
-        return;
-      }
-      const mins = Math.max(1, Math.round(val));
-      if (showErr) threadsCustomInput.value = mins;
-      saveThreadsIntervalMinutes(mins);
-      notifySaved();
-    };
-
-    threadsCustomInput.addEventListener('change', () => commitThreadsCustom({ showErr: true }));
-    threadsCustomInput.addEventListener('blur', () => commitThreadsCustom({ showErr: true }));
-  }
-
-  if (discordSelect && discordCustomWrap && discordCustomInput) {
-    discordSelect.addEventListener('change', () => {
-      syncCustomVisibility(discordSelect, discordCustomWrap);
-      if (discordSelect.value === 'custom') {
-        discordCustomInput.focus();
-        discordCustomInput.select();
-        const val = parseFloat(discordCustomInput.value);
-        if (!isNaN(val) && val > 0) {
-          saveDiscordIntervalMinutes(Math.max(0.5, Math.round(val * 10) / 10));
-          notifySaved();
-        }
-      } else {
-        const mins = parseFloat(discordSelect.value);
-        if (!isNaN(mins) && mins > 0) {
-          saveDiscordIntervalMinutes(mins);
-          notifySaved();
-        }
-      }
-    });
-
-    const commitDiscordCustom = ({ showErr = false } = {}) => {
-      const val = parseFloat(discordCustomInput.value);
-      if (isNaN(val) || val <= 0) {
-        if (showErr) {
-          showToast(t('settings.toastInvalidDiscordInterval'), 'error', 2500);
-          discordCustomInput.value = getDiscordIntervalMinutes();
-        }
-        return;
-      }
-      const mins = Math.max(0.5, Math.round(val * 10) / 10);
-      if (showErr) discordCustomInput.value = mins;
-      saveDiscordIntervalMinutes(mins);
-      notifySaved();
-    };
-
-    discordCustomInput.addEventListener('change', () => commitDiscordCustom({ showErr: true }));
-    discordCustomInput.addEventListener('blur', () => commitDiscordCustom({ showErr: true }));
-  }
-
-  if (memberOnlySelect) {
-    memberOnlySelect.addEventListener('change', () => {
-      const showMemberOnly = memberOnlySelect.value === 'true';
-      saveShowMemberOnlyPosts(showMemberOnly);
+  BOOL_SELECT_CONTROLS.forEach(({ id, save }) => {
+    const selectEl = document.getElementById(id);
+    if (!selectEl) return;
+    selectEl.addEventListener('change', () => {
+      save(selectEl.value === 'true');
       notifySaved();
     });
-  }
-
-  if (discordSoundSelect) {
-    discordSoundSelect.addEventListener('change', () => {
-      const discordSoundEnabled = discordSoundSelect.value === 'true';
-      saveDiscordSoundEnabled(discordSoundEnabled);
-      notifySaved();
-    });
-  }
-
-  if (appBadgeSelect) {
-    appBadgeSelect.addEventListener('change', () => {
-      const appBadgeEnabled = appBadgeSelect.value === 'true';
-      saveAppBadgeEnabled(appBadgeEnabled);
-      notifySaved();
-    });
-  }
-
-  const getCurrentFormHeaderBg = () =>
-    normalizeHexColor(
-      headerBgHex ? headerBgHex.value : (headerBgInput && headerBgInput.value),
-      DEFAULT_HEADER_BG_COLOR
-    );
+  });
 
   const commitHeaderBg = (bg) => {
     const norm = normalizeHexColor(bg, DEFAULT_HEADER_BG_COLOR);
@@ -635,28 +524,12 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     updateHeaderPreviewUI(norm, { liveApply: true });
   };
 
-  if (headerBgInput && headerBgHex) {
-    headerBgInput.addEventListener('input', () => {
-      headerBgHex.value = headerBgInput.value.toLowerCase();
-      commitHeaderBg(getCurrentFormHeaderBg());
-    });
-    headerBgHex.addEventListener('input', () => {
-      const val = headerBgHex.value.trim();
-      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-        headerBgInput.value = val.toLowerCase();
-        commitHeaderBg(val.toLowerCase());
-      }
-    });
-    headerBgHex.addEventListener('blur', () => {
-      const norm = normalizeHexColor(
-        headerBgHex.value,
-        headerBgInput.value || DEFAULT_HEADER_BG_COLOR
-      );
-      headerBgHex.value = norm;
-      headerBgInput.value = norm;
-      commitHeaderBg(norm);
-    });
-  }
+  bindColorPair(
+    document.getElementById('setting-header-bg-color'),
+    document.getElementById('setting-header-bg-hex'),
+    DEFAULT_HEADER_BG_COLOR,
+    commitHeaderBg
+  );
 
   document.querySelectorAll('#setting-header-presets .header-preset-chip').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -666,58 +539,27 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     });
   });
 
-  const getCurrentFormTickerColors = () => ({
-    fg: normalizeHexColor(tickerFgHex ? tickerFgHex.value : (tickerFgInput && tickerFgInput.value), DEFAULT_TICKER_FG_COLOR),
-    bg: normalizeHexColor(tickerBgHex ? tickerBgHex.value : (tickerBgInput && tickerBgInput.value), DEFAULT_TICKER_BG_COLOR)
-  });
-
   const commitTickerState = () => {
-    const { fg, bg } = getCurrentFormTickerColors();
+    const fg = readColorFromInputs('setting-ticker-fg-color', 'setting-ticker-fg-hex', DEFAULT_TICKER_FG_COLOR);
+    const bg = readColorFromInputs('setting-ticker-bg-color', 'setting-ticker-bg-hex', DEFAULT_TICKER_BG_COLOR);
     saveTickerFgColor(fg);
     saveTickerBgColor(bg);
     applyTickerColors(fg, bg);
     updateTickerPreviewUI(fg, bg);
   };
 
-  if (tickerFgInput && tickerFgHex) {
-    tickerFgInput.addEventListener('input', () => {
-      tickerFgHex.value = tickerFgInput.value.toLowerCase();
-      commitTickerState();
-    });
-    tickerFgHex.addEventListener('input', () => {
-      const val = tickerFgHex.value.trim();
-      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-        tickerFgInput.value = val.toLowerCase();
-        commitTickerState();
-      }
-    });
-    tickerFgHex.addEventListener('blur', () => {
-      const norm = normalizeHexColor(tickerFgHex.value, tickerFgInput.value || DEFAULT_TICKER_FG_COLOR);
-      tickerFgHex.value = norm;
-      tickerFgInput.value = norm;
-      commitTickerState();
-    });
-  }
-
-  if (tickerBgInput && tickerBgHex) {
-    tickerBgInput.addEventListener('input', () => {
-      tickerBgHex.value = tickerBgInput.value.toLowerCase();
-      commitTickerState();
-    });
-    tickerBgHex.addEventListener('input', () => {
-      const val = tickerBgHex.value.trim();
-      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-        tickerBgInput.value = val.toLowerCase();
-        commitTickerState();
-      }
-    });
-    tickerBgHex.addEventListener('blur', () => {
-      const norm = normalizeHexColor(tickerBgHex.value, tickerBgInput.value || DEFAULT_TICKER_BG_COLOR);
-      tickerBgHex.value = norm;
-      tickerBgInput.value = norm;
-      commitTickerState();
-    });
-  }
+  bindColorPair(
+    document.getElementById('setting-ticker-fg-color'),
+    document.getElementById('setting-ticker-fg-hex'),
+    DEFAULT_TICKER_FG_COLOR,
+    commitTickerState
+  );
+  bindColorPair(
+    document.getElementById('setting-ticker-bg-color'),
+    document.getElementById('setting-ticker-bg-hex'),
+    DEFAULT_TICKER_BG_COLOR,
+    commitTickerState
+  );
 
   document.querySelectorAll('#setting-ticker-presets .ticker-preset-chip').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -774,53 +616,33 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         languageSelect.value = sysLang;
       }
 
-      saveTwitterIntervalMinutes(DEFAULT_TWITTER_INTERVAL_MINUTES);
-      saveThreadsIntervalMinutes(DEFAULT_THREADS_INTERVAL_MINUTES);
-      saveDiscordIntervalMinutes(DEFAULT_DISCORD_INTERVAL_MINUTES);
-      saveShowMemberOnlyPosts(DEFAULT_SHOW_MEMBER_ONLY);
+      INTERVAL_CONTROLS.forEach(({ selectId, wrapId, inputId, save, defaultVal }) => {
+        save(defaultVal);
+        const selectEl = document.getElementById(selectId);
+        const wrapEl = document.getElementById(wrapId);
+        const inputEl = document.getElementById(inputId);
+        if (selectEl && wrapEl && inputEl) {
+          populateSelectAndInput(selectEl, wrapEl, inputEl, defaultVal);
+        }
+      });
+
+      BOOL_SELECT_CONTROLS.forEach(({ id, save, defaultVal }) => {
+        save(defaultVal);
+        const selectEl = document.getElementById(id);
+        if (selectEl) {
+          selectEl.value = defaultVal ? 'true' : 'false';
+        }
+      });
+
       saveFilterKeywords(DEFAULT_FILTER_KEYWORDS);
-      saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
-      saveAppBadgeEnabled(DEFAULT_APP_BADGE_ENABLED);
+      syncFilterKeywordsControl(DEFAULT_FILTER_KEYWORDS);
+
       saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
       applyHeaderColor(DEFAULT_HEADER_BG_COLOR);
       saveTickerFgColor(DEFAULT_TICKER_FG_COLOR);
       saveTickerBgColor(DEFAULT_TICKER_BG_COLOR);
       applyTickerColors(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 
-      if (twitterSelect && twitterCustomWrap && twitterCustomInput) {
-        populateSelectAndInput(
-          twitterSelect,
-          twitterCustomWrap,
-          twitterCustomInput,
-          DEFAULT_TWITTER_INTERVAL_MINUTES
-        );
-      }
-      if (threadsSelect && threadsCustomWrap && threadsCustomInput) {
-        populateSelectAndInput(
-          threadsSelect,
-          threadsCustomWrap,
-          threadsCustomInput,
-          DEFAULT_THREADS_INTERVAL_MINUTES
-        );
-      }
-      if (discordSelect && discordCustomWrap && discordCustomInput) {
-        populateSelectAndInput(
-          discordSelect,
-          discordCustomWrap,
-          discordCustomInput,
-          DEFAULT_DISCORD_INTERVAL_MINUTES
-        );
-      }
-      if (memberOnlySelect) {
-        memberOnlySelect.value = DEFAULT_SHOW_MEMBER_ONLY ? 'true' : 'false';
-      }
-      syncFilterKeywordsControl(DEFAULT_FILTER_KEYWORDS);
-      if (discordSoundSelect) {
-        discordSoundSelect.value = DEFAULT_DISCORD_SOUND_ENABLED ? 'true' : 'false';
-      }
-      if (appBadgeSelect) {
-        appBadgeSelect.value = DEFAULT_APP_BADGE_ENABLED ? 'true' : 'false';
-      }
       setHeaderColorInputs(DEFAULT_HEADER_BG_COLOR, { liveApply: true });
       setTickerColorInputs(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 

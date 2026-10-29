@@ -1066,21 +1066,21 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(popupOverlay).toHaveClass(/is-closed/);
   });
 
-  test('12. Same-minute message merging: Chinese (。) & English (.) separators and full display without truncation', async () => {
+  test('12. Same-minute message merging: Discord merges with Chinese (。) & English (.) separators, while Twitter & Threads do not merge', async () => {
     await page.evaluate(
       ({ handlesKey, cacheKey }) => {
         const handles = [
           'https://discord.com/channels/111111/222222',
           'threads:@zuck',
-          '',
+          '@elonmusk',
           ''
         ];
         while (handles.length < 16) handles.push('');
         localStorage.setItem(handlesKey, JSON.stringify(handles));
 
-        // 5 Chinese messages within the exact same minute (12:47) + 1 message in the next minute (12:48)
+        // 5 Chinese messages within the exact same minute (19:47) + 2 English messages in the next minute (19:48)
         const baseMinute = '2026-10-23T19:47:';
-        const nextMinute = '2026-10-23T19:48:10.000Z';
+        const nextMinutePrefix = '2026-10-23T19:48:';
 
         const cache = {
           0: {
@@ -1140,9 +1140,18 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               },
               {
                 id: '1006',
-                text: '下一分钟的独立消息',
-                datetime: nextMinute,
-                time: nextMinute,
+                text: 'Added igv and panw puts at the open today as software names hit major overhead supply',
+                datetime: `${nextMinutePrefix}10.000Z`,
+                time: `${nextMinutePrefix}10.000Z`,
+                displayName: 'TraderA',
+                isUnread: false,
+                images: []
+              },
+              {
+                id: '1007',
+                text: '110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector',
+                datetime: `${nextMinutePrefix}35.000Z`,
+                time: `${nextMinutePrefix}35.000Z`,
                 displayName: 'TraderA',
                 isUnread: false,
                 images: []
@@ -1169,11 +1178,41 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               },
               {
                 id: 'en_msg_2',
-                text: '110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector',
+                text: '110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector.\nSecond paragraph with more details that definitely exceeds the 100 character limit and must be truncated.',
                 datetime: `${baseMinute}35.000Z`,
                 time: `${baseMinute}35.000Z`,
                 url: 'https://www.threads.com/@zuck/post/en_msg_2',
                 author: 'zuck',
+                isUnread: false,
+                images: []
+              }
+            ]
+          },
+          2: {
+            handle: '@elonmusk',
+            source: 'twitter',
+            displayName: 'Elon Musk',
+            userHandle: '@elonmusk',
+            avatarUrl: '',
+            lastFetchedAt: Date.now(),
+            posts: [
+              {
+                id: '2001',
+                text: 'Every time DCA Optimizer flashed a buy signal on $UBER ...\n14 signal months. Average price move 12 months later: +34.1%.\nThe ONE time it hit 4X Extreme Buy Zone? +111.0%\nTry it FREE for 7 days:',
+                datetime: `${baseMinute}12.000Z`,
+                time: `${baseMinute}12.000Z`,
+                url: 'https://x.com/elonmusk/status/2001',
+                author: 'elonmusk',
+                isUnread: false,
+                images: []
+              },
+              {
+                id: '2002',
+                text: 'Follow-up thread reply posted in the exact same minute.',
+                datetime: `${baseMinute}40.000Z`,
+                time: `${baseMinute}40.000Z`,
+                url: 'https://x.com/elonmusk/status/2002',
+                author: 'elonmusk',
                 isUnread: false,
                 images: []
               }
@@ -1190,13 +1229,13 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     await page.reload({ waitUntil: 'domcontentloaded' });
 
-    // Slot 0: 5 messages at 12:47 merge into 1 bubble + 1 message at 12:48 = 2 bubbles total
+    // Slot 0 (Discord): 5 Chinese messages at 19:47 merge into 1 bubble + 2 English messages at 19:48 merge into 1 bubble = 2 bubbles total
     const discordBubbles = page.locator('#slot-content-0 .im-bubble');
     await expect(discordBubbles).toHaveCount(2);
 
     const mergedChineseBubble = discordBubbles.nth(0);
     await expect(mergedChineseBubble).toHaveClass(/unread/);
-    // Merged bubble must NOT be truncated even though it exceeds 100 chars
+    // Merged Discord bubble must NOT be truncated even though it exceeds 100 chars
     await expect(mergedChineseBubble.locator('.im-text-ellipsis')).toHaveCount(0);
 
     const chineseText = await mergedChineseBubble.locator('.im-text-content').textContent();
@@ -1219,15 +1258,25 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.keyboard.press('Escape');
     await expect(popupOverlay).toHaveClass(/is-closed/);
 
-    // Slot 1: 2 English messages in the same minute merge into 1 bubble separated by ". " and are not truncated
-    const englishBubbles = page.locator('#slot-content-1 .im-bubble');
-    await expect(englishBubbles).toHaveCount(1);
-    const mergedEnglishBubble = englishBubbles.nth(0);
+    // Second Discord bubble: 2 English messages in the same minute merge into 1 bubble separated by ". " and are not truncated
+    const mergedEnglishBubble = discordBubbles.nth(1);
     await expect(mergedEnglishBubble.locator('.im-text-ellipsis')).toHaveCount(0);
     const englishText = await mergedEnglishBubble.locator('.im-text-content').textContent();
     expect(englishText).toBe(
       'Added igv and panw puts at the open today as software names hit major overhead supply. 110 on igv was the exact origin of last Friday breakdown candle and getting rejected right here is extremely bearish for the sector'
     );
+
+    // Slot 1 (Threads): 2 posts in the same minute must NOT merge and long post must be truncated
+    const threadsBubbles = page.locator('#slot-content-1 .im-bubble');
+    await expect(threadsBubbles).toHaveCount(2);
+    await expect(threadsBubbles.nth(1).locator('.im-text-ellipsis')).toHaveCount(1);
+
+    // Slot 2 (Twitter): 2 tweets in the same minute must NOT merge and long tweet must be truncated
+    const twitterBubbles = page.locator('#slot-content-2 .im-bubble');
+    await expect(twitterBubbles).toHaveCount(2);
+    await expect(twitterBubbles.nth(0).locator('.im-text-ellipsis')).toHaveCount(1);
+    const truncatedTweetText = await twitterBubbles.nth(0).locator('.im-text-content').textContent();
+    expect(truncatedTweetText).not.toContain('Try it FREE for 7 days:');
   });
 
   test('13. Hovering a slot content area hides its header to reveal obscured content and moving to top header area restores it', async () => {

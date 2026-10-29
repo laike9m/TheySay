@@ -604,6 +604,7 @@ function extractCleanPostText(post, { isDiscord = false } = {}) {
 }
 
 function canMergeSameMinutePosts(prev, curr, { isDiscord = false } = {}) {
+  if (!isDiscord) return false;
   if (!prev || !curr) return false;
   const prevMinKey = getPostMinuteKey(prev);
   const currMinKey = getPostMinuteKey(curr);
@@ -616,16 +617,23 @@ function canMergeSameMinutePosts(prev, curr, { isDiscord = false } = {}) {
   if (Boolean(prev.isPinned) !== Boolean(curr.isPinned)) return false;
   if (Boolean(isMemberOnlyPost(prev)) !== Boolean(isMemberOnlyPost(curr))) return false;
 
-  if (isDiscord) {
-    if ((prev.displayName || '') !== (curr.displayName || '')) return false;
-    if (Boolean(prev.isBot) !== Boolean(curr.isBot)) return false;
-  }
+  if ((prev.displayName || '') !== (curr.displayName || '')) return false;
+  if (Boolean(prev.isBot) !== Boolean(curr.isBot)) return false;
 
   return true;
 }
 
 function groupSameMinutePosts(posts, { isDiscord = false } = {}) {
   if (!Array.isArray(posts) || posts.length === 0) return [];
+  if (!isDiscord) {
+    for (const post of posts) {
+      if (post && post.linkTitles) {
+        registerUrlTitlesMap(post.linkTitles, { persist: false });
+      }
+    }
+    return posts;
+  }
+
   const groups = [];
   for (const post of posts) {
     if (!post) continue;
@@ -779,7 +787,7 @@ function buildPostBubbleData(post) {
     : (rawText || (images.length === 0 ? t('scraper.mediaOnlyFallback') : ''));
   const displayText = replaceUrlsWithTitles(effectiveText, post.linkTitles);
   const chars = Array.from(displayText);
-  const isLong = !post.isMerged && chars.length > BASE_PREVIEW_CHARS;
+  const isLong = chars.length > BASE_PREVIEW_CHARS;
   const { slicedText: previewText, linkTitles: previewTitles } = isLong
     ? sliceTextWithUrlTitles(effectiveText, BASE_PREVIEW_CHARS, post.linkTitles)
     : { slicedText: effectiveText, linkTitles: post.linkTitles };
@@ -1141,7 +1149,7 @@ function refreshSlotBubbleTextsWithTitles(slot) {
     const post = bubble._post;
     if (!post) return;
 
-    if (post.isMerged && Array.isArray(post.mergedPosts)) {
+    if (isDiscord && post.isMerged && Array.isArray(post.mergedPosts)) {
       const mergedLinkTitles = Object.assign({}, post.linkTitles || {});
       for (const mp of post.mergedPosts) {
         if (mp && mp.linkTitles && typeof mp.linkTitles === 'object') {
@@ -1183,7 +1191,7 @@ function refreshSlotBubbleTextsWithTitles(slot) {
 
     const displayText = replaceUrlsWithTitles(effectiveText, post.linkTitles);
     const chars = Array.from(displayText);
-    const isLong = !post.isMerged && chars.length > BASE_PREVIEW_CHARS;
+    const isLong = !(isDiscord && post.isMerged) && chars.length > BASE_PREVIEW_CHARS;
 
     if (isLong) {
       const { slicedText: previewText, linkTitles: previewTitles } = sliceTextWithUrlTitles(

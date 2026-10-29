@@ -5,52 +5,65 @@ import {
   UnstyledButton,
   ThemeIcon,
   Badge,
-  Divider
+  Divider,
+  Tooltip
 } from '@mantine/core';
 import {
   IconUser,
-  IconChevronDown,
+  IconChevronRight,
   IconDownload,
   IconUpload
 } from '@tabler/icons-react';
 import { DiscordSvgIcon } from '../icons/PlatformIcons';
 
-export function LoginDropdownMenu() {
+export function LoginDropdownMenu({ collapsed = true, tooltipLabel = '登录账号' }) {
   return (
     <div className="login-dropdown-wrapper" id="login-dropdown-wrapper">
-      <Button
-        id="btn-login-menu"
-        variant="default"
-        size="compact-xs"
-        radius="md"
-        className="btn-tool login-dropdown-btn"
-        data-i18n-title="nav.loginMenuTitle"
-        title="管理登录账号"
-        leftSection={
-          <span className="login-btn-left-group">
-            <span
-              className="login-menu-status-dot"
-              id="login-menu-status-dot"
-            />
-            <IconUser
-              className="login-menu-icon"
-              size={13}
-              stroke={2.2}
-              aria-hidden="true"
-            />
-          </span>
-        }
-        rightSection={
-          <IconChevronDown
-            className="dropdown-chevron"
-            size={11}
-            stroke={2.5}
-            aria-hidden="true"
-          />
-        }
+      <Tooltip
+        label={tooltipLabel}
+        position="right"
+        withArrow
+        disabled={!collapsed}
       >
-        <span data-i18n="nav.loginMenu">登录账号</span>
-      </Button>
+        <Button
+          id="btn-login-menu"
+          variant="subtle"
+          size="compact-sm"
+          radius="md"
+          fullWidth
+          className="btn-tool sidebar-nav-item login-dropdown-btn"
+          data-i18n-title="nav.loginMenuTitle"
+          title="管理登录账号"
+          leftSection={
+            <span className="sidebar-icon-wrap login-btn-left-group">
+              <IconUser
+                className="login-menu-icon"
+                size={18}
+                stroke={1.8}
+                aria-hidden="true"
+              />
+              <span
+                className="login-menu-status-dot"
+                id="login-menu-status-dot"
+              />
+            </span>
+          }
+          rightSection={
+            !collapsed ? (
+              <IconChevronRight
+                className="dropdown-chevron"
+                size={14}
+                stroke={1.8}
+                aria-hidden="true"
+              />
+            ) : null
+          }
+        >
+          <span className="sidebar-label-text" data-i18n="nav.loginMenu">
+            登录账号
+          </span>
+        </Button>
+      </Tooltip>
 
       <Paper
         className="login-dropdown-menu"

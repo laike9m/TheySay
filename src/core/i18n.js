@@ -162,6 +162,7 @@ const MESSAGES = {
     'nav.settings': 'Settings',
     'nav.loginMenu': 'Accounts',
     'nav.loginMenuTitle': 'Manage accounts',
+    'nav.toggleSidebar': 'Toggle sidebar',
 
     // Auth & Profile Dropdown
     'auth.accountManagement': 'Account Management',
@@ -537,6 +538,7 @@ const MESSAGES = {
     'nav.settings': '设置',
     'nav.loginMenu': '登录账号',
     'nav.loginMenuTitle': '管理登录账号',
+    'nav.toggleSidebar': '展开 / 收起侧边栏',
 
     // Auth & Profile Dropdown
     'auth.accountManagement': '登录账号管理',

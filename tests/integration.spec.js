@@ -77,6 +77,13 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page).toHaveTitle(/TheySay/);
     await expect(page.locator('.brand-title')).toHaveText('TheySay');
     await expect(page.locator('header.top-nav')).toHaveClass(/mantine-Paper-root/);
+    await expect(page.locator('header.top-nav')).toHaveClass(/mantine-side-nav/);
+    await expect(page.locator('header.top-nav')).toHaveClass(/is-collapsed/);
+    await expect(page.locator('#btn-sidebar-toggle')).toBeVisible();
+    await page.locator('#btn-sidebar-toggle').click();
+    await expect(page.locator('header.top-nav')).toHaveClass(/is-expanded/);
+    await page.locator('#btn-sidebar-toggle').click();
+    await expect(page.locator('header.top-nav')).toHaveClass(/is-collapsed/);
     await expect(page.locator('#btn-mark-all-read')).toBeVisible();
     await expect(page.locator('#btn-mark-all-read')).toHaveClass(/mantine-Button-root/);
     await expect(page.locator('#layout-select')).toBeVisible();

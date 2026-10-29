@@ -137,33 +137,73 @@ body {
   background: var(--scrollbar-thumb-hover);
 }
 
-/* App Layout */
+/* App Layout (Left Mantine Sidebar + Right Dashboard Workspace) */
 .app-layout {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
   width: 100vw;
   height: 100vh;
   background-color: var(--bg-app);
+  overflow: hidden;
 }
 
-/* Top Navigation Bar */
+/* Left Collapsible Mantine Navigation Sidebar */
 .top-nav {
-  height: 50px;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  width: 184px;
+  height: 100vh;
   background-color: var(--bg-nav);
-  border-bottom: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 12px 8px;
+  gap: 8px;
+  flex-shrink: 0;
+  z-index: 30;
+  transition:
+    width 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.top-nav.is-collapsed {
+  width: 52px;
+  padding: 12px 8px;
+}
+
+.sidebar-brand-section {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  flex-shrink: 0;
-  z-index: 10;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 2px 0 6px;
+}
+
+.top-nav.is-collapsed .sidebar-brand-section {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
 }
 
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
+  min-width: 0;
+}
+
+.top-nav.is-collapsed .nav-brand {
+  width: 36px;
+  height: 36px;
+  justify-content: center;
 }
 
 .logo-icon {
@@ -178,46 +218,123 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .brand-title {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.4px;
   color: var(--text-main);
+  white-space: nowrap;
+}
+
+.sidebar-section-divider {
+  width: 100%;
+  border-color: var(--border-color);
+  opacity: 0.7;
 }
 
 .nav-controls {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
 }
 
-/* Layout Control Select */
-.layout-control-group {
+/* Uniform Sidebar Nav Item (Mantine NavbarMinimal / NavLink style) */
+.sidebar-nav-item {
+  position: relative;
+  height: 36px;
+  min-height: 36px;
+  width: 100%;
+  border-radius: 8px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.top-nav.is-collapsed .sidebar-nav-item {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar-nav-item:hover,
+.sidebar-nav-item.active {
+  background-color: var(--bg-control-hover);
+  color: var(--text-main);
+}
+
+.sidebar-icon-wrap {
+  position: relative;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background-color: var(--bg-control);
-  padding: 0 8px 0 10px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  box-sizing: border-box;
-  transition: all 0.15s;
+  justify-content: center;
+  flex-shrink: 0;
+  color: inherit;
 }
 
-.layout-control-group:hover {
-  border-color: var(--accent-blue);
-  background-color: var(--bg-control-hover);
+.sidebar-label-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Visually hide text labels when sidebar is collapsed while keeping DOM text for i18n */
+.top-nav.is-collapsed .brand-text,
+.top-nav.is-collapsed .sidebar-label-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Layout Control Select inside Sidebar */
+.layout-control-group {
+  position: relative;
 }
 
 .control-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
+  cursor: pointer;
+}
+
+.top-nav.is-expanded .mantine-layout-select-root {
+  margin-left: auto;
+}
+
+.top-nav.is-collapsed .mantine-layout-select-root {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.top-nav.is-collapsed .mantine-layout-select-root .mantine-NativeSelect-wrapper {
+  width: 100%;
+  height: 100%;
 }
 
 .layout-select {
@@ -234,13 +351,21 @@ body {
   line-height: 26px;
 }
 
+.top-nav.is-collapsed .layout-select {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .layout-select option {
   background-color: var(--bg-nav);
   color: var(--text-main);
 }
 
-/* Tool Buttons (e.g. 全部已读) */
-.btn-tool {
+/* Tool Buttons outside Sidebar (e.g. Settings modal buttons) */
+.btn-tool:not(.sidebar-nav-item) {
   height: 28px;
   box-sizing: border-box;
   background-color: var(--bg-control);
@@ -260,133 +385,35 @@ body {
   white-space: nowrap;
 }
 
-.btn-tool:hover {
+.btn-tool:not(.sidebar-nav-item):hover {
   color: var(--text-main);
   border-color: var(--accent-blue);
   background-color: var(--bg-control-hover);
 }
 
-.icon-check-check {
-  width: 13px;
-  height: 13px;
+.icon-check-check,
+.layout-grid-icon {
   flex-shrink: 0;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
-/* Settings Gear Button */
-.btn-settings {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
+/* Settings Gear Icon rotation on hover */
 .btn-settings .settings-gear-icon {
-  width: 14px;
-  height: 14px;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--text-secondary);
 }
 
 .btn-settings:hover .settings-gear-icon,
 .btn-settings.active .settings-gear-icon {
-  color: var(--text-main);
   transform: rotate(45deg);
 }
 
-.btn-settings.active {
-  color: var(--text-main);
-  border-color: var(--accent-blue);
-  background-color: var(--bg-control-hover);
-}
-
-/* Theme Toggle Switch */
-.theme-toggle {
-  position: relative;
-  width: 50px;
-  height: 28px;
-  box-sizing: border-box;
-  background-color: var(--bg-control);
-  border: 1px solid var(--border-subtle);
-  border-radius: 9999px;
-  padding: 0;
-  cursor: pointer;
-  outline: none;
-  display: inline-flex;
-  align-items: center;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  user-select: none;
-}
-
-.theme-toggle:hover {
-  border-color: var(--accent-blue);
-  background-color: var(--bg-control-hover);
-}
-
-.theme-toggle-track {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 7px;
-  box-sizing: border-box;
-}
-
-.theme-toggle-bg-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  opacity: 0.6;
-  pointer-events: none;
-  font-size: 0;
-  line-height: 0;
-}
-
-.theme-toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, box-shadow 0.2s ease;
-  pointer-events: none;
-  font-size: 0;
-  line-height: 0;
-}
-
-/* Light mode thumb state */
-[data-theme="light"] .theme-toggle-thumb {
-  transform: translateX(0);
-  background-color: #ffffff;
-  color: #f59e0b;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
+/* Theme Toggle Icon visibility by current theme */
 [data-theme="light"] .theme-thumb-icon.sun {
   display: block;
+  color: #f59e0b;
 }
 
 [data-theme="light"] .theme-thumb-icon.moon {
   display: none;
-}
-
-/* Dark mode thumb state (also default when data-theme is dark or not set) */
-[data-theme="dark"] .theme-toggle-thumb,
-:root:not([data-theme="light"]) .theme-toggle-thumb {
-  transform: translateX(22px);
-  background-color: var(--accent-blue);
-  color: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="dark"] .theme-thumb-icon.sun,
@@ -399,28 +426,12 @@ body {
   display: block;
 }
 
-.nav-divider {
-  width: 1px;
-  height: 18px;
-  background-color: var(--border-color);
-}
-
 /* Login Accounts Dropdown Menu */
 .login-dropdown-wrapper {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-}
-
-.login-dropdown-btn {
-  position: relative;
-  gap: 6px;
-}
-
-.login-dropdown-btn.active {
-  color: var(--text-main);
-  border-color: var(--accent-blue);
-  background-color: var(--bg-control-hover);
+  width: 100%;
 }
 
 .dropdown-chevron {
@@ -429,7 +440,7 @@ body {
 }
 
 .login-dropdown-btn.active .dropdown-chevron {
-  transform: rotate(180deg);
+  transform: translateX(2px);
   color: var(--text-main);
 }
 
@@ -438,10 +449,14 @@ body {
 }
 
 .login-menu-status-dot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background-color: var(--text-muted);
+  box-shadow: 0 0 0 1.5px var(--bg-nav);
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
@@ -480,9 +495,10 @@ body {
 
 .login-dropdown-menu {
   position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 230px;
+  top: 0;
+  left: calc(100% + 10px);
+  right: auto;
+  width: 236px;
   background-color: var(--bg-popover);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -495,11 +511,11 @@ body {
 @keyframes loginDropdownFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateX(-4px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
@@ -713,12 +729,14 @@ body {
 
 /* Persistent Top Login Expired Banner */
 .auth-expired-banner {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 8px 16px;
-  margin: 0 12px 6px;
+  margin: 8px 12px 0;
   border-radius: 10px;
   background: linear-gradient(90deg, rgba(244, 33, 46, 0.22) 0%, rgba(245, 158, 11, 0.18) 100%);
   border: 1.5px solid rgba(244, 33, 46, 0.65);
@@ -873,10 +891,12 @@ body {
 
 /* Dashboard Container */
 .dashboard-container {
-  flex: 1;
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
   min-height: 0;
-  height: calc(100vh - 50px);
-  padding: 0 8px 8px;
+  height: 100%;
+  padding: 4px 8px 8px;
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -3307,6 +3327,11 @@ body {
   display: contents;
 }
 
+.mantine-Notifications-root,
+.mantine-Notification-root.mantine-toast-item {
+  pointer-events: none;
+}
+
 .mantine-layout-select-root .mantine-NativeSelect-wrapper {
   height: 26px;
 }
@@ -3394,7 +3419,7 @@ body {
   background-color: var(--bg-input-focus);
 }
 
-.mantine-Button-root.btn-tool {
+.mantine-Button-root.btn-tool:not(.sidebar-nav-item) {
   height: 28px;
   min-height: 28px;
   background-color: var(--bg-control);
@@ -3408,35 +3433,79 @@ body {
   transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.mantine-Button-root.btn-tool .mantine-Button-inner {
-  gap: 5px;
+.mantine-Button-root.btn-tool:not(.sidebar-nav-item):hover {
+  color: var(--text-main);
+  border-color: var(--accent-blue);
+  background-color: var(--bg-control-hover);
+}
+
+.mantine-Button-root.sidebar-nav-item,
+.mantine-ActionIcon-root.sidebar-nav-item {
+  height: 36px;
+  min-height: 36px;
+  background-color: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.top-nav.is-expanded .mantine-Button-root.sidebar-nav-item .mantine-Button-inner,
+.top-nav.is-expanded .mantine-ActionIcon-root.sidebar-nav-item .mantine-ActionIcon-icon {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.top-nav.is-expanded .mantine-Button-root.login-dropdown-btn .mantine-Button-section[data-position="right"] {
+  margin-left: auto;
+}
+
+.top-nav.is-collapsed .mantine-Button-root.sidebar-nav-item,
+.top-nav.is-collapsed .mantine-ActionIcon-root.sidebar-nav-item,
+.mantine-ActionIcon-root.btn-sidebar-toggle {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+
+.top-nav.is-collapsed .mantine-Button-root.sidebar-nav-item .mantine-Button-inner,
+.top-nav.is-collapsed .mantine-ActionIcon-root.sidebar-nav-item .mantine-ActionIcon-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
 }
 
 .mantine-Button-root.btn-tool .mantine-Button-section {
   margin: 0;
 }
 
-.mantine-Button-root.btn-tool:hover,
-.mantine-Button-root.login-dropdown-btn.active {
+.mantine-Button-root.sidebar-nav-item:hover,
+.mantine-ActionIcon-root.sidebar-nav-item:hover,
+.mantine-Button-root.login-dropdown-btn.active,
+.mantine-ActionIcon-root.btn-settings.active {
   color: var(--text-main);
-  border-color: var(--accent-blue);
   background-color: var(--bg-control-hover);
 }
 
 .mantine-Button-root.login-dropdown-btn.has-expired {
-  border-color: rgba(244, 33, 46, 0.55);
   color: #ff6b78;
+  background-color: rgba(244, 33, 46, 0.1);
 }
 
 [data-theme="light"] .mantine-Button-root.login-dropdown-btn.has-expired {
-  border-color: rgba(220, 38, 38, 0.5);
   color: #dc2626;
-}
-
-.login-btn-left-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  background-color: rgba(220, 38, 38, 0.08);
 }
 
 .mantine-Button-root.btn-sync-tickers,
@@ -3507,21 +3576,6 @@ body {
   display: inline;
   overflow: visible;
   text-overflow: clip;
-}
-
-.mantine-ActionIcon-root.btn-settings {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  background-color: var(--bg-control);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-}
-
-.mantine-ActionIcon-root.btn-settings:hover {
-  border-color: var(--accent-blue);
-  background-color: var(--bg-control-hover);
 }
 
 .mantine-ColorSwatch-root.ticker-preset-chip {

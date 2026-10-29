@@ -12,7 +12,7 @@ function calculateCellHeight(rows) {
       bannerOffset = banner.offsetHeight + 6;
     }
   } catch (_) {}
-  const availableHeight = window.innerHeight - 62 - bannerOffset; // top nav (50px) + bottom padding + expired banner
+  const availableHeight = window.innerHeight - 16 - bannerOffset; // top/bottom grid padding + expired banner
   const margin = 8;
   const totalMargin = (rows - 1) * margin;
   return Math.max(160, Math.floor((availableHeight - totalMargin) / rows));

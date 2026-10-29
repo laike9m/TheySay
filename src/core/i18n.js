@@ -139,8 +139,8 @@ function setActiveLanguageOverride(lang) {
 const MESSAGES = {
   en: {
     // Window & App
-    'app.windowTitle': 'TheySay - Twitter / X, Threads & Discord Grid Dashboard',
-    'app.mainWindowTitle': 'TheySay - Twitter / X, Threads & Discord Grid Dashboard (GridStack)',
+    'app.windowTitle': 'TheySay - Follow What People Say',
+    'app.mainWindowTitle': 'TheySay - Follow What People Say',
     'app.twitterLoginTitle': 'Log in to Twitter / X',
     'app.twitterReloginTitle': 'Switch or Re-login Twitter / X Account',
     'app.threadsLoginTitle': 'Log in to Threads',
@@ -515,8 +515,8 @@ const MESSAGES = {
 
   zh: {
     // Window & App
-    'app.windowTitle': 'TheySay - Twitter / X, Threads & Discord 动态网格看板',
-    'app.mainWindowTitle': 'TheySay - Twitter / X, Threads & Discord 动态网格看板 (GridStack)',
+    'app.windowTitle': 'TheySay - 动态网格看板',
+    'app.mainWindowTitle': 'TheySay - 动态网格看板',
     'app.twitterLoginTitle': '登录 Twitter / X',
     'app.twitterReloginTitle': '切换或重新登录 Twitter / X 账号',
     'app.threadsLoginTitle': '登录 Threads',

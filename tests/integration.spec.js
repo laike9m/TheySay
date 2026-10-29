@@ -463,7 +463,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       STORAGE_LANGUAGE_KEY
     );
     expect(savedLangEn).toBe('en');
-    await expect(page).toHaveTitle('TheySay - Twitter / X, Threads & Discord Grid Dashboard');
+    await expect(page).toHaveTitle('TheySay - Follow What People Say');
 
     // Switch to Chinese ('zh') and verify UI updates to Chinese & persists to disk immediately
     const prefFilePath = path.join(userDataDir, 'preferences.json');
@@ -488,7 +488,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       STORAGE_LANGUAGE_KEY
     );
     expect(savedLangZh).toBe('zh');
-    await expect(page).toHaveTitle('TheySay - Twitter / X, Threads & Discord 动态网格看板');
+    await expect(page).toHaveTitle('TheySay - 动态网格看板');
   });
 
   test('8. Dragging a slot keeps every feed\'s scroll position', async () => {

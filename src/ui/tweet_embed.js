@@ -422,6 +422,13 @@ function embedFrameEnhancementRuntime(win, doc) {
     const style = doc.createElement('style');
     style.id = 'theysay-embed-style';
     style.textContent = `
+      #app > div,
+      #app > div > div,
+      #app > div > div > div,
+      div:has(> article[role="article"]),
+      article[role="article"] {
+        max-width: 650px !important;
+      }
       article[role="article"] {
         background-color: ${isDarkTheme ? '#000000' : '#ffffff'} !important;
         transition: none !important;
@@ -658,7 +665,7 @@ function embedFrameEnhancementRuntime(win, doc) {
       if (!targetEl) return;
       const rect = targetEl.getBoundingClientRect();
       const height = Math.ceil(Math.max(rect.height, targetEl.scrollHeight || 0));
-      const width = Math.ceil(rect.width || 550);
+      const width = Math.ceil(rect.width || 650);
       if (height <= 0) return;
 
       const embedIdMatch = String(win.location.search || '').match(/[?&]embedId=([^&]+)/);

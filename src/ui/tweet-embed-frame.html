@@ -8,6 +8,13 @@
     html, body, * {
       overscroll-behavior: auto !important;
     }
+    #app > div,
+    #app > div > div,
+    #app > div > div > div,
+    div:has(> article[role="article"]),
+    article[role="article"] {
+      max-width: 650px !important;
+    }
   </style>
   <script>
     try {

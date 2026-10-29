@@ -1854,7 +1854,7 @@ body {
 .tweet-popup-dialog {
   position: relative;
   width: 100%;
-  max-width: 550px;
+  max-width: 650px;
   max-height: 92vh;
   background: transparent;
   border: none;
@@ -1929,14 +1929,22 @@ body {
   pointer-events: auto;
 }
 
-.tweet-popup-embed-container .twitter-tweet {
+.tweet-popup-embed-container .twitter-tweet,
+.tweet-popup-embed-container .twitter-tweet-rendered {
   margin: 0 auto !important;
+  max-width: 650px !important;
+  width: 100% !important;
+}
+
+.tweet-popup-embed-container .twitter-tweet iframe {
+  max-width: 650px !important;
+  width: 100% !important;
 }
 
 /* Fallback Card when offline or embed fails */
 .tweet-popup-fallback {
   width: 100%;
-  max-width: 540px;
+  max-width: 650px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
@@ -2320,7 +2328,7 @@ body {
 
 .discord-popup-card {
   width: 100%;
-  max-width: 540px;
+  max-width: 650px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;

@@ -941,7 +941,15 @@ function applyPageLocalization(lang = getCurrentLanguage()) {
 
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const key = el.getAttribute('data-i18n');
-    if (key) el.textContent = t(key, {}, lang);
+    if (!key) return;
+    const labelEl =
+      el.querySelector &&
+      el.querySelector('.mantine-Button-label, .mantine-Badge-label');
+    if (labelEl) {
+      labelEl.textContent = t(key, {}, lang);
+    } else {
+      el.textContent = t(key, {}, lang);
+    }
   });
 
   document.querySelectorAll('[data-i18n-html]').forEach((el) => {

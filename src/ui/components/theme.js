@@ -1,10 +1,70 @@
 import { createTheme } from '@mantine/core';
 
 export const mantineTheme = createTheme({
-  primaryColor: 'blue',
-  defaultRadius: 'sm',
+  primaryColor: 'brand',
+  defaultRadius: 'md',
   fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  fontFamilyMonospace:
+    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  colors: {
+    brand: [
+      '#e5f4ff',
+      '#cde4ff',
+      '#9bc8ff',
+      '#64aaff',
+      '#3890fe',
+      '#1d9bf0',
+      '#0984db',
+      '#0071c4',
+      '#0060ad',
+      '#004e91'
+    ]
+  },
+  components: {
+    Button: {
+      defaultProps: {
+        size: 'compact-xs',
+        radius: 'md'
+      }
+    },
+    ActionIcon: {
+      defaultProps: {
+        variant: 'subtle',
+        radius: 'md'
+      }
+    },
+    CloseButton: {
+      defaultProps: {
+        variant: 'subtle',
+        radius: 'md'
+      }
+    },
+    Badge: {
+      defaultProps: {
+        radius: 'xl'
+      }
+    },
+    ThemeIcon: {
+      defaultProps: {
+        variant: 'light',
+        radius: 'md',
+        size: 28
+      }
+    },
+    NativeSelect: {
+      defaultProps: {
+        size: 'xs',
+        radius: 'md'
+      }
+    },
+    TextInput: {
+      defaultProps: {
+        size: 'xs',
+        radius: 'md'
+      }
+    }
+  }
 });
 
 export const HEADER_PRESETS = [

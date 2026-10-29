@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text, UnstyledButton, Divider } from '@mantine/core';
+import { IconCheck, IconTrash } from '@tabler/icons-react';
 
 export function SlotSizeMenuContent({
   titleText,
@@ -34,7 +35,11 @@ export function SlotSizeMenuContent({
             <span className="size-label">{opt.label}</span>
             <span className="size-desc">{opt.hint}</span>
           </Box>
-          {opt.isActive && <span className="size-check">✓</span>}
+          {opt.isActive && (
+            <span className="size-check">
+              <IconCheck size={13} stroke={2.5} />
+            </span>
+          )}
         </UnstyledButton>
       ))}
 
@@ -55,7 +60,9 @@ export function SlotSizeMenuContent({
           <span className="size-label">{clearLabel}</span>
           <span className="size-desc">{clearDesc}</span>
         </Box>
-        <span>🗑️</span>
+        <span className="size-clear-icon">
+          <IconTrash size={13} stroke={2.1} />
+        </span>
       </UnstyledButton>
     </>
   );

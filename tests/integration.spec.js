@@ -78,13 +78,14 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('.brand-title')).toHaveText('TheySay');
     await expect(page.locator('header.top-nav')).toHaveClass(/mantine-Paper-root/);
     await expect(page.locator('#btn-mark-all-read')).toBeVisible();
-    await expect(page.locator('#btn-mark-all-read')).toHaveClass(/mantine-UnstyledButton-root/);
+    await expect(page.locator('#btn-mark-all-read')).toHaveClass(/mantine-Button-root/);
     await expect(page.locator('#layout-select')).toBeVisible();
     await expect(page.locator('#layout-select')).toHaveClass(/mantine-NativeSelect-input/);
     await expect(page.locator('#btn-theme-toggle')).toBeVisible();
     await expect(page.locator('#btn-settings')).toBeVisible();
     await expect(page.locator('#btn-settings')).toHaveClass(/mantine-ActionIcon-root/);
     await expect(page.locator('#btn-login-menu')).toBeVisible();
+    await expect(page.locator('#btn-login-menu')).toHaveClass(/mantine-Button-root/);
   });
 
   test('2. Grid layout presets, slot mute toggle & slot resize menu', async () => {
@@ -423,7 +424,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.selectOption('#setting-language', 'en');
 
     // Live preview updates UI to English immediately
-    await expect(page.locator('#btn-mark-all-read span')).toHaveText('Mark All Read');
+    await expect(page.locator('#btn-mark-all-read [data-i18n="nav.markAllRead"]')).toHaveText(
+      'Mark All Read'
+    );
     await expect(page.locator('#settings-dialog-title')).toHaveText('Preferences');
     await expect(page.locator('#handle-input-1')).toHaveAttribute(
       'placeholder',
@@ -459,7 +462,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     const prefFilePath = path.join(userDataDir, 'preferences.json');
     await page.locator('#btn-settings').click();
     await page.selectOption('#setting-language', 'zh');
-    await expect(page.locator('#btn-mark-all-read span')).toHaveText('全部已读');
+    await expect(page.locator('#btn-mark-all-read [data-i18n="nav.markAllRead"]')).toHaveText(
+      '全部已读'
+    );
     await expect(page.locator('#settings-dialog-title')).toHaveText('偏好设置');
     await expect(page.locator('#handle-input-1')).toHaveAttribute(
       'placeholder',

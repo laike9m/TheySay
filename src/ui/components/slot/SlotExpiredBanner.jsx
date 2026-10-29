@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, UnstyledButton } from '@mantine/core';
+import { Box, Button } from '@mantine/core';
 
 export function SlotExpiredBanner({ index }) {
   return (
@@ -15,8 +15,12 @@ export function SlotExpiredBanner({ index }) {
           id={`slot-expired-text-${index}`}
         />
       </span>
-      <UnstyledButton
+      <Button
         type="button"
+        variant="filled"
+        color="red"
+        size="compact-xs"
+        radius="sm"
         className="slot-expired-login-btn"
         id={`slot-expired-btn-${index}`}
       />

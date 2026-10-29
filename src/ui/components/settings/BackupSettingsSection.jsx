@@ -1,6 +1,6 @@
 import React from 'react';
-import { Paper, UnstyledButton } from '@mantine/core';
-import { IconUsers } from '@tabler/icons-react';
+import { Paper, Button, ThemeIcon } from '@mantine/core';
+import { IconUsers, IconUpload, IconDownload } from '@tabler/icons-react';
 
 export function BackupSettingsSection() {
   return (
@@ -14,9 +14,15 @@ export function BackupSettingsSection() {
       <Paper className="settings-group" radius="md" withBorder={false}>
         <div className="settings-row">
           <div className="settings-row-main">
-            <span className="platform-icon profile-export">
+            <ThemeIcon
+              variant="light"
+              color="brand"
+              size={28}
+              radius="md"
+              className="platform-icon profile-export"
+            >
               <IconUsers size={14} stroke={2.2} />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -33,26 +39,35 @@ export function BackupSettingsSection() {
             </div>
           </div>
           <div className="settings-input-group">
-            <UnstyledButton
+            <Button
               type="button"
               id="btn-import-profile"
+              variant="default"
+              size="compact-xs"
+              radius="md"
               className="btn-tool"
               data-i18n="auth.importProfile"
               data-i18n-title="auth.importProfileTitle"
               title="从 JSON 文件导入 Profile 配置（保留已抓取数据）"
+              leftSection={<IconUpload size={12} stroke={2.2} />}
             >
               导入 Profile
-            </UnstyledButton>
-            <UnstyledButton
+            </Button>
+            <Button
               type="button"
               id="btn-export-profile"
+              variant="light"
+              color="brand"
+              size="compact-xs"
+              radius="md"
               className="btn-tool btn-export-profile"
               data-i18n="auth.exportProfile"
               data-i18n-title="auth.exportProfileTitle"
               title="导出全部设置与 follow 的所有人到 JSON 文件"
+              leftSection={<IconDownload size={12} stroke={2.2} />}
             >
               导出 Profile
-            </UnstyledButton>
+            </Button>
           </div>
         </div>
       </Paper>

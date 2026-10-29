@@ -1,5 +1,5 @@
 import React from 'react';
-import { Paper, Box, Badge, UnstyledButton } from '@mantine/core';
+import { Paper, Box, Badge, Button, Avatar } from '@mantine/core';
 import { PopupImageGallery } from './PopupImageGallery';
 
 export function TwitterFallbackCard({
@@ -34,11 +34,17 @@ export function TwitterFallbackCard({
       onClick={handleCardClick}
     >
       <Box className="tweet-popup-fallback-header">
-        {avatarUrl ? (
-          <img className="tweet-popup-fallback-avatar" src={avatarUrl} alt="" />
-        ) : (
-          <Box className="tweet-popup-fallback-avatar-placeholder">👤</Box>
-        )}
+        <Avatar
+          size={38}
+          radius="xl"
+          color="dark"
+          variant="filled"
+          src={avatarUrl || null}
+          className="tweet-popup-fallback-avatar"
+          imageProps={{ referrerPolicy: 'no-referrer' }}
+        >
+          𝕏
+        </Avatar>
         <Box className="tweet-popup-fallback-names">
           <span className="tweet-popup-fallback-name">{displayName}</span>
           <span className="tweet-popup-fallback-handle">{userHandle}</span>
@@ -49,7 +55,8 @@ export function TwitterFallbackCard({
         <Box className="tweet-popup-fallback-member">
           <Badge
             component="span"
-            variant="outline"
+            variant="light"
+            color="yellow"
             radius={4}
             className="tweet-tag member"
           >
@@ -76,7 +83,8 @@ export function TwitterFallbackCard({
         <Box className="tweet-popup-fallback-quote">
           <Badge
             component="span"
-            variant="outline"
+            variant="light"
+            color="grape"
             radius={4}
             className="tweet-tag quote"
           >
@@ -97,12 +105,16 @@ export function TwitterFallbackCard({
       <Box className="tweet-popup-fallback-footer">
         <span className="tweet-popup-fallback-time">{timeDisplay}</span>
         {postUrl && (
-          <UnstyledButton
+          <Button
+            variant="light"
+            color="brand"
+            size="compact-xs"
+            radius="sm"
             className="tweet-popup-fallback-btn"
             data-url={postUrl}
           >
             {labels.openOnTwitter}
-          </UnstyledButton>
+          </Button>
         )}
       </Box>
     </Paper>

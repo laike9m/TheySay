@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text, UnstyledButton, Badge } from '@mantine/core';
+import { Box, Text, UnstyledButton, Badge, Avatar } from '@mantine/core';
 
 export function SlotSourceDropdownContent({
   titleText,
@@ -29,21 +29,15 @@ export function SlotSourceDropdownContent({
           if (typeof onSelect === 'function') onSelect('twitter');
         }}
       >
-        <Box className="source-dropdown-avatar-wrap">
-          {twAvatar ? (
-            <img
-              className="source-dropdown-avatar"
-              src={twAvatar}
-              alt=""
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          ) : (
-            <span className="source-dropdown-avatar-fallback">𝕏</span>
-          )}
-        </Box>
+        <Avatar
+          size={24}
+          radius="xl"
+          src={twAvatar || null}
+          className="source-dropdown-avatar-wrap"
+          imageProps={{ referrerPolicy: 'no-referrer' }}
+        >
+          <span className="source-dropdown-avatar-fallback">𝕏</span>
+        </Avatar>
         <Box className="source-dropdown-info">
           <span className="source-dropdown-name">{twName}</span>
           <span className="source-dropdown-handle">{`@${twHandle}`}</span>
@@ -70,21 +64,15 @@ export function SlotSourceDropdownContent({
           if (typeof onSelect === 'function') onSelect('threads');
         }}
       >
-        <Box className="source-dropdown-avatar-wrap">
-          {thAvatar ? (
-            <img
-              className="source-dropdown-avatar"
-              src={thAvatar}
-              alt=""
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          ) : (
-            <span className="source-dropdown-avatar-fallback">@</span>
-          )}
-        </Box>
+        <Avatar
+          size={24}
+          radius="xl"
+          src={thAvatar || null}
+          className="source-dropdown-avatar-wrap"
+          imageProps={{ referrerPolicy: 'no-referrer' }}
+        >
+          <span className="source-dropdown-avatar-fallback">@</span>
+        </Avatar>
         <Box className="source-dropdown-info">
           <span className="source-dropdown-name">{thName}</span>
           <span className="source-dropdown-handle">{`threads:@${thHandle}`}</span>

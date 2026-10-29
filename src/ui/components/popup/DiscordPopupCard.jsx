@@ -1,5 +1,5 @@
 import React from 'react';
-import { Paper, Box, Badge, UnstyledButton } from '@mantine/core';
+import { Paper, Box, Badge, Button, Avatar } from '@mantine/core';
 import { PopupImageGallery } from './PopupImageGallery';
 
 export function DiscordPopupCard({
@@ -35,17 +35,24 @@ export function DiscordPopupCard({
       onClick={handleCardClick}
     >
       <Box className="discord-popup-header">
-        {avatarUrl ? (
-          <img className="discord-popup-avatar" src={avatarUrl} alt="" />
-        ) : (
-          <Box className="discord-popup-avatar-placeholder">#</Box>
-        )}
+        <Avatar
+          size={38}
+          radius="xl"
+          color="indigo"
+          variant="filled"
+          src={avatarUrl || null}
+          className="discord-popup-avatar"
+          imageProps={{ referrerPolicy: 'no-referrer' }}
+        >
+          #
+        </Avatar>
         <Box className="discord-popup-names">
           <span className="discord-popup-name">{displayName}</span>
           {isBot && (
             <Badge
               component="span"
-              variant="outline"
+              variant="light"
+              color="indigo"
               radius={4}
               className="tweet-tag bot"
             >
@@ -84,7 +91,8 @@ export function DiscordPopupCard({
             <Badge
               key={`${label}-${idx}`}
               component="span"
-              variant="outline"
+              variant="light"
+              color="gray"
               radius={4}
               className="im-attachment-chip"
             >
@@ -97,12 +105,16 @@ export function DiscordPopupCard({
       <Box className="discord-popup-footer">
         <span className="discord-popup-time">{timeDisplay}</span>
         {msgUrl && (
-          <UnstyledButton
+          <Button
+            variant="light"
+            color="brand"
+            size="compact-xs"
+            radius="sm"
             className="tweet-popup-fallback-btn"
             data-url={msgUrl}
           >
             {labels.openInDiscord}
-          </UnstyledButton>
+          </Button>
         )}
       </Box>
     </Paper>

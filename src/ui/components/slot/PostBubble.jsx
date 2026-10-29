@@ -1,5 +1,6 @@
 import React from 'react';
 import { Paper, Box, Badge } from '@mantine/core';
+import { IconArrowUpRight } from '@tabler/icons-react';
 import { MediaGrid } from './MediaGrid';
 
 export function DateDivider({ label }) {
@@ -145,6 +146,30 @@ export function PostBubble({
     body &&
     (body.showAuthor || (Array.isArray(body.tags) && body.tags.length > 0));
 
+  const renderExternalLinkBtn = () => {
+    if (!linkUrl) return null;
+    return (
+      <a
+        className="im-btn-link"
+        data-url={linkUrl}
+        title={linkTitle}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const bubbleEl = e.currentTarget.closest('.im-bubble');
+          if (typeof onMarkRead === 'function') {
+            onMarkRead(post, bubbleEl);
+          }
+          if (typeof onOpenExternal === 'function') {
+            onOpenExternal(linkUrl);
+          }
+        }}
+      >
+        <IconArrowUpRight size={11} stroke={2.4} />
+      </a>
+    );
+  };
+
   return (
     <Paper
       ref={(el) => {
@@ -190,26 +215,7 @@ export function PostBubble({
               contentContainer={contentContainer}
             />
             <span className="im-time">{timeDisplay}</span>
-            {linkUrl && (
-              <a
-                className="im-btn-link"
-                data-url={linkUrl}
-                title={linkTitle}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const bubbleEl = e.currentTarget.closest('.im-bubble');
-                  if (typeof onMarkRead === 'function') {
-                    onMarkRead(post, bubbleEl);
-                  }
-                  if (typeof onOpenExternal === 'function') {
-                    onOpenExternal(linkUrl);
-                  }
-                }}
-              >
-                ↗
-              </a>
-            )}
+            {renderExternalLinkBtn()}
           </>
         ) : (
           <>
@@ -222,52 +228,14 @@ export function PostBubble({
               imageAlt={imageAlt}
               contentContainer={contentContainer}
             />
-            {linkUrl && (
-              <a
-                className="im-btn-link"
-                data-url={linkUrl}
-                title={linkTitle}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const bubbleEl = e.currentTarget.closest('.im-bubble');
-                  if (typeof onMarkRead === 'function') {
-                    onMarkRead(post, bubbleEl);
-                  }
-                  if (typeof onOpenExternal === 'function') {
-                    onOpenExternal(linkUrl);
-                  }
-                }}
-              >
-                ↗
-              </a>
-            )}
+            {renderExternalLinkBtn()}
           </>
         )
       ) : (
         <>
           <PostBubbleBody body={body} />
           <span className="im-time">{timeDisplay}</span>
-          {linkUrl && (
-            <a
-              className="im-btn-link"
-              data-url={linkUrl}
-              title={linkTitle}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const bubbleEl = e.currentTarget.closest('.im-bubble');
-                if (typeof onMarkRead === 'function') {
-                  onMarkRead(post, bubbleEl);
-                }
-                if (typeof onOpenExternal === 'function') {
-                  onOpenExternal(linkUrl);
-                }
-              }}
-            >
-              ↗
-            </a>
-          )}
+          {renderExternalLinkBtn()}
         </>
       )}
     </Paper>

@@ -691,10 +691,17 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   });
 
   if (btnSyncTickers) {
+    const setSyncBtnLabel = (text) => {
+      const labelEl =
+        btnSyncTickers.querySelector &&
+        btnSyncTickers.querySelector('.mantine-Button-label');
+      if (labelEl) labelEl.textContent = text;
+      else btnSyncTickers.textContent = text;
+    };
     btnSyncTickers.addEventListener('click', async () => {
       if (btnSyncTickers.disabled) return;
       btnSyncTickers.disabled = true;
-      btnSyncTickers.textContent = t('settings.syncing');
+      setSyncBtnLabel(t('settings.syncing'));
       try {
         const res = await syncOnlineTickers({ force: true });
         refreshTickerStatsLabel();
@@ -716,7 +723,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         }
       } finally {
         btnSyncTickers.disabled = false;
-        btnSyncTickers.textContent = t('settings.syncOnlineBtn');
+        setSyncBtnLabel(t('settings.syncOnlineBtn'));
       }
     });
   }

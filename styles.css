@@ -1,9 +1,9 @@
 :root {
-  --bg-app: #0a0d10;
-  --bg-nav: #16181c;
-  --bg-card: #0e1621;
-  --bg-card-header: #17212b;
-  --bg-card-subbar: #17212b;
+  --bg-app: #090d14;
+  --bg-nav: #0f1621;
+  --bg-card: #0f1723;
+  --bg-card-header: #15202e;
+  --bg-card-subbar: #15202e;
   --slot-header-bg: #f3ede2;
   --slot-header-text: #0f1419;
   --slot-header-subtext: #536471;
@@ -12,40 +12,42 @@
   --slot-header-active-icon: #1d9bf0;
   --slot-header-active-bg: rgba(29, 155, 240, 0.15);
   --slot-header-badge-border: transparent;
-  --bg-tweet-card: #182533;
-  --bg-tweet-card-hover: #202d3b;
-  --bg-bubble: #182533;
-  --bg-bubble-hover: #202d3b;
-  --bg-bubble-unread: #173852;
-  --border-bubble: rgba(255, 255, 255, 0.05);
-  --border-bubble-hover: rgba(255, 255, 255, 0.1);
+  --bg-tweet-card: #172332;
+  --bg-tweet-card-hover: #1e2d3f;
+  --bg-bubble: #172332;
+  --bg-bubble-hover: #1e2d3f;
+  --bg-bubble-unread: #163650;
+  --border-bubble: rgba(255, 255, 255, 0.06);
+  --border-bubble-hover: rgba(255, 255, 255, 0.11);
   --border-bubble-unread: rgba(29, 155, 240, 0.45);
   --shadow-bubble: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --bg-date-pill: rgba(0, 0, 0, 0.42);
+  --bg-date-pill: rgba(9, 13, 20, 0.52);
   --text-date-pill: #ffffff;
-  --bg-input: #202327;
-  --bg-input-focus: #0f1419;
-  --bg-control: #202327;
-  --bg-control-hover: #282b30;
-  --bg-popover: #1c2026;
-  --bg-popover-hover: #262b33;
+  --bg-input: #17202c;
+  --bg-input-focus: #0d131c;
+  --bg-control: #17202c;
+  --bg-control-hover: #212c3b;
+  --bg-hover: #212c3b;
+  --bg-popover: #141c27;
+  --bg-popover-hover: #1d2736;
 
-  --border-color: #282b2f;
-  --border-subtle: #333639;
-  --border-card-hover: #383b40;
+  --border-color: #222d3c;
+  --border-subtle: #2b384a;
+  --border-card-hover: #36465c;
 
-  --text-main: #f7f9f9;
-  --text-body: #e7e9ea;
-  --text-secondary: #71767b;
-  --text-muted: #53575c;
+  --text-main: #f4f7fa;
+  --text-primary: #f4f7fa;
+  --text-body: #e4e9ef;
+  --text-secondary: #8696a7;
+  --text-muted: #5f7083;
 
   --accent-blue: #1d9bf0;
   --accent-blue-hover: #1a8cd8;
   --accent-danger: #f4212e;
   --accent-success: #00ba7c;
 
-  --scrollbar-thumb: #282b2f;
-  --scrollbar-thumb-hover: #44474c;
+  --scrollbar-thumb: #263242;
+  --scrollbar-thumb-hover: #3a4a60;
 
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.6);
@@ -55,34 +57,36 @@
 }
 
 [data-theme="light"] {
-  --bg-app: #f2f5f7;
+  --bg-app: #f2f5f8;
   --bg-nav: #ffffff;
-  --bg-card: #e4ecf2;
+  --bg-card: #e8eef4;
   --bg-card-header: #ffffff;
-  --bg-card-subbar: #edf1f3;
+  --bg-card-subbar: #edf2f6;
   --bg-tweet-card: #ffffff;
   --bg-tweet-card-hover: #ffffff;
   --bg-bubble: #ffffff;
   --bg-bubble-hover: #ffffff;
   --bg-bubble-unread: #e7f3fd;
-  --border-bubble: rgba(0, 0, 0, 0.04);
-  --border-bubble-hover: rgba(0, 0, 0, 0.08);
+  --border-bubble: rgba(15, 23, 42, 0.05);
+  --border-bubble-hover: rgba(15, 23, 42, 0.09);
   --border-bubble-unread: rgba(29, 155, 240, 0.38);
-  --shadow-bubble: 0 1px 2px rgba(16, 35, 47, 0.16);
+  --shadow-bubble: 0 1px 2px rgba(16, 35, 47, 0.14);
   --bg-date-pill: rgba(16, 35, 47, 0.38);
   --text-date-pill: #ffffff;
-  --bg-input: #eff3f4;
+  --bg-input: #eff3f6;
   --bg-input-focus: #ffffff;
-  --bg-control: #eff3f4;
-  --bg-control-hover: #e1e8ed;
+  --bg-control: #eff3f6;
+  --bg-control-hover: #e2e8ee;
+  --bg-hover: #e2e8ee;
   --bg-popover: #ffffff;
-  --bg-popover-hover: #f0f3f5;
+  --bg-popover-hover: #f1f5f8;
 
-  --border-color: #cfd9de;
-  --border-subtle: #e1e8ed;
-  --border-card-hover: #bcc7ce;
+  --border-color: #d0dae3;
+  --border-subtle: #e2e8ee;
+  --border-card-hover: #bcc8d4;
 
   --text-main: #0f1419;
+  --text-primary: #0f1419;
   --text-body: #0f1419;
   --text-secondary: #536471;
   --text-muted: #8b98a5;
@@ -95,8 +99,8 @@
   --scrollbar-thumb: #cfd9de;
   --scrollbar-thumb-hover: #b0bec5;
 
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-popover: 0 6px 20px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-popover: 0 6px 20px rgba(15, 23, 42, 0.12);
 }
 
 * {
@@ -3335,6 +3339,169 @@ body {
   background-color: var(--bg-input-focus);
 }
 
+.mantine-TextInput-root.mantine-settings-number-root {
+  width: 56px;
+}
+
+.mantine-TextInput-root.mantine-settings-number-root .mantine-TextInput-input.settings-input-number {
+  width: 56px;
+  height: 28px;
+  min-height: 28px;
+  background-color: var(--bg-control);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.mantine-TextInput-root.mantine-settings-number-root .mantine-TextInput-input.settings-input-number:focus {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-input-focus);
+}
+
+.mantine-TextInput-root.mantine-ticker-hex-root {
+  width: 68px;
+  flex-shrink: 0;
+}
+
+.mantine-TextInput-root.mantine-ticker-hex-root .mantine-TextInput-input.ticker-hex-input {
+  width: 68px;
+  height: 26px;
+  min-height: 26px;
+  background-color: var(--bg-control);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  text-align: center;
+}
+
+.mantine-TextInput-root.mantine-ticker-hex-root .mantine-TextInput-input.ticker-hex-input:focus {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-input-focus);
+}
+
+.mantine-Button-root.btn-tool {
+  height: 28px;
+  min-height: 28px;
+  background-color: var(--bg-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.mantine-Button-root.btn-tool .mantine-Button-inner {
+  gap: 5px;
+}
+
+.mantine-Button-root.btn-tool .mantine-Button-section {
+  margin: 0;
+}
+
+.mantine-Button-root.btn-tool:hover,
+.mantine-Button-root.login-dropdown-btn.active {
+  color: var(--text-main);
+  border-color: var(--accent-blue);
+  background-color: var(--bg-control-hover);
+}
+
+.mantine-Button-root.login-dropdown-btn.has-expired {
+  border-color: rgba(244, 33, 46, 0.55);
+  color: #ff6b78;
+}
+
+[data-theme="light"] .mantine-Button-root.login-dropdown-btn.has-expired {
+  border-color: rgba(220, 38, 38, 0.5);
+  color: #dc2626;
+}
+
+.login-btn-left-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mantine-Button-root.btn-sync-tickers,
+.mantine-Button-root.btn-export-profile {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.mantine-Button-root.btn-settings-reset {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.mantine-Button-root.btn-settings-reset:hover {
+  color: var(--text-secondary);
+  background-color: var(--bg-control-hover);
+}
+
+.mantine-CloseButton-root.btn-settings-close {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  color: var(--text-secondary);
+  border-radius: 6px;
+}
+
+.mantine-CloseButton-root.btn-settings-close:hover {
+  color: var(--text-main);
+  background-color: var(--bg-control-hover);
+}
+
+.mantine-Badge-root.platform-status-badge {
+  height: auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  border: 1px solid transparent;
+}
+
+.mantine-Badge-root.platform-status-badge .mantine-Badge-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.mantine-Badge-root.profile-action-hint {
+  height: auto;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: none;
+  color: var(--text-muted);
+  background-color: var(--bg-control);
+  border-color: var(--border-subtle);
+}
+
+.mantine-Badge-root.profile-action-hint .mantine-Badge-label {
+  display: inline;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .mantine-ActionIcon-root.btn-settings {
   width: 28px;
   height: 28px;
@@ -3363,6 +3530,31 @@ body {
 /* ====================================================
    Mantine Slot Cards & Timeline Integration (Phase 2)
    ==================================================== */
+.slot-drag-indicator,
+.header-preview-drag,
+.header-preview-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slot-author-edit-hint {
+  align-items: center;
+  justify-content: center;
+}
+
+.slot-author-header:hover .slot-author-edit-hint {
+  display: inline-flex;
+}
+
+.slot-placeholder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  opacity: 0.78;
+}
+
 .mantine-ActionIcon-root.slot-btn-mute,
 .mantine-ActionIcon-root.slot-btn-expand {
   width: 22px;
@@ -3374,7 +3566,8 @@ body {
   border-radius: 6px;
 }
 
-.mantine-ActionIcon-root.slot-btn-clear {
+.mantine-ActionIcon-root.slot-btn-clear,
+.mantine-CloseButton-root.slot-btn-clear {
   position: absolute;
   right: 6px;
   width: 16px;
@@ -3384,6 +3577,14 @@ body {
   padding: 0;
   border: none;
   border-radius: 50%;
+}
+
+.mantine-Button-root.slot-expired-login-btn {
+  height: 20px;
+  min-height: 20px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .mantine-Badge-root.slot-unread-badge {
@@ -3446,6 +3647,11 @@ body {
   text-transform: none;
 }
 
+.mantine-Avatar-root.source-dropdown-avatar-wrap {
+  background-color: var(--bg-control);
+  border: 1px solid var(--border-subtle);
+}
+
 /* ====================================================
    Mantine Post Popup & Detail Cards Integration (Phase 3)
    ==================================================== */
@@ -3456,7 +3662,7 @@ body {
 }
 
 .mantine-Paper-root.tweet-popup-loading {
-  background: rgba(20, 20, 25, 0.85);
+  background: rgba(15, 22, 33, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
@@ -3467,21 +3673,56 @@ body {
   border: 1px solid var(--border-subtle);
 }
 
-.mantine-UnstyledButton-root.tweet-popup-fallback-btn {
+.mantine-Avatar-root.discord-popup-avatar-wrap,
+.mantine-Avatar-root.tweet-popup-fallback-avatar-wrap {
+  flex-shrink: 0;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-control);
+}
+
+.mantine-Badge-root.discord-popup-source-badge {
+  height: auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.mantine-Badge-root.discord-popup-source-badge .mantine-Badge-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  overflow: visible;
+}
+
+.mantine-Button-root.tweet-popup-fallback-btn,
+.mantine-Button-root.discord-popup-open-btn,
+.mantine-UnstyledButton-root.tweet-popup-fallback-btn {
+  height: 26px;
+  min-height: 26px;
   font-size: 12px;
   font-weight: 600;
   color: var(--accent-blue);
-  background: transparent;
+  background-color: rgba(29, 155, 240, 0.1);
   border: 1px solid rgba(29, 155, 240, 0.25);
-  cursor: pointer;
-  padding: 4px 10px;
+  padding: 0 10px;
   border-radius: 6px;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.mantine-UnstyledButton-root.tweet-popup-fallback-btn:hover {
-  background-color: rgba(29, 155, 240, 0.12);
+.mantine-Button-root.tweet-popup-fallback-btn .mantine-Button-inner,
+.mantine-Button-root.discord-popup-open-btn .mantine-Button-inner {
+  gap: 4px;
 }
+
+.mantine-Button-root.tweet-popup-fallback-btn .mantine-Button-section,
+.mantine-Button-root.discord-popup-open-btn .mantine-Button-section {
+  margin: 0;
+}
+
+.mantine-Button-root.tweet-popup-fallback-btn:hover,
+.mantine-Button-root.discord-popup-open-btn:hover,
+.mantine-UnstyledButton-root.tweet-popup-fallback-btn:hover {
+  background-color: rgba(29, 155, 240, 0.18);
+}
+

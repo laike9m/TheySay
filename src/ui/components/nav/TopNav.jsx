@@ -3,6 +3,7 @@ import {
   Group,
   Paper,
   ActionIcon,
+  Button,
   NativeSelect,
   UnstyledButton,
   Divider,
@@ -36,20 +37,25 @@ export function TopNav() {
 
       <Group className="nav-controls" gap={10} wrap="nowrap">
         {/* 全部已读按钮 */}
-        <UnstyledButton
+        <Button
           id="btn-mark-all-read"
+          variant="default"
+          size="compact-xs"
+          radius="md"
           className="btn-tool"
           data-i18n-title="nav.markAllReadTitle"
           title="将所有推文标记为已读"
+          leftSection={
+            <IconChecks
+              className="icon-check-check"
+              size={13}
+              stroke={2.2}
+              aria-hidden="true"
+            />
+          }
         >
-          <IconChecks
-            className="icon-check-check"
-            size={13}
-            stroke={2.2}
-            aria-hidden="true"
-          />
           <span data-i18n="nav.markAllRead">全部已读</span>
-        </UnstyledButton>
+        </Button>
 
         {/* 布局切换选择器 (Mantine NativeSelect) */}
         <Group className="layout-control-group" gap={6} wrap="nowrap">

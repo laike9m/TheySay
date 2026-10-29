@@ -179,6 +179,12 @@ function updateMenuStatusDot() {
   }
 }
 
+function setBadgeStatusClass(badge, statusClass) {
+  if (!badge) return;
+  badge.classList.remove('checking', 'logged-in', 'logged-out', 'expired');
+  badge.classList.add('platform-status-badge', statusClass);
+}
+
 function updateTwitterStatusUI(status) {
   // status: boolean | 'checking'
   lastTwitterStatus = status;
@@ -187,20 +193,20 @@ function updateTwitterStatusUI(status) {
   const item = document.getElementById('item-login-twitter');
 
   if (status === 'checking') {
-    if (badge) badge.className = 'platform-status-badge checking';
+    setBadgeStatusClass(badge, 'checking');
     if (label) label.innerText = t('auth.checking');
     if (item) item.title = t('auth.twitterCheckingTitle');
   } else if (status === true) {
     isTwitterLoggedIn = true;
     saveTwitterEverLoggedIn(true);
     saveTwitterLoginExpired(false);
-    if (badge) badge.className = 'platform-status-badge logged-in';
+    setBadgeStatusClass(badge, 'logged-in');
     if (label) label.innerText = t('auth.loggedIn');
     if (item) item.title = t('auth.twitterLoggedInTitle');
   } else {
     isTwitterLoggedIn = false;
     const expired = getTwitterLoginExpired();
-    if (badge) badge.className = expired ? 'platform-status-badge expired' : 'platform-status-badge logged-out';
+    setBadgeStatusClass(badge, expired ? 'expired' : 'logged-out');
     if (label) label.innerText = expired ? t('auth.expired') : t('auth.loggedOut');
     if (item) item.title = expired ? t('auth.twitterExpiredTitle') : t('auth.twitterLoggedOutTitle');
   }
@@ -216,20 +222,20 @@ function updateThreadsStatusUI(status) {
   const item = document.getElementById('item-login-threads');
 
   if (status === 'checking') {
-    if (badge) badge.className = 'platform-status-badge checking';
+    setBadgeStatusClass(badge, 'checking');
     if (label) label.innerText = t('auth.checking');
     if (item) item.title = t('auth.threadsCheckingTitle');
   } else if (status === true) {
     isThreadsLoggedIn = true;
     saveThreadsEverLoggedIn(true);
     saveThreadsLoginExpired(false);
-    if (badge) badge.className = 'platform-status-badge logged-in';
+    setBadgeStatusClass(badge, 'logged-in');
     if (label) label.innerText = t('auth.loggedIn');
     if (item) item.title = t('auth.threadsLoggedInTitle');
   } else {
     isThreadsLoggedIn = false;
     const expired = getThreadsLoginExpired();
-    if (badge) badge.className = expired ? 'platform-status-badge expired' : 'platform-status-badge logged-out';
+    setBadgeStatusClass(badge, expired ? 'expired' : 'logged-out');
     if (label) label.innerText = expired ? t('auth.expired') : t('auth.loggedOut');
     if (item) item.title = expired ? t('auth.threadsExpiredTitle') : t('auth.threadsLoggedOutTitle');
   }
@@ -246,12 +252,12 @@ function updateDiscordStatusUI(isLoggedIn) {
   if (isDiscordLoggedIn) {
     saveDiscordEverLoggedIn(true);
     saveDiscordLoginExpired(false);
-    if (badge) badge.className = 'platform-status-badge logged-in';
+    setBadgeStatusClass(badge, 'logged-in');
     if (label) label.innerText = t('auth.loggedIn');
     if (item) item.title = t('auth.discordLoggedInTitle');
   } else {
     const expired = getDiscordLoginExpired();
-    if (badge) badge.className = expired ? 'platform-status-badge expired' : 'platform-status-badge logged-out';
+    setBadgeStatusClass(badge, expired ? 'expired' : 'logged-out');
     if (label) label.innerText = expired ? t('auth.expired') : t('auth.loggedOut');
     if (item) item.title = expired ? t('auth.discordExpiredTitle') : t('auth.discordLoggedOutTitle');
   }

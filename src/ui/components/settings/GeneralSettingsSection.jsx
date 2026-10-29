@@ -1,5 +1,5 @@
 import React from 'react';
-import { Paper, NativeSelect } from '@mantine/core';
+import { Paper, NativeSelect, TextInput, ThemeIcon } from '@mantine/core';
 import {
   IconWorld,
   IconStarFilled,
@@ -22,9 +22,15 @@ export function GeneralSettingsSection() {
           title="默认根据系统语言设置（中文系统为中文，其余默认为英文）"
         >
           <div className="settings-row-main">
-            <span className="platform-icon language">
+            <ThemeIcon
+              variant="light"
+              color="teal"
+              size={28}
+              radius="md"
+              className="platform-icon language"
+            >
               <IconWorld size={14} stroke={2.1} />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div className="settings-row-title" data-i18n="settings.languageTitle">
                 界面语言
@@ -60,7 +66,15 @@ export function GeneralSettingsSection() {
           title="建议设为 5 ~ 15 分钟或以上，过频抓取可能触发 Twitter 频率限制"
         >
           <div className="settings-row-main">
-            <span className="platform-icon twitter">𝕏</span>
+            <ThemeIcon
+              variant="light"
+              color="gray"
+              size={28}
+              radius="md"
+              className="platform-icon twitter"
+            >
+              𝕏
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -100,14 +114,18 @@ export function GeneralSettingsSection() {
               className="settings-custom-wrap"
               style={{ display: 'none' }}
             >
-              <input
+              <TextInput
                 type="number"
                 id="setting-twitter-custom"
-                className="settings-input-number"
-                min="1"
-                max="1440"
-                step="1"
+                size="xs"
+                min={1}
+                max={1440}
+                step={1}
                 defaultValue="10"
+                classNames={{
+                  root: 'mantine-settings-number-root',
+                  input: 'settings-input-number'
+                }}
               />
               <span className="settings-unit" data-i18n="settings.unitMinutes">分</span>
             </div>
@@ -121,7 +139,15 @@ export function GeneralSettingsSection() {
           title="建议设为 5 ~ 15 分钟或以上"
         >
           <div className="settings-row-main">
-            <span className="platform-icon threads">@</span>
+            <ThemeIcon
+              variant="light"
+              color="gray"
+              size={28}
+              radius="md"
+              className="platform-icon threads"
+            >
+              @
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -161,14 +187,18 @@ export function GeneralSettingsSection() {
               className="settings-custom-wrap"
               style={{ display: 'none' }}
             >
-              <input
+              <TextInput
                 type="number"
                 id="setting-threads-custom"
-                className="settings-input-number"
-                min="1"
-                max="1440"
-                step="1"
+                size="xs"
+                min={1}
+                max={1440}
+                step={1}
                 defaultValue="10"
+                classNames={{
+                  root: 'mantine-settings-number-root',
+                  input: 'settings-input-number'
+                }}
               />
               <span className="settings-unit" data-i18n="settings.unitMinutes">分</span>
             </div>
@@ -182,9 +212,15 @@ export function GeneralSettingsSection() {
           title="Discord 频道消息更新通常较频繁，可设为 1 ~ 5 分钟"
         >
           <div className="settings-row-main">
-            <span className="platform-icon discord">
+            <ThemeIcon
+              variant="light"
+              color="indigo"
+              size={28}
+              radius="md"
+              className="platform-icon discord"
+            >
               <DiscordSvgIcon />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -226,14 +262,18 @@ export function GeneralSettingsSection() {
               className="settings-custom-wrap"
               style={{ display: 'none' }}
             >
-              <input
+              <TextInput
                 type="number"
                 id="setting-discord-custom"
-                className="settings-input-number"
-                min="0.5"
-                max="1440"
-                step="0.5"
+                size="xs"
+                min={0.5}
+                max={1440}
+                step={0.5}
                 defaultValue="10"
+                classNames={{
+                  root: 'mantine-settings-number-root',
+                  input: 'settings-input-number'
+                }}
               />
               <span className="settings-unit" data-i18n="settings.unitMinutes">分</span>
             </div>
@@ -247,9 +287,15 @@ export function GeneralSettingsSection() {
           title="控制是否在时间线中显示 Twitter 创作者订阅专享推文 (Super Follows)"
         >
           <div className="settings-row-main">
-            <span className="platform-icon member">
+            <ThemeIcon
+              variant="light"
+              color="yellow"
+              size={28}
+              radius="md"
+              className="platform-icon member"
+            >
               <IconStarFilled size={14} />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -283,9 +329,15 @@ export function GeneralSettingsSection() {
           title="关闭后后台 Discord 客户端全部静音，不影响消息抓取"
         >
           <div className="settings-row-main">
-            <span className="platform-icon discord">
+            <ThemeIcon
+              variant="light"
+              color="indigo"
+              size={28}
+              radius="md"
+              className="platform-icon discord"
+            >
               <IconVolume size={14} stroke={2.2} />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -324,9 +376,15 @@ export function GeneralSettingsSection() {
           title="控制是否在系统 Dock / 任务栏应用图标上显示未读消息数角标"
         >
           <div className="settings-row-main">
-            <span className="platform-icon app-badge">
+            <ThemeIcon
+              variant="light"
+              color="red"
+              size={28}
+              radius="md"
+              className="platform-icon app-badge"
+            >
               <IconBell size={14} stroke={2.2} />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Badge, ActionIcon, Paper } from '@mantine/core';
+import { Box, Badge, ActionIcon, CloseButton, Paper } from '@mantine/core';
+import { IconGripVertical, IconPencil } from '@tabler/icons-react';
 import { SlotMuteIcon, SlotExpandIcon } from './SlotIcons';
 
 export function SlotHeader({ index, labels = {} }) {
@@ -9,7 +10,7 @@ export function SlotHeader({ index, labels = {} }) {
         className="slot-drag-indicator"
         title={labels.dragHandleTitle || '拖拽移动卡片'}
       >
-        ⠿
+        <IconGripVertical size={13} stroke={2.2} />
       </span>
 
       {/* User Profile Avatar in Header */}
@@ -29,7 +30,7 @@ export function SlotHeader({ index, labels = {} }) {
           className="slot-avatar-placeholder"
           id={`slot-avatar-placeholder-${index}`}
         >
-          👤
+          𝕏
         </span>
       </Box>
 
@@ -47,7 +48,7 @@ export function SlotHeader({ index, labels = {} }) {
             className="slot-author-edit-hint"
             title={labels.editHint || '编辑'}
           >
-            ✎
+            <IconPencil size={11} stroke={2.2} />
           </span>
         </Box>
 
@@ -77,20 +78,19 @@ export function SlotHeader({ index, labels = {} }) {
             autoComplete="off"
             spellCheck={false}
           />
-          <ActionIcon
+          <CloseButton
             component="button"
             type="button"
             variant="subtle"
             color="gray"
             size={16}
+            iconSize={10}
             radius="xl"
             className="slot-btn-clear"
             id={`btn-clear-${index}`}
             title={labels.clearBtnTitle || '清空此频道'}
             style={{ display: 'none' }}
-          >
-            ✕
-          </ActionIcon>
+          />
         </Box>
       </Box>
 
@@ -133,7 +133,7 @@ export function SlotHeader({ index, labels = {} }) {
         className="slot-source-dropdown"
         id={`slot-source-dropdown-${index}`}
         shadow="md"
-        radius={9}
+        radius="md"
         withBorder
         style={{ display: 'none' }}
       />
@@ -143,7 +143,7 @@ export function SlotHeader({ index, labels = {} }) {
         className="slot-size-menu"
         id={`size-menu-${index}`}
         shadow="md"
-        radius={8}
+        radius="md"
         withBorder
         style={{ display: 'none' }}
       />

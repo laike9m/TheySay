@@ -1,6 +1,18 @@
 import React from 'react';
-import { Paper, ColorSwatch, UnstyledButton } from '@mantine/core';
-import { IconLayoutNavbar, IconInfoCircle } from '@tabler/icons-react';
+import {
+  Paper,
+  ColorSwatch,
+  Button,
+  TextInput,
+  ThemeIcon
+} from '@mantine/core';
+import {
+  IconLayoutNavbar,
+  IconInfoCircle,
+  IconGripVertical,
+  IconArrowsMaximize,
+  IconRefresh
+} from '@tabler/icons-react';
 import { HEADER_PRESETS, TICKER_PRESETS } from '../theme';
 
 export function AppearanceSettingsSection() {
@@ -16,9 +28,15 @@ export function AppearanceSettingsSection() {
         {/* Title 栏背景配色 (Mantine ColorSwatch) */}
         <div className="settings-row">
           <div className="settings-row-main">
-            <span className="platform-icon header-theme">
+            <ThemeIcon
+              variant="light"
+              color="brand"
+              size={28}
+              radius="md"
+              className="platform-icon header-theme"
+            >
               <IconLayoutNavbar size={14} stroke={2.1} />
-            </span>
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -70,15 +88,19 @@ export function AppearanceSettingsSection() {
                   data-i18n-title="settings.headerColorInputTitle"
                   title="自定义 Title 栏背景颜色"
                 />
-                <input
+                <TextInput
                   type="text"
                   id="setting-header-bg-hex"
-                  className="ticker-hex-input"
+                  size="xs"
                   defaultValue="#f3ede2"
                   maxLength={7}
                   spellCheck={false}
                   data-i18n-aria-label="settings.headerColorHexAria"
                   aria-label="Title 栏背景色 Hex"
+                  classNames={{
+                    root: 'mantine-ticker-hex-root',
+                    input: 'ticker-hex-input'
+                  }}
                 />
               </div>
             </div>
@@ -88,7 +110,15 @@ export function AppearanceSettingsSection() {
         {/* Ticker 高亮配色 (Mantine ColorSwatch) */}
         <div className="settings-row">
           <div className="settings-row-main">
-            <span className="platform-icon ticker">$</span>
+            <ThemeIcon
+              variant="light"
+              color="yellow"
+              size={28}
+              radius="md"
+              className="platform-icon ticker"
+            >
+              $
+            </ThemeIcon>
             <div className="settings-row-text">
               <div
                 className="settings-row-title"
@@ -141,15 +171,19 @@ export function AppearanceSettingsSection() {
                   data-i18n-title="settings.tickerFgInputTitle"
                   title="选择 Ticker 文字颜色"
                 />
-                <input
+                <TextInput
                   type="text"
                   id="setting-ticker-fg-hex"
-                  className="ticker-hex-input"
+                  size="xs"
                   defaultValue="#fde047"
                   maxLength={7}
                   spellCheck={false}
                   data-i18n-aria-label="settings.tickerFgHexAria"
                   aria-label="Ticker 前景色 Hex"
+                  classNames={{
+                    root: 'mantine-ticker-hex-root',
+                    input: 'ticker-hex-input'
+                  }}
                 />
               </div>
               <div className="settings-color-field">
@@ -167,15 +201,19 @@ export function AppearanceSettingsSection() {
                   data-i18n-title="settings.tickerBgInputTitle"
                   title="选择 Ticker 背景颜色"
                 />
-                <input
+                <TextInput
                   type="text"
                   id="setting-ticker-bg-hex"
-                  className="ticker-hex-input"
+                  size="xs"
                   defaultValue="#422006"
                   maxLength={7}
                   spellCheck={false}
                   data-i18n-aria-label="settings.tickerBgHexAria"
                   aria-label="Ticker 背景色 Hex"
+                  classNames={{
+                    root: 'mantine-ticker-hex-root',
+                    input: 'ticker-hex-input'
+                  }}
                 />
               </div>
             </div>
@@ -190,7 +228,7 @@ export function AppearanceSettingsSection() {
                 className="header-preview-drag"
                 id="setting-header-preview-drag"
               >
-                ⠿
+                <IconGripVertical size={12} stroke={2.2} />
               </span>
               <span
                 className="header-preview-avatar"
@@ -215,7 +253,7 @@ export function AppearanceSettingsSection() {
                 className="header-preview-icon"
                 id="setting-header-preview-icon"
               >
-                ⤢
+                <IconArrowsMaximize size={12} stroke={2.2} />
               </span>
             </div>
             <div className="header-preview-body" id="setting-ticker-preview">
@@ -248,16 +286,20 @@ export function AppearanceSettingsSection() {
               <span id="setting-ticker-stats-text">
                 支持 $ 符号识别及 NASDAQ 美股与 ETF 代码库自动匹配。
               </span>
-              <UnstyledButton
+              <Button
                 type="button"
                 id="btn-sync-tickers"
+                variant="default"
+                size="compact-xs"
+                radius="sm"
                 className="btn-tool btn-sync-tickers"
                 data-i18n="settings.syncTickersBtn"
                 data-i18n-title="settings.syncTickersTitle"
                 title="从 NASDAQ 官方接口同步最新美股与 ETF 列表"
+                leftSection={<IconRefresh size={11} stroke={2.2} />}
               >
                 同步在线词库
-              </UnstyledButton>
+              </Button>
             </div>
           </div>
         </div>

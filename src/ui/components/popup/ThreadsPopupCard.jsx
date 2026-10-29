@@ -1,5 +1,5 @@
 import React from 'react';
-import { Paper, Box, Badge, UnstyledButton } from '@mantine/core';
+import { Paper, Box, Badge, Button, Avatar } from '@mantine/core';
 import { PopupImageGallery } from './PopupImageGallery';
 
 export function ThreadsPopupCard({
@@ -38,24 +38,24 @@ export function ThreadsPopupCard({
       onClick={handleCardClick}
     >
       <Box className="discord-popup-header">
-        {avatarUrl ? (
-          <img
-            className="discord-popup-avatar"
-            src={avatarUrl}
-            alt=""
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <Box className="discord-popup-avatar-placeholder threads-avatar-placeholder">
-            @
-          </Box>
-        )}
+        <Avatar
+          size={38}
+          radius="xl"
+          color="dark"
+          variant="filled"
+          src={avatarUrl || null}
+          className="discord-popup-avatar threads-avatar-placeholder"
+          imageProps={{ referrerPolicy: 'no-referrer' }}
+        >
+          @
+        </Avatar>
         <Box className="tweet-popup-fallback-names">
           <Box className="discord-popup-names">
             <span className="discord-popup-name">{displayName}</span>
             <Badge
               component="span"
-              variant="outline"
+              variant="light"
+              color="teal"
               radius={4}
               className="tweet-tag threads threads-badge"
             >
@@ -64,7 +64,8 @@ export function ThreadsPopupCard({
             {isPinned && (
               <Badge
                 component="span"
-                variant="outline"
+                variant="light"
+                color="brand"
                 radius={4}
                 className="tweet-tag pinned"
               >
@@ -74,7 +75,8 @@ export function ThreadsPopupCard({
             {isRetweet && (
               <Badge
                 component="span"
-                variant="outline"
+                variant="light"
+                color="teal"
                 radius={4}
                 className="tweet-tag repost"
               >
@@ -106,7 +108,8 @@ export function ThreadsPopupCard({
           <Box className="threads-popup-quote-header">
             <Badge
               component="span"
-              variant="outline"
+              variant="light"
+              color="grape"
               radius={4}
               className="tweet-tag quote"
             >
@@ -137,12 +140,16 @@ export function ThreadsPopupCard({
       <Box className="discord-popup-footer">
         <span className="discord-popup-time">{timeDisplay}</span>
         {postUrl && (
-          <UnstyledButton
+          <Button
+            variant="light"
+            color="brand"
+            size="compact-xs"
+            radius="sm"
             className="tweet-popup-fallback-btn discord-popup-open-btn"
             data-url={postUrl}
           >
             {labels.openOnThreads}
-          </UnstyledButton>
+          </Button>
         )}
       </Box>
     </Paper>

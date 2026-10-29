@@ -215,7 +215,7 @@ function updateSlotSourceUI(slot) {
     } else if (isThreads || slot.source === SOURCE_THREADS) {
       slot.avatarPlaceholder.innerText = '@';
     } else {
-      slot.avatarPlaceholder.innerText = '👤';
+      slot.avatarPlaceholder.innerText = '𝕏';
     }
   }
   if (slot.card) {
@@ -340,7 +340,14 @@ function updateSlotExpiredUI(slot) {
       slot.expiredText.textContent = t('auth.slotExpiredBannerText', { platform: platformLabel });
     }
     if (slot.expiredBtn) {
-      slot.expiredBtn.textContent = t('auth.slotExpiredLoginBtn');
+      const labelEl =
+        slot.expiredBtn.querySelector &&
+        slot.expiredBtn.querySelector('.mantine-Button-label');
+      if (labelEl) {
+        labelEl.textContent = t('auth.slotExpiredLoginBtn');
+      } else {
+        slot.expiredBtn.textContent = t('auth.slotExpiredLoginBtn');
+      }
     }
     slot.expiredBanner.style.display = 'flex';
     if (slot.card) {

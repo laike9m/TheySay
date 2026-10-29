@@ -1,5 +1,6 @@
 import React from 'react';
-import { Paper, Box, Loader } from '@mantine/core';
+import { Paper, Box, Loader, ThemeIcon } from '@mantine/core';
+import { IconMessageDots } from '@tabler/icons-react';
 import { SlotHeader } from './SlotHeader';
 import { SlotExpiredBanner } from './SlotExpiredBanner';
 
@@ -8,7 +9,7 @@ export function SlotCard({ index, labels = {} }) {
     <Paper
       className="slot-card"
       id={`slot-card-${index}`}
-      radius={10}
+      radius="md"
       withBorder
     >
       <SlotHeader index={index} labels={labels} />
@@ -16,7 +17,15 @@ export function SlotCard({ index, labels = {} }) {
       {/* Scrollable Content Viewport */}
       <Box className="slot-content-container" id={`slot-content-${index}`}>
         <Box className="slot-placeholder" id={`slot-placeholder-${index}`}>
-          <span className="slot-placeholder-icon">💬</span>
+          <ThemeIcon
+            variant="light"
+            color="gray"
+            size={34}
+            radius="xl"
+            className="slot-placeholder-icon"
+          >
+            <IconMessageDots size={18} stroke={1.8} />
+          </ThemeIcon>
           <p>
             {labels.placeholderText ||
               '输入 @ 账号、threads:@账号 或 Discord 频道链接并按回车'}

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Paper, ActionIcon, UnstyledButton } from '@mantine/core';
-import { IconSettings, IconX } from '@tabler/icons-react';
+import { Paper, CloseButton, Button } from '@mantine/core';
+import { IconSettings, IconRotateClockwise } from '@tabler/icons-react';
 import { GeneralSettingsSection } from './GeneralSettingsSection';
 import { AppearanceSettingsSection } from './AppearanceSettingsSection';
 import { BackupSettingsSection } from './BackupSettingsSection';
@@ -38,17 +38,17 @@ export function SettingsModal() {
               偏好设置
             </h2>
           </div>
-          <ActionIcon
+          <CloseButton
             id="btn-settings-close"
             variant="subtle"
+            size="sm"
+            radius="md"
             className="settings-modal-close"
             data-i18n-title="settings.closeTitle"
             data-i18n-aria-label="settings.closeAria"
             title="关闭设置 (Esc)"
             aria-label="关闭设置"
-          >
-            <IconX size={16} stroke={2} />
-          </ActionIcon>
+          />
         </div>
 
         {/* 弹窗 Body */}
@@ -60,15 +60,20 @@ export function SettingsModal() {
 
         {/* 弹窗 Footer */}
         <div className="settings-modal-footer">
-          <UnstyledButton
+          <Button
             id="btn-settings-reset"
+            variant="subtle"
+            color="gray"
+            size="compact-xs"
+            radius="md"
             className="btn-tool btn-settings-reset"
             data-i18n="settings.resetBtn"
             data-i18n-title="settings.resetTitle"
             title="恢复默认设置"
+            leftSection={<IconRotateClockwise size={13} stroke={2} />}
           >
             恢复默认
-          </UnstyledButton>
+          </Button>
         </div>
       </Paper>
     </div>

@@ -4,6 +4,7 @@ const {
   DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
+  DEFAULT_FILTER_KEYWORDS,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_APP_BADGE_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
@@ -19,6 +20,8 @@ const {
   saveDiscordIntervalMinutes,
   getShowMemberOnlyPosts,
   saveShowMemberOnlyPosts,
+  getFilterKeywords,
+  saveFilterKeywords,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
   getAppBadgeEnabled,
@@ -52,6 +55,38 @@ const {
 
 let isInitialized = false;
 let onLanguageChangeCallback = null;
+let onSaveCallback = null;
+
+function notifySaved() {
+  if (typeof onSaveCallback === 'function') {
+    onSaveCallback({
+      language: getLanguage(),
+      twitterMinutes: getTwitterIntervalMinutes(),
+      threadsMinutes: getThreadsIntervalMinutes(),
+      discordMinutes: getDiscordIntervalMinutes(),
+      showMemberOnly: getShowMemberOnlyPosts(),
+      filterKeywords: getFilterKeywords(),
+      discordSoundEnabled: getDiscordSoundEnabled(),
+      appBadgeEnabled: getAppBadgeEnabled(),
+      headerBgColor: getHeaderBgColor(),
+      tickerFgColor: getTickerFgColor(),
+      tickerBgColor: getTickerBgColor()
+    });
+  }
+}
+
+function syncFilterKeywordsControl(keywords = getFilterKeywords()) {
+  if (typeof window !== 'undefined' && window.__THEYSAY_FILTER_KEYWORDS_BRIDGE) {
+    window.__THEYSAY_FILTER_KEYWORDS_BRIDGE.setKeywords(keywords);
+  }
+}
+
+function commitPendingFilterKeywordsInput({ triggerSave = true } = {}) {
+  if (typeof window !== 'undefined' && window.__THEYSAY_FILTER_KEYWORDS_BRIDGE) {
+    return window.__THEYSAY_FILTER_KEYWORDS_BRIDGE.commitPending({ notify: triggerSave });
+  }
+  return getFilterKeywords();
+}
 
 function getOverlay() {
   return document.getElementById('settings-modal-overlay');
@@ -207,6 +242,8 @@ function loadCurrentSettings() {
     memberOnlySelect.value = showMemberOnly ? 'true' : 'false';
   }
 
+  syncFilterKeywordsControl(getFilterKeywords());
+
   const discordSoundSelect = document.getElementById('setting-discord-sound');
   if (discordSoundSelect) {
     discordSoundSelect.value = getDiscordSoundEnabled() ? 'true' : 'false';
@@ -237,6 +274,7 @@ function closeSettingsModal() {
   const overlay = getOverlay();
   if (!overlay) return;
 
+  commitPendingFilterKeywordsInput({ triggerSave: true });
   overlay.classList.add('is-closed');
   const btnSettings = document.getElementById('btn-settings');
   if (btnSettings) btnSettings.classList.remove('active');
@@ -303,6 +341,10 @@ function getFormSettingsOverrides() {
   const showMemberOnlyPosts = memberOnlySelect
     ? memberOnlySelect.value === 'true'
     : getShowMemberOnlyPosts();
+  const filterKeywords =
+    typeof window !== 'undefined' && window.__THEYSAY_FILTER_KEYWORDS_BRIDGE
+      ? window.__THEYSAY_FILTER_KEYWORDS_BRIDGE.getKeywords()
+      : getFilterKeywords();
   const discordSoundEnabled = discordSoundSelect
     ? discordSoundSelect.value === 'true'
     : getDiscordSoundEnabled();
@@ -328,6 +370,7 @@ function getFormSettingsOverrides() {
     threadsIntervalMinutes,
     discordIntervalMinutes,
     showMemberOnlyPosts,
+    filterKeywords,
     discordSoundEnabled,
     appBadgeEnabled,
     headerBgColor,
@@ -340,8 +383,19 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   if (typeof onLanguageChange === 'function') {
     onLanguageChangeCallback = onLanguageChange;
   }
+  if (typeof onSave === 'function') {
+    onSaveCallback = onSave;
+  }
   if (isInitialized) return;
   isInitialized = true;
+
+  if (typeof window !== 'undefined') {
+    window.__THEYSAY_ON_FILTER_KEYWORDS_CHANGE = (nextKeywords) => {
+      saveFilterKeywords(nextKeywords);
+      notifySaved();
+    };
+  }
+  syncFilterKeywordsControl(getFilterKeywords());
 
   const btnSettings = document.getElementById('btn-settings');
   const overlay = getOverlay();
@@ -377,23 +431,6 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   const btnExportProfile = document.getElementById('btn-export-profile');
   const btnImportProfile = document.getElementById('btn-import-profile');
 
-  const notifySaved = () => {
-    if (typeof onSave === 'function') {
-      onSave({
-        language: getLanguage(),
-        twitterMinutes: getTwitterIntervalMinutes(),
-        threadsMinutes: getThreadsIntervalMinutes(),
-        discordMinutes: getDiscordIntervalMinutes(),
-        showMemberOnly: getShowMemberOnlyPosts(),
-        discordSoundEnabled: getDiscordSoundEnabled(),
-        appBadgeEnabled: getAppBadgeEnabled(),
-        headerBgColor: getHeaderBgColor(),
-        tickerFgColor: getTickerFgColor(),
-        tickerBgColor: getTickerBgColor()
-      });
-    }
-  };
-
   if (languageSelect) {
     languageSelect.addEventListener('change', () => {
       const nextLang = languageSelect.value === 'zh' ? 'zh' : 'en';
@@ -407,6 +444,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
 
   if (btnExportProfile) {
     btnExportProfile.addEventListener('click', () => {
+      commitPendingFilterKeywordsInput({ triggerSave: true });
       if (typeof onExportProfile === 'function') {
         onExportProfile(getFormSettingsOverrides());
       }
@@ -740,6 +778,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       saveThreadsIntervalMinutes(DEFAULT_THREADS_INTERVAL_MINUTES);
       saveDiscordIntervalMinutes(DEFAULT_DISCORD_INTERVAL_MINUTES);
       saveShowMemberOnlyPosts(DEFAULT_SHOW_MEMBER_ONLY);
+      saveFilterKeywords(DEFAULT_FILTER_KEYWORDS);
       saveDiscordSoundEnabled(DEFAULT_DISCORD_SOUND_ENABLED);
       saveAppBadgeEnabled(DEFAULT_APP_BADGE_ENABLED);
       saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
@@ -775,6 +814,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       if (memberOnlySelect) {
         memberOnlySelect.value = DEFAULT_SHOW_MEMBER_ONLY ? 'true' : 'false';
       }
+      syncFilterKeywordsControl(DEFAULT_FILTER_KEYWORDS);
       if (discordSoundSelect) {
         discordSoundSelect.value = DEFAULT_DISCORD_SOUND_ENABLED ? 'true' : 'false';
       }

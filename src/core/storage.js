@@ -32,6 +32,7 @@ const {
   STORAGE_URL_TITLES_CACHE_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
+  STORAGE_FILTER_KEYWORDS_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_THREADS_INTERVAL_MINUTES,
@@ -41,10 +42,11 @@ const {
   DEFAULT_SLOT_MUTED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
-  DEFAULT_HEADER_BG_COLOR
+  DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_FILTER_KEYWORDS
 } = require('./constants');
 const { detectSourceType, getCanonicalTargetKey } = require('./source');
-const { getPostKey, getPostTimestamp } = require('./post');
+const { getPostKey, getPostTimestamp, parseFilterKeywordsInput } = require('./post');
 const { getCurrentLanguage, setActiveLanguageOverride } = require('./i18n');
 
 const MAX_CACHE_TRACKED_KEYS = 500;
@@ -830,6 +832,33 @@ function clearStoredLanguage() {
   } catch (e) {}
 }
 
+function getFilterKeywords() {
+  try {
+    const raw = localStorage.getItem(STORAGE_FILTER_KEYWORDS_KEY);
+    if (raw !== null && raw !== '') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parseFilterKeywordsInput(parsed);
+        }
+      } catch (_) {
+        return parseFilterKeywordsInput(raw);
+      }
+    }
+  } catch (e) {}
+  return [...DEFAULT_FILTER_KEYWORDS];
+}
+
+function saveFilterKeywords(keywords) {
+  try {
+    const normalized = parseFilterKeywordsInput(keywords);
+    localStorage.setItem(STORAGE_FILTER_KEYWORDS_KEY, JSON.stringify(normalized));
+    return normalized;
+  } catch (e) {
+    return [];
+  }
+}
+
 function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = {}) {
   if (grid) {
     saveGridLayout(grid);
@@ -929,6 +958,9 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     showMemberOnlyPosts: settingsOverrides.showMemberOnlyPosts !== undefined
       ? settingsOverrides.showMemberOnlyPosts
       : getShowMemberOnlyPosts(),
+    filterKeywords: settingsOverrides.filterKeywords !== undefined
+      ? parseFilterKeywordsInput(settingsOverrides.filterKeywords)
+      : getFilterKeywords(),
     discordSoundEnabled: settingsOverrides.discordSoundEnabled !== undefined
       ? settingsOverrides.discordSoundEnabled
       : getDiscordSoundEnabled(),
@@ -1018,6 +1050,8 @@ module.exports = {
   savePlatformLoginExpired,
   getShowMemberOnlyPosts,
   saveShowMemberOnlyPosts,
+  getFilterKeywords,
+  saveFilterKeywords,
   getDiscordSoundEnabled,
   saveDiscordSoundEnabled,
   getAppBadgeEnabled,

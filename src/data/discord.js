@@ -12,14 +12,17 @@ const {
   ensureSlotReadTracking,
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
-  resetSlotReadTracking
+  resetSlotReadTracking,
+  doesPostMatchFilterKeywords,
+  filterPostsByKeywords
 } = require('../core/post');
 const {
   saveHandles,
   saveLastFetchTime,
   saveLastFetchTimeDiscord,
   saveDiscordLoggedIn,
-  getDiscordSoundEnabled
+  getDiscordSoundEnabled,
+  getFilterKeywords
 } = require('../core/storage');
 const { waitForWebviewReady, loadWebviewTarget, executeWebviewScript } = require('./webview');
 const {
@@ -1392,6 +1395,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
           // The list is in chronological order; walking it backwards means we
           // meet the previous crawl's newest message as early as possible.
+          const activeKeywords = getFilterKeywords();
           for (let i = result.items.length - 1; i >= 0; i--) {
             const msg = toSlotMessage(result.items[i], guildId, channelId);
             const key = getPostKey(msg);
@@ -1401,6 +1405,10 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
             if (existingKeys.has(key)) {
               reachedBoundary = true;
               break;
+            }
+            if (doesPostMatchFilterKeywords(msg, activeKeywords)) {
+              if (slot.knownKeys) slot.knownKeys.add(key);
+              continue;
             }
             msg.isUnread = hasExisting ? shouldMarkScrapedItemUnread(slot, msg) : true;
             collected.push(msg);
@@ -1421,12 +1429,17 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
 
       // Re-read the live slot messages right before merging/rendering so any
       // mark-as-read interactions during scraping are strictly preserved.
-      const liveExistingMessages = (
-        hasExisting &&
-        getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
-        Array.isArray(slot.loadedPosts) &&
-        slot.loadedPosts.length > 0
-      ) ? slot.loadedPosts : existingMessages;
+      const activeKeywordsAtMerge = getFilterKeywords();
+      const liveExistingMessages = filterPostsByKeywords(
+        (
+          hasExisting &&
+          getCanonicalTargetKey(slot.monitoredHandle || '') === currKey &&
+          Array.isArray(slot.loadedPosts) &&
+          slot.loadedPosts.length > 0
+        ) ? slot.loadedPosts : existingMessages,
+        activeKeywordsAtMerge
+      );
+      const filteredCollected = filterPostsByKeywords(collected, activeKeywordsAtMerge);
 
       let backfillChanged = false;
       if (hasExisting) {
@@ -1506,7 +1519,7 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         subtitle: guildLabel
       };
 
-      if (collected.length === 0 && hasExisting) {
+      if (filteredCollected.length === 0 && hasExisting) {
         if (!isBackground) showToast(t('discord.upToDateToast', { channelLabel }), 'info', 2000);
         if (backfillChanged) {
           renderSlotPosts(
@@ -1525,17 +1538,17 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         return;
       }
 
-      if (collected.length === 0) {
+      if (filteredCollected.length === 0 && seen.size === 0) {
         showSlotError(slot, t('discord.noMessagesError'));
         return;
       }
 
-      const newUnreadItems = collected.filter(m => m.isUnread !== false);
+      const newUnreadItems = filteredCollected.filter(m => m.isUnread !== false);
       if (hasExisting && newUnreadItems.length > 0) {
         showToast(t('discord.newMessagesToast', { channelLabel, count: newUnreadItems.length }), 'success', 2500);
       }
 
-      const merged = processAndSortPosts([...liveExistingMessages, ...collected]);
+      const merged = processAndSortPosts([...liveExistingMessages, ...filteredCollected]);
       renderSlotPosts(
         slot,
         merged.slice(-Math.max(MAX_DISCORD_MESSAGES, liveExistingMessages.length)),

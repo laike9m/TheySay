@@ -1758,6 +1758,176 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       await new Promise((resolve) => server.close(resolve));
     }
   });
+
+  test('16. Filter Keywords: multi-word phrases & single keywords directly discard matching posts', async () => {
+    // Seed slot 0 with 4 posts:
+    // 1) Normal post
+    // 2) Post matching multi-word phrase "crypto giveaway" (with extra whitespace/newline)
+    // 3) Post containing only "crypto" (partial match of multi-word phrase — must NOT be discarded)
+    // 4) Post matching single keyword "sponsored"
+    await page.evaluate(() => {
+      const { saveFilterKeywords } = require('./src/core/storage');
+      const { getRegisteredSlots, renderSlotPosts } = require('./src/ui/slot');
+      saveFilterKeywords([]);
+      const slots = getRegisteredSlots();
+      const slot = slots[0];
+      slot.monitoredHandle = 'filtertest';
+      slot.handleInput.value = 'filtertest';
+      renderSlotPosts(
+        slot,
+        [
+          {
+            id: 'fk-1',
+            url: 'https://x.com/filtertest/status/91001',
+            text: 'Market update: $NVDA earnings look strong today.',
+            time: '10:01',
+            datetime: '2026-10-28T10:01:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          },
+          {
+            id: 'fk-2',
+            url: 'https://x.com/filtertest/status/91002',
+            text: 'Join our CRYPTO   GIVEAWAY\nright now for free tokens!',
+            time: '10:02',
+            datetime: '2026-10-28T10:02:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          },
+          {
+            id: 'fk-3',
+            url: 'https://x.com/filtertest/status/91003',
+            text: 'Crypto markets are quiet today.',
+            time: '10:03',
+            datetime: '2026-10-28T10:03:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          },
+          {
+            id: 'fk-4',
+            url: 'https://x.com/filtertest/status/91004',
+            text: 'Check out this sponsored post from our partner.',
+            time: '10:04',
+            datetime: '2026-10-28T10:04:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          }
+        ],
+        'filtertest',
+        null,
+        slots
+      );
+    });
+
+    const slot0Bubbles = page.locator('#slot-content-0 .im-bubble');
+    await expect(slot0Bubbles).toHaveCount(4);
+    await expect(page.locator('#slot-unread-badge-0')).toHaveText('4');
+
+    // Open Settings and add a multi-word phrase ("crypto giveaway") and a single word ("sponsored")
+    await page.locator('#btn-settings').click();
+    const settingsOverlay = page.locator('#settings-modal-overlay');
+    await expect(settingsOverlay).not.toHaveClass(/is-closed/);
+
+    const filterInput = page.locator('#setting-filter-keywords-input');
+    await filterInput.fill('crypto giveaway');
+    await filterInput.press('Enter');
+
+    await filterInput.fill('sponsored, limited time offer');
+    await filterInput.press('Enter');
+
+    const chips = page.locator('.settings-row-filter-keywords .filter-keyword-chip');
+    await expect(chips).toHaveCount(3);
+    await expect(chips.nth(0).locator('.mantine-Pill-label')).toHaveText('crypto giveaway');
+    await expect(chips.nth(1).locator('.mantine-Pill-label')).toHaveText('sponsored');
+    await expect(chips.nth(2).locator('.mantine-Pill-label')).toHaveText('limited time offer');
+
+    // Matching posts (fk-2 and fk-4) are directly discarded; fk-1 and fk-3 (partial word "Crypto") remain
+    await expect(slot0Bubbles).toHaveCount(2);
+    await expect(slot0Bubbles.nth(0).locator('.im-text-content')).toContainText(
+      'Market update: $NVDA earnings look strong today.'
+    );
+    await expect(slot0Bubbles.nth(1).locator('.im-text-content')).toContainText(
+      'Crypto markets are quiet today.'
+    );
+    await expect(page.locator('#slot-unread-badge-0')).toHaveText('2');
+
+    // Remove the "sponsored" chip and re-render all 4 posts: fk-4 should now be allowed, while fk-2 is still discarded
+    await chips.nth(1).locator('.mantine-Pill-remove').click();
+    await expect(chips).toHaveCount(2);
+
+    await page.evaluate(() => {
+      const { getRegisteredSlots, renderSlotPosts } = require('./src/ui/slot');
+      const slots = getRegisteredSlots();
+      const slot = slots[0];
+      renderSlotPosts(
+        slot,
+        [
+          {
+            id: 'fk-1',
+            url: 'https://x.com/filtertest/status/91001',
+            text: 'Market update: $NVDA earnings look strong today.',
+            time: '10:01',
+            datetime: '2026-10-28T10:01:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          },
+          {
+            id: 'fk-2',
+            url: 'https://x.com/filtertest/status/91002',
+            text: 'Join our CRYPTO   GIVEAWAY right now for free tokens!',
+            time: '10:02',
+            datetime: '2026-10-28T10:02:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          },
+          {
+            id: 'fk-3',
+            url: 'https://x.com/filtertest/status/91003',
+            text: 'Crypto markets are quiet today.',
+            time: '10:03',
+            datetime: '2026-10-28T10:03:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          },
+          {
+            id: 'fk-4',
+            url: 'https://x.com/filtertest/status/91004',
+            text: 'Check out this sponsored post from our partner.',
+            time: '10:04',
+            datetime: '2026-10-28T10:04:00.000Z',
+            displayName: 'Filter Tester',
+            userHandle: '@filtertest',
+            isUnread: true,
+            images: []
+          }
+        ],
+        'filtertest',
+        null,
+        slots
+      );
+    });
+    await expect(slot0Bubbles).toHaveCount(3);
+
+    // Click Restore Defaults in Settings and verify filter keywords are cleared
+    await page.locator('#btn-settings-reset').click();
+    await expect(chips).toHaveCount(0);
+    await page.locator('#btn-settings-close').click();
+    await expect(settingsOverlay).toHaveClass(/is-closed/);
+  });
 });
 
 

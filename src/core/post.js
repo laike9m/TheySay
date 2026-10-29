@@ -356,6 +356,70 @@ function isMemberOnlyPost(post) {
   return false;
 }
 
+const MEDIA_ONLY_FALLBACK_ZH = '(该推文为纯媒体/卡片内容，无文本)';
+const MEDIA_ONLY_FALLBACK_EN = '(Media or card post with no text)';
+
+function normalizeFilterKeywordItem(raw) {
+  return String(raw ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function parseFilterKeywordsInput(input) {
+  if (!input) return [];
+  const items = (Array.isArray(input) ? input : [input])
+    .flatMap(v => (typeof v === 'string' ? v.split(/[,，;；\r\n]+/) : []))
+    .map(normalizeFilterKeywordItem)
+    .filter(Boolean);
+  const seen = new Set();
+  return items.filter(item => {
+    const lower = item.toLowerCase();
+    if (seen.has(lower)) return false;
+    seen.add(lower);
+    return true;
+  });
+}
+
+let cachedKeywordsKey = '';
+let cachedKeywordsRegex = null;
+
+function getFilterKeywordsRegex(keywords) {
+  if (!Array.isArray(keywords) || keywords.length === 0) return null;
+  const key = keywords.join('\u0000');
+  if (key === cachedKeywordsKey) return cachedKeywordsRegex;
+  const patterns = parseFilterKeywordsInput(keywords).map(kw =>
+    kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')
+  );
+  cachedKeywordsKey = key;
+  cachedKeywordsRegex = patterns.length > 0 ? new RegExp(patterns.join('|'), 'i') : null;
+  return cachedKeywordsRegex;
+}
+
+function doesPostMatchFilterKeywords(post, keywords) {
+  const regex = getFilterKeywordsRegex(keywords);
+  if (!post || !regex) return false;
+  const texts = [
+    post.text,
+    post.quoteText,
+    post.replyText,
+    ...(post.linkTitles && typeof post.linkTitles === 'object' ? Object.values(post.linkTitles) : []),
+    ...(Array.isArray(post.mergedPosts)
+      ? post.mergedPosts.flatMap(mp => (mp ? [mp.text, mp.quoteText, mp.replyText] : []))
+      : [])
+  ];
+  return texts.some(
+    t =>
+      typeof t === 'string' &&
+      t !== MEDIA_ONLY_FALLBACK_ZH &&
+      t !== MEDIA_ONLY_FALLBACK_EN &&
+      regex.test(t)
+  );
+}
+
+function filterPostsByKeywords(posts, keywords) {
+  if (!Array.isArray(posts) || posts.length === 0) return [];
+  if (!Array.isArray(keywords) || keywords.length === 0) return posts;
+  return posts.filter(p => !doesPostMatchFilterKeywords(p, keywords));
+}
+
 const MAX_TRACKED_KEYS = 500;
 
 function ensureSlotReadTracking(slot, cachedEntry = null) {
@@ -478,6 +542,10 @@ module.exports = {
   isPostWithQuote,
   shouldShowPostPopup,
   isMemberOnlyPost,
+  normalizeFilterKeywordItem,
+  parseFilterKeywordsInput,
+  doesPostMatchFilterKeywords,
+  filterPostsByKeywords,
   ensureSlotReadTracking,
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,

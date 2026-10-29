@@ -1,14 +1,63 @@
 import React from 'react';
-import { Paper, NativeSelect, TextInput, ThemeIcon } from '@mantine/core';
+import { Paper, NativeSelect, TextInput, TagsInput, ThemeIcon } from '@mantine/core';
 import {
   IconWorld,
   IconStarFilled,
+  IconFilter,
   IconVolume,
   IconBell
 } from '@tabler/icons-react';
 import { DiscordSvgIcon } from '../icons/PlatformIcons';
+import { parseFilterKeywordsInput } from '../../../core/post';
 
 export function GeneralSettingsSection() {
+  const [filterKeywords, setFilterKeywords] = React.useState([]);
+  const [filterSearch, setFilterSearch] = React.useState('');
+  const filterSearchRef = React.useRef('');
+  const filterKeywordsRef = React.useRef([]);
+
+  const applyKeywordsChange = React.useCallback((rawNext, { notify = true } = {}) => {
+    const parsed = parseFilterKeywordsInput(rawNext);
+    filterKeywordsRef.current = parsed;
+    setFilterKeywords(parsed);
+    if (
+      notify &&
+      typeof window !== 'undefined' &&
+      typeof window.__THEYSAY_ON_FILTER_KEYWORDS_CHANGE === 'function'
+    ) {
+      window.__THEYSAY_ON_FILTER_KEYWORDS_CHANGE(parsed);
+    }
+    return parsed;
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.__THEYSAY_FILTER_KEYWORDS_BRIDGE = {
+      setKeywords: (list) => {
+        filterSearchRef.current = '';
+        setFilterSearch('');
+        return applyKeywordsChange(list, { notify: false });
+      },
+      commitPending: ({ notify = true } = {}) => {
+        const pending = filterSearchRef.current;
+        filterSearchRef.current = '';
+        setFilterSearch('');
+        if (!pending || !pending.trim()) {
+          return filterKeywordsRef.current;
+        }
+        return applyKeywordsChange([...filterKeywordsRef.current, pending], { notify });
+      },
+      getKeywords: () => {
+        const pending = filterSearchRef.current;
+        return parseFilterKeywordsInput(
+          pending && pending.trim()
+            ? [...filterKeywordsRef.current, pending]
+            : filterKeywordsRef.current
+        );
+      }
+    };
+  }, [applyKeywordsChange]);
+
   return (
     <div className="settings-section">
       <div className="settings-section-title" data-i18n="settings.sectionGeneral">
@@ -320,6 +369,67 @@ export function GeneralSettingsSection() {
               <option value="false" data-i18n="settings.memberOnlyHide">不显示 (过滤)</option>
             </NativeSelect>
           </div>
+        </div>
+
+        {/* 屏蔽关键词 */}
+        <div
+          className="settings-row settings-row-filter-keywords"
+          data-i18n-title="settings.filterKeywordsTip"
+          title="包含以下任意词或多词短语的帖子将被直接丢弃不显示（按回车或用逗号分隔添加）"
+        >
+          <div className="settings-row-main">
+            <ThemeIcon
+              variant="light"
+              color="orange"
+              size={28}
+              radius="md"
+              className="platform-icon filter-keywords"
+            >
+              <IconFilter size={14} stroke={2.1} />
+            </ThemeIcon>
+            <div className="settings-row-text">
+              <div
+                className="settings-row-title"
+                data-i18n="settings.filterKeywordsTitle"
+              >
+                屏蔽关键词
+              </div>
+              <div
+                className="settings-row-subtitle"
+                data-i18n="settings.filterKeywordsSubtitle"
+              >
+                丢弃含指定词或短语的帖子
+              </div>
+            </div>
+          </div>
+          <TagsInput
+            id="setting-filter-keywords-input"
+            size="xs"
+            value={filterKeywords}
+            searchValue={filterSearch}
+            onSearchChange={(val) => {
+              filterSearchRef.current = val;
+              setFilterSearch(val);
+            }}
+            onChange={(next) => {
+              filterSearchRef.current = '';
+              setFilterSearch('');
+              applyKeywordsChange(next, { notify: true });
+            }}
+            splitChars={[',', '，', ';', '；']}
+            acceptValueOnBlur
+            isDuplicate={() => false}
+            clearable
+            data-i18n-placeholder="settings.filterKeywordsPlaceholder"
+            placeholder="输入词或短语，回车添加"
+            classNames={{
+              root: 'mantine-settings-filter-tags-root',
+              input: 'settings-filter-tags-input',
+              pillsList: 'settings-filter-pills-list',
+              pill: 'filter-keyword-chip',
+              inputField: 'settings-filter-input-field'
+            }}
+          />
         </div>
 
         {/* Discord 通知声音 */}

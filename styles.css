@@ -2770,6 +2770,16 @@ body {
   color: #d97706;
 }
 
+.settings-row-main .platform-icon.filter-keywords {
+  background-color: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+}
+
+[data-theme="light"] .settings-row-main .platform-icon.filter-keywords {
+  background-color: rgba(234, 88, 12, 0.12);
+  color: #ea580c;
+}
+
 .settings-row-main .platform-icon.app-badge {
   background-color: rgba(239, 68, 68, 0.15);
   color: #ef4444;
@@ -2861,6 +2871,36 @@ body {
 .settings-unit {
   font-size: 11.5px;
   color: var(--text-secondary);
+}
+
+/* Filter Keywords Row (Mantine TagsInput) */
+.settings-row-filter-keywords {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mantine-settings-filter-tags-root {
+  width: 100%;
+}
+
+.settings-filter-tags-input {
+  background-color: var(--bg-control) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 6px !important;
+  min-height: 30px !important;
+  padding: 3px 8px !important;
+}
+
+.settings-filter-tags-input:focus-within {
+  border-color: var(--accent-blue) !important;
+  background-color: var(--bg-input-focus) !important;
+}
+
+.settings-filter-input-field {
+  font-size: 12px !important;
+  color: var(--text-main) !important;
 }
 
 .settings-tip {

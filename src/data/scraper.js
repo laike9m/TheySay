@@ -6,7 +6,9 @@ const {
   ensureSlotReadTracking,
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
-  resetSlotReadTracking
+  resetSlotReadTracking,
+  doesPostMatchFilterKeywords,
+  filterPostsByKeywords
 } = require('../core/post');
 const {
   saveHandles,
@@ -20,7 +22,8 @@ const {
   saveLastFetchTimeThreads,
   getTwitterIntervalMinutes,
   getDiscordIntervalMinutes,
-  getThreadsIntervalMinutes
+  getThreadsIntervalMinutes,
+  getFilterKeywords
 } = require('../core/storage');
 const {
   getOrCreateSlotWebview,
@@ -566,6 +569,7 @@ async function fetchTwitterSlot(
 
         if (result && result.success && Array.isArray(result.items)) {
           let foundNewOnThisScroll = 0;
+          const activeKeywords = getFilterKeywords();
 
           for (const item of result.items) {
             const key = getPostKey(item);
@@ -584,6 +588,11 @@ async function fetchTwitterSlot(
                 reachedBoundary = true;
                 continue;
               }
+            }
+
+            if (doesPostMatchFilterKeywords(item, activeKeywords)) {
+              if (slot.knownKeys) slot.knownKeys.add(key);
+              continue;
             }
 
             if (!existingKeys.has(key)) {
@@ -658,13 +667,14 @@ async function fetchTwitterSlot(
 
     // Always read the live slot.loadedPosts right at merge time so any mark-as-read
     // action performed by the user while the scrape was running is preserved.
-    const liveExistingPosts = (
-      hasExisting &&
-      Array.isArray(slot.loadedPosts) &&
-      slot.loadedPosts.length > 0
-    )
-      ? slot.loadedPosts
-      : existingPosts;
+    const activeKeywordsAtMerge = getFilterKeywords();
+    const liveExistingPosts = filterPostsByKeywords(
+      (hasExisting && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0)
+        ? slot.loadedPosts
+        : existingPosts,
+      activeKeywordsAtMerge
+    );
+    const filteredNewPosts = filterPostsByKeywords(collectedNewPosts, activeKeywordsAtMerge);
     let backfillChanged = false;
     if (liveExistingPosts.length > 0) {
       liveExistingPosts.forEach(m => {
@@ -681,7 +691,7 @@ async function fetchTwitterSlot(
     }
 
     if (hasExisting) {
-      if (collectedNewPosts.length === 0) {
+      if (filteredNewPosts.length === 0) {
         if (!isBackground) {
           showToast(t('scraper.upToDateToast', { handle }), 'info', 2000);
         }
@@ -699,13 +709,13 @@ async function fetchTwitterSlot(
           renderSlotPosts(slot, sortedExisting, handle, latestAvatarUrl, slots);
         }
       } else {
-        collectedNewPosts.forEach(item => {
+        filteredNewPosts.forEach(item => {
           if (!shouldMarkScrapedItemUnread(slot, item)) {
             item.isUnread = false;
           }
         });
-        const unreadNewPosts = collectedNewPosts.filter(p => p.isUnread);
-        const merged = [...liveExistingPosts, ...collectedNewPosts];
+        const unreadNewPosts = filteredNewPosts.filter(p => p.isUnread);
+        const merged = [...liveExistingPosts, ...filteredNewPosts];
         const sorted = processAndSortPosts(merged);
         const finalPosts = sorted.slice(-Math.max(20, liveExistingPosts.length));
         recordSlotReadPosts(slot, finalPosts);
@@ -718,8 +728,8 @@ async function fetchTwitterSlot(
         }
       }
     } else {
-      if (collectedNewPosts.length > 0) {
-        const sorted = processAndSortPosts(collectedNewPosts);
+      if (filteredNewPosts.length > 0 || seenInThisRun.size > 0) {
+        const sorted = processAndSortPosts(filteredNewPosts);
         const finalPosts = sorted.slice(-20);
         recordSlotReadPosts(slot, finalPosts);
         renderSlotPosts(slot, finalPosts, handle, latestAvatarUrl, slots);

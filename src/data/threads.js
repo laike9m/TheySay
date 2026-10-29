@@ -6,13 +6,16 @@ const {
   ensureSlotReadTracking,
   recordSlotReadPosts,
   shouldMarkScrapedItemUnread,
-  resetSlotReadTracking
+  resetSlotReadTracking,
+  doesPostMatchFilterKeywords,
+  filterPostsByKeywords
 } = require('../core/post');
 const {
   saveHandles,
   saveLastFetchTime,
   saveLastFetchTimeThreads,
-  saveThreadsLoggedIn
+  saveThreadsLoggedIn,
+  getFilterKeywords
 } = require('../core/storage');
 const {
   getOrCreateThreadsSlotWebview,
@@ -528,6 +531,7 @@ async function fetchThreadsSlot(
 
         if (result && result.success && Array.isArray(result.items)) {
           let foundNewOnThisScroll = 0;
+          const activeKeywords = getFilterKeywords();
 
           for (const item of result.items) {
             item.source = SOURCE_THREADS;
@@ -546,6 +550,11 @@ async function fetchThreadsSlot(
                 reachedBoundary = true;
                 continue;
               }
+            }
+
+            if (doesPostMatchFilterKeywords(item, activeKeywords)) {
+              if (slot.knownKeys) slot.knownKeys.add(key);
+              continue;
             }
 
             if (!existingKeys.has(key)) {
@@ -631,13 +640,14 @@ async function fetchThreadsSlot(
     saveLastFetchTimeThreads(slot.lastFetchedAt);
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
 
-    const liveExistingPosts = (
-      hasExisting &&
-      Array.isArray(slot.loadedPosts) &&
-      slot.loadedPosts.length > 0
-    )
-      ? slot.loadedPosts
-      : existingPosts;
+    const activeKeywordsAtMerge = getFilterKeywords();
+    const liveExistingPosts = filterPostsByKeywords(
+      (hasExisting && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0)
+        ? slot.loadedPosts
+        : existingPosts,
+      activeKeywordsAtMerge
+    );
+    const filteredNewPosts = filterPostsByKeywords(collectedNewPosts, activeKeywordsAtMerge);
 
     if (liveExistingPosts.length > 0) {
       liveExistingPosts.forEach(m => {
@@ -660,7 +670,7 @@ async function fetchThreadsSlot(
     };
 
     if (hasExisting) {
-      if (collectedNewPosts.length === 0) {
+      if (filteredNewPosts.length === 0) {
         if (!isBackground) {
           showToast(t('threads.upToDateToast', { handle }), 'info', 2000);
         }
@@ -668,13 +678,13 @@ async function fetchThreadsSlot(
         recordSlotReadPosts(slot, sortedExisting);
         renderSlotPosts(slot, sortedExisting, rawInput, latestAvatarUrl, slots, renderMeta);
       } else {
-        collectedNewPosts.forEach(item => {
+        filteredNewPosts.forEach(item => {
           if (!shouldMarkScrapedItemUnread(slot, item)) {
             item.isUnread = false;
           }
         });
-        const unreadNewPosts = collectedNewPosts.filter(p => p.isUnread);
-        const merged = [...liveExistingPosts, ...collectedNewPosts];
+        const unreadNewPosts = filteredNewPosts.filter(p => p.isUnread);
+        const merged = [...liveExistingPosts, ...filteredNewPosts];
         const sorted = processAndSortPosts(merged);
         const finalPosts = sorted.slice(-Math.max(20, liveExistingPosts.length));
         recordSlotReadPosts(slot, finalPosts);
@@ -687,8 +697,8 @@ async function fetchThreadsSlot(
         }
       }
     } else {
-      if (collectedNewPosts.length > 0) {
-        const sorted = processAndSortPosts(collectedNewPosts);
+      if (filteredNewPosts.length > 0 || seenInThisRun.size > 0) {
+        const sorted = processAndSortPosts(filteredNewPosts);
         const finalPosts = sorted.slice(-20);
         recordSlotReadPosts(slot, finalPosts);
         renderSlotPosts(slot, finalPosts, rawInput, latestAvatarUrl, slots, renderMeta);

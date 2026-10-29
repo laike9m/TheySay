@@ -38,11 +38,13 @@ const STORAGE_TICKER_REMOTE_CACHE_KEY = 'theysay_ticker_remote_cache';
 const STORAGE_URL_TITLES_CACHE_KEY = 'theysay_url_titles_cache';
 const STORAGE_HEADER_BG_COLOR_KEY = 'theysay_header_bg_color';
 const STORAGE_LANGUAGE_KEY = 'theysay_language';
+const STORAGE_FILTER_KEYWORDS_KEY = 'theysay_filter_keywords';
 
 const DEFAULT_TWITTER_INTERVAL_MINUTES = 10;
 const DEFAULT_DISCORD_INTERVAL_MINUTES = 10;
 const DEFAULT_THREADS_INTERVAL_MINUTES = 10;
 const DEFAULT_SHOW_MEMBER_ONLY = true;
+const DEFAULT_FILTER_KEYWORDS = [];
 // The offscreen Discord client still plays Discord's own pings (DMs, @mentions,
 // ...). Kept on by default to match Discord itself; users can mute it in Settings.
 const DEFAULT_DISCORD_SOUND_ENABLED = true;
@@ -190,10 +192,12 @@ module.exports = {
   STORAGE_URL_TITLES_CACHE_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
+  STORAGE_FILTER_KEYWORDS_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
+  DEFAULT_FILTER_KEYWORDS,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_APP_BADGE_ENABLED,
   DEFAULT_SLOT_MUTED,

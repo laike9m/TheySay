@@ -12,6 +12,7 @@ const {
   saveThreadsIntervalMinutes,
   saveDiscordIntervalMinutes,
   saveShowMemberOnlyPosts,
+  saveFilterKeywords,
   saveDiscordSoundEnabled,
   saveAppBadgeEnabled,
   saveHeaderBgColor,
@@ -192,6 +193,9 @@ async function handleImportProfile() {
       saveShowMemberOnlyPosts(settings.showMemberOnlyPosts);
     } else if (typeof settings.showMemberOnlyTweets === 'boolean') {
       saveShowMemberOnlyPosts(settings.showMemberOnlyTweets);
+    }
+    if (settings.filterKeywords !== undefined) {
+      saveFilterKeywords(settings.filterKeywords);
     }
     if (typeof settings.discordSoundEnabled === 'boolean') {
       saveDiscordSoundEnabled(settings.discordSoundEnabled);

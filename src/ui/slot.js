@@ -20,7 +20,9 @@ const {
   ensureSlotReadTracking,
   recordSlotReadPosts,
   serializeSlotReadTracking,
-  resetSlotReadTracking
+  resetSlotReadTracking,
+  doesPostMatchFilterKeywords,
+  filterPostsByKeywords
 } = require('../core/post');
 const { openPostPopup, prefetchPost } = require('./popup');
 const { fetchFullTweetData } = require('./tweet_embed');
@@ -35,6 +37,7 @@ const {
   saveSlotCache,
   saveAllSlotCache,
   getShowMemberOnlyPosts,
+  getFilterKeywords,
   getAppBadgeEnabled
 } = require('../core/storage');
 const { getOrCreateSlotWebview } = require('../data/webview');
@@ -375,9 +378,10 @@ function getSlotUnreadCount(slot) {
   const isDiscord = isDiscordSlot(slot);
   const isThreads = isThreadsSlot(slot);
   const showMemberOnly = getShowMemberOnlyPosts();
+  const keywordFiltered = filterPostsByKeywords(slot.loadedPosts, getFilterKeywords());
   const visible = (showMemberOnly || isDiscord || isThreads)
-    ? slot.loadedPosts
-    : slot.loadedPosts.filter(p => !isMemberOnlyPost(p));
+    ? keywordFiltered
+    : keywordFiltered.filter(p => !isMemberOnlyPost(p));
   let count = 0;
   for (let i = 0; i < visible.length; i++) {
     if (visible[i] && visible[i].isUnread) count++;
@@ -838,15 +842,21 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
   slot.error.style.display = 'none';
   slot.postsList.style.display = 'flex';
 
+  const rawPosts = Array.isArray(posts) ? posts : [];
   ensureSlotReadTracking(slot);
-  recordSlotReadPosts(slot, posts);
+  recordSlotReadPosts(slot, rawPosts);
+  rawPosts.forEach((p) => {
+    const k = getPostKey(p);
+    if (k && slot.knownKeys) slot.knownKeys.add(k);
+  });
+
+  const firstPost = rawPosts[0] || {};
+  posts = filterPostsByKeywords(rawPosts, getFilterKeywords());
   slot.loadedPosts = posts;
 
   const isDiscord = !!(meta && meta.source === SOURCE_DISCORD);
   const isThreads = !!(meta && meta.source === SOURCE_THREADS);
   slot.source = isDiscord ? SOURCE_DISCORD : (isThreads ? SOURCE_THREADS : 'twitter');
-
-  const firstPost = posts[0] || {};
 
   let displayName;
   let userHandle;
@@ -910,8 +920,8 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
     let rawHandle = sanitizeSingleLine(meta && meta.userHandle ? meta.userHandle : '');
 
     if (!rawName) {
-      for (const p of posts) {
-        if (p.displayName) {
+      for (const p of rawPosts) {
+        if (p && p.displayName) {
           const cleaned = sanitizeSingleLine(p.displayName);
           if (cleaned && cleaned.toLowerCase() !== handle.toLowerCase()) {
             rawName = cleaned;
@@ -925,9 +935,16 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
       rawName = sanitizeSingleLine(firstPost.displayName);
     }
 
+    if (!rawName && slot.authorName && slot.authorName.innerText) {
+      const existingName = sanitizeSingleLine(slot.authorName.innerText);
+      if (existingName && existingName !== '@handle') {
+        rawName = existingName;
+      }
+    }
+
     if (!rawHandle) {
-      for (const p of posts) {
-        if (p.userHandle) {
+      for (const p of rawPosts) {
+        if (p && p.userHandle) {
           const cleanedH = sanitizeSingleLine(p.userHandle);
           if (cleanedH) {
             rawHandle = cleanedH;
@@ -1261,9 +1278,23 @@ async function resolveSlotUrlTitles(slot, slots = []) {
     );
 
     if (anyResolved && Array.isArray(slot.loadedPosts) && slot.loadedPosts.length > 0) {
-      refreshSlotBubbleTextsWithTitles(slot);
+      const activeKeywords = getFilterKeywords();
       const handle = slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : '');
       const avatarUrl = (slot.avatarImg && slot.avatarImg.src) || '';
+      if (activeKeywords.length > 0 && slot.loadedPosts.some(p => doesPostMatchFilterKeywords(p, activeKeywords))) {
+        const meta = isDiscordSlot(slot)
+          ? { source: SOURCE_DISCORD, title: slot.sourceTitle, subtitle: slot.sourceSubtitle }
+          : (isThreadsSlot(slot)
+              ? {
+                  source: SOURCE_THREADS,
+                  displayName: slot.authorName ? slot.authorName.innerText : '',
+                  userHandle: slot.authorHandle ? slot.authorHandle.innerText : ''
+                }
+              : null);
+        renderSlotPosts(slot, filterPostsByKeywords(slot.loadedPosts, activeKeywords), handle, avatarUrl, slots, meta);
+        return;
+      }
+      refreshSlotBubbleTextsWithTitles(slot);
       persistSlot(slot, {
         handle,
         displayName: slot.authorName ? slot.authorName.innerText : '',
@@ -2363,6 +2394,7 @@ module.exports = {
   toggleSlotSizeMenu,
   bindSlotEvents,
   initSlotsRegistry,
+  getRegisteredSlots: () => registeredSlots,
   loadSlotCache,
   markAllPostsAsRead,
   refreshSlotsContent,

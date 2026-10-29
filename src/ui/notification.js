@@ -1,6 +1,6 @@
 const { ipcRenderer } = require('electron');
-const { processAndSortPosts, isMemberOnlyPost, isPostWithQuote } = require('../core/post');
-const { getShowMemberOnlyPosts } = require('../core/storage');
+const { processAndSortPosts, isMemberOnlyPost, isPostWithQuote, filterPostsByKeywords } = require('../core/post');
+const { getShowMemberOnlyPosts, getFilterKeywords } = require('../core/storage');
 const { SOURCE_DISCORD, SOURCE_THREADS, normalizeThreadsHandle } = require('../core/source');
 const { replaceUrlsWithTitles } = require('../core/ticker');
 const {
@@ -67,10 +67,11 @@ function notifySlotNewMessages(slot, newItems) {
   const isDiscord = slot.source === SOURCE_DISCORD;
   const isThreads = slot.source === SOURCE_THREADS;
   const showMemberOnly = getShowMemberOnlyPosts();
+  const keywordFiltered = filterPostsByKeywords(newItems, getFilterKeywords());
 
   const visibleItems = (showMemberOnly || isDiscord || isThreads)
-    ? newItems
-    : newItems.filter(item => !isMemberOnlyPost(item));
+    ? keywordFiltered
+    : keywordFiltered.filter(item => !isMemberOnlyPost(item));
 
   if (visibleItems.length === 0) return;
 

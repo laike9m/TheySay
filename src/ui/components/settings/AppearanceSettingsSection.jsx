@@ -122,7 +122,7 @@ export function AppearanceSettingsSection() {
                 labelText="自定义"
                 colorId="setting-header-bg-color"
                 hexId="setting-header-bg-hex"
-                defaultValue="#f3ede2"
+                defaultValue="#ffffff"
                 titleI18n="settings.headerColorInputTitle"
                 titleText="自定义 Title 栏背景颜色"
                 ariaI18n="settings.headerColorHexAria"

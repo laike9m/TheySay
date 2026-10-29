@@ -68,6 +68,7 @@ export const mantineTheme = createTheme({
 });
 
 export const HEADER_PRESETS = [
+  '#ffffff',
   '#1e293b',
   '#2563eb',
   '#f3ede2',

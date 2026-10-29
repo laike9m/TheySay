@@ -12,10 +12,8 @@ function calculateCellHeight(rows) {
       bannerOffset = banner.offsetHeight + 6;
     }
   } catch (_) {}
-  const availableHeight = window.innerHeight - 16 - bannerOffset; // top/bottom grid padding + expired banner
-  const margin = 8;
-  const totalMargin = (rows - 1) * margin;
-  return Math.max(160, Math.floor((availableHeight - totalMargin) / rows));
+  const availableHeight = window.innerHeight - 4 - bannerOffset; // top/bottom grid padding (2px + 2px) + expired banner
+  return Math.max(160, Math.floor(availableHeight / rows));
 }
 
 function parsePreset(presetStr) {

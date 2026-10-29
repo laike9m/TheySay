@@ -9,8 +9,8 @@ export function SlotCard({ index, labels = {} }) {
     <Paper
       className="slot-card"
       id={`slot-card-${index}`}
-      radius="md"
-      withBorder
+      radius="xs"
+      withBorder={false}
     >
       <SlotHeader index={index} labels={labels} />
 

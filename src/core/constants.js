@@ -54,7 +54,7 @@ const DEFAULT_APP_BADGE_ENABLED = true;
 const DEFAULT_SLOT_MUTED = true;
 const DEFAULT_TICKER_FG_COLOR = '#fde047';
 const DEFAULT_TICKER_BG_COLOR = '#422006';
-const DEFAULT_HEADER_BG_COLOR = '#f3ede2';
+const DEFAULT_HEADER_BG_COLOR = '#ffffff';
 
 const TICKER_COLOR_PRESETS = [
   { id: 'amber', name: '琥珀金', fg: '#fde047', bg: '#422006' },
@@ -66,6 +66,18 @@ const TICKER_COLOR_PRESETS = [
 ];
 
 const HEADER_COLOR_PRESETS = [
+  {
+    id: 'white',
+    name: '纯白极简',
+    bg: '#ffffff',
+    text: '#131722',
+    subtext: '#787b86',
+    border: '#eceff7',
+    hoverBg: 'rgba(19, 23, 34, 0.06)',
+    activeIcon: '#2962ff',
+    activeBg: 'rgba(41, 98, 255, 0.12)',
+    badgeBorder: 'transparent'
+  },
   {
     id: 'navy',
     name: '深邃暗夜蓝',

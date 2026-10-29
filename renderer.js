@@ -470,7 +470,7 @@ window.addEventListener('DOMContentLoaded', () => {
   grid = GridStack.init({
     column: cols,
     cellHeight: calculateCellHeight(rows),
-    margin: 8,
+    margin: '3px 2px',
     animate: true,
     float: false,
     handle: '.slot-drag-handle',

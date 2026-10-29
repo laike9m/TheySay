@@ -909,7 +909,15 @@ body {
   background: transparent !important;
 }
 
-/* Custom Resize Handle */
+/* Corner Resize Handles: hide permanent SVG/border icons, keep corner hover resize cursor */
+.grid-stack-item > .ui-resizable-ne,
+.grid-stack-item > .ui-resizable-nw,
+.grid-stack-item > .ui-resizable-se,
+.grid-stack-item > .ui-resizable-sw {
+  background-image: none !important;
+  transform: none !important;
+}
+
 .grid-stack-item > .ui-resizable-se {
   width: 16px;
   height: 16px;
@@ -919,20 +927,19 @@ body {
   z-index: 10;
 }
 
-.grid-stack-item > .ui-resizable-se::after {
-  content: '';
-  position: absolute;
-  right: 4px;
+.grid-stack-item > .ui-resizable-sw {
+  width: 16px;
+  height: 16px;
+  left: 4px;
   bottom: 4px;
-  width: 7px;
-  height: 7px;
-  border-right: 2px solid var(--text-muted);
-  border-bottom: 2px solid var(--text-muted);
-  transition: border-color 0.15s;
+  cursor: sw-resize;
+  z-index: 10;
 }
 
-.grid-stack-item:hover > .ui-resizable-se::after {
-  border-color: var(--accent-blue);
+.grid-stack-item > .ui-resizable-se::after,
+.grid-stack-item > .ui-resizable-sw::after {
+  content: none !important;
+  display: none !important;
 }
 
 /* Slot Card inside GridStack Widget */

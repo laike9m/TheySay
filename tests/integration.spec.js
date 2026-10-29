@@ -1275,6 +1275,26 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     // Move cursor to the right edge resize handle (.ui-resizable-e where horizontal resize arrow appears):
     // header must remain hidden, and clicking on the resize handle area expands/restores the section
     const item0 = page.locator('.grid-stack-item[data-slot-index="0"]');
+    const cornerHandleStyles = await item0.evaluate((el) => {
+      const se = el.querySelector(':scope > .ui-resizable-se');
+      const sw = el.querySelector(':scope > .ui-resizable-sw');
+      const seStyle = se ? getComputedStyle(se) : null;
+      const swStyle = sw ? getComputedStyle(sw) : null;
+      const seAfter = se ? getComputedStyle(se, '::after') : null;
+      return {
+        seBg: seStyle ? seStyle.backgroundImage : null,
+        swBg: swStyle ? swStyle.backgroundImage : null,
+        seCursor: seStyle ? seStyle.cursor : null,
+        swCursor: swStyle ? swStyle.cursor : null,
+        seAfterContent: seAfter ? seAfter.content : null
+      };
+    });
+    expect(cornerHandleStyles.seBg).toBe('none');
+    expect(cornerHandleStyles.swBg).toBe('none');
+    expect(cornerHandleStyles.seCursor).toBe('se-resize');
+    expect(cornerHandleStyles.swCursor).toBe('sw-resize');
+    expect(cornerHandleStyles.seAfterContent).toBe('none');
+
     const squeezedItems = page.locator('.grid-stack-item.is-hover-squeezed');
     const resizeEastBox = await page
       .locator('.grid-stack-item[data-slot-index="0"] > .ui-resizable-e')

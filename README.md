@@ -3,6 +3,8 @@
 **TheySay** is a multi-column desktop dashboard for monitoring multiple Twitter / X accounts, Threads profiles, and Discord channels side by side in real time.  
 **TheySay** 是一款多栏桌面监控看板，支持在网格布局中同时实时追踪多个 Twitter / X 账号、Threads 账号与 Discord 频道。
 
+![TheySay Dashboard Screenshot](docs/screenshot.png)
+
 ## Features / 功能介绍
 
 - **Multi-Platform Grid Dashboard & Smart Handle Search**: Monitor Twitter / X accounts, Threads profiles, and Discord channels (public or private) side by side in a drag-and-drop, resizable grid. Enter any handle to automatically search both Twitter / X and Threads—if the handle exists on both platforms, a dropdown lets you choose which one to track; if it exists on only one, scraping starts automatically.  

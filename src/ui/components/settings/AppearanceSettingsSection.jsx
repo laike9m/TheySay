@@ -8,12 +8,18 @@ import {
 } from '@mantine/core';
 import {
   IconLayoutNavbar,
+  IconPalette,
+  IconMessageCircle,
   IconInfoCircle,
-  IconGripVertical,
-  IconArrowsMaximize,
+  IconBellOff,
   IconRefresh
 } from '@tabler/icons-react';
-import { HEADER_PRESETS, TICKER_PRESETS } from '../theme';
+import {
+  HEADER_PRESETS,
+  CHAT_BG_PRESETS,
+  BUBBLE_BG_PRESETS,
+  TICKER_PRESETS
+} from '../theme';
 
 const HEX_INPUT_CLASS_NAMES = {
   root: 'mantine-ticker-hex-root',
@@ -69,6 +75,132 @@ export function AppearanceSettingsSection() {
         外观
       </div>
       <Paper className="settings-group" radius="md" withBorder={false}>
+        {/* 聊天背景配色 (Mantine ColorSwatch) */}
+        <div className="settings-row">
+          <div className="settings-row-main">
+            <ThemeIcon
+              variant="light"
+              color="indigo"
+              size={28}
+              radius="md"
+              className="platform-icon chat-bg-theme"
+            >
+              <IconPalette size={14} stroke={2.1} />
+            </ThemeIcon>
+            <div className="settings-row-text">
+              <div
+                className="settings-row-title"
+                data-i18n="settings.chatBgColorLabel"
+              >
+                聊天背景配色
+              </div>
+              <div
+                className="settings-row-subtitle"
+                data-i18n="settings.chatBgColorSubtitle"
+              >
+                卡片聊天区域底色
+              </div>
+            </div>
+          </div>
+          <div className="settings-color-inline-group">
+            <div id="setting-chat-bg-presets" className="ticker-preset-list">
+              {CHAT_BG_PRESETS.map((bg) => (
+                <ColorSwatch
+                  key={bg}
+                  component="button"
+                  type="button"
+                  color={bg}
+                  size={18}
+                  radius="sm"
+                  withShadow={false}
+                  className="ticker-preset-chip chat-bg-preset-chip"
+                  data-bg={bg}
+                  style={{ backgroundColor: bg }}
+                  title={bg}
+                  aria-label={bg}
+                />
+              ))}
+            </div>
+            <span className="color-inline-divider"></span>
+            <div className="settings-color-custom">
+              <ColorField
+                labelI18n="settings.customColor"
+                labelText="自定义"
+                colorId="setting-chat-bg-color"
+                hexId="setting-chat-bg-hex"
+                defaultValue="#f8f9fd"
+                titleI18n="settings.chatBgColorInputTitle"
+                titleText="自定义聊天背景颜色"
+                ariaI18n="settings.chatBgColorHexAria"
+                ariaText="聊天背景色 Hex"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 消息气泡配色 (Mantine ColorSwatch) */}
+        <div className="settings-row">
+          <div className="settings-row-main">
+            <ThemeIcon
+              variant="light"
+              color="teal"
+              size={28}
+              radius="md"
+              className="platform-icon bubble-bg-theme"
+            >
+              <IconMessageCircle size={14} stroke={2.1} />
+            </ThemeIcon>
+            <div className="settings-row-text">
+              <div
+                className="settings-row-title"
+                data-i18n="settings.bubbleBgColorLabel"
+              >
+                消息气泡配色
+              </div>
+              <div
+                className="settings-row-subtitle"
+                data-i18n="settings.bubbleBgColorSubtitle"
+              >
+                聊天消息气泡底色
+              </div>
+            </div>
+          </div>
+          <div className="settings-color-inline-group">
+            <div id="setting-bubble-bg-presets" className="ticker-preset-list">
+              {BUBBLE_BG_PRESETS.map((bg) => (
+                <ColorSwatch
+                  key={bg}
+                  component="button"
+                  type="button"
+                  color={bg}
+                  size={18}
+                  radius="sm"
+                  withShadow={false}
+                  className="ticker-preset-chip bubble-bg-preset-chip"
+                  data-bg={bg}
+                  style={{ backgroundColor: bg }}
+                  title={bg}
+                  aria-label={bg}
+                />
+              ))}
+            </div>
+            <span className="color-inline-divider"></span>
+            <div className="settings-color-custom">
+              <ColorField
+                labelI18n="settings.customColor"
+                labelText="自定义"
+                colorId="setting-bubble-bg-color"
+                hexId="setting-bubble-bg-hex"
+                defaultValue="#ffffff"
+                titleI18n="settings.bubbleBgColorInputTitle"
+                titleText="自定义消息气泡颜色"
+                ariaI18n="settings.bubbleBgColorHexAria"
+                ariaText="消息气泡色 Hex"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Title 栏背景配色 (Mantine ColorSwatch) */}
         <div className="settings-row">
           <div className="settings-row-main">
@@ -122,7 +254,7 @@ export function AppearanceSettingsSection() {
                 labelText="自定义"
                 colorId="setting-header-bg-color"
                 hexId="setting-header-bg-hex"
-                defaultValue="#ffffff"
+                defaultValue="#f8f9fd"
                 titleI18n="settings.headerColorInputTitle"
                 titleText="自定义 Title 栏背景颜色"
                 ariaI18n="settings.headerColorHexAria"
@@ -212,12 +344,6 @@ export function AppearanceSettingsSection() {
           <div className="header-preview-card" id="setting-header-preview">
             <div className="header-preview-bar" id="setting-header-preview-bar">
               <span
-                className="header-preview-drag"
-                id="setting-header-preview-drag"
-              >
-                <IconGripVertical size={12} stroke={2.2} />
-              </span>
-              <span
                 className="header-preview-avatar"
                 data-i18n="settings.previewAvatar"
               >
@@ -234,17 +360,20 @@ export function AppearanceSettingsSection() {
                 className="header-preview-handle"
                 id="setting-header-preview-handle"
               >
-                @example_user
+                · @example_user · X
               </span>
               <span
                 className="header-preview-icon"
                 id="setting-header-preview-icon"
               >
-                <IconArrowsMaximize size={12} stroke={2.2} />
+                <IconBellOff size={11} stroke={2.1} />
               </span>
             </div>
             <div className="header-preview-body" id="setting-ticker-preview">
-              <div className="header-preview-bubble read">
+              <div
+                className="header-preview-bubble read"
+                id="setting-bubble-preview-item"
+              >
                 <span
                   id="setting-ticker-preview-text"
                   data-i18n-html="settings.previewPostHtml"

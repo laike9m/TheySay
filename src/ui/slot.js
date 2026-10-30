@@ -1554,12 +1554,16 @@ function updateSlotSizeUI(slot, w, h) {
 
   if (isExpanded) {
     slot.card.classList.add('is-priority');
-    slot.btnExpand.classList.add('expanded');
-    slot.btnExpand.title = t('slot.currentSizeTitle', { r, c });
+    if (slot.btnExpand) {
+      slot.btnExpand.classList.add('expanded');
+      slot.btnExpand.title = t('slot.currentSizeTitle', { r, c });
+    }
   } else {
     slot.card.classList.remove('is-priority');
-    slot.btnExpand.classList.remove('expanded');
-    slot.btnExpand.title = t('slot.resizeCardTitle');
+    if (slot.btnExpand) {
+      slot.btnExpand.classList.remove('expanded');
+      slot.btnExpand.title = t('slot.resizeCardTitle');
+    }
   }
 }
 
@@ -1958,10 +1962,12 @@ function bindSlotEvents(slot, { slots, onFetch, onResize, getGridDimensions }) {
   }
 
   // Expand / Size Menu trigger
-  slot.btnExpand.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleSlotSizeMenu(slot, { slots, getGridDimensions, onResize });
-  });
+  if (slot.btnExpand) {
+    slot.btnExpand.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSlotSizeMenu(slot, { slots, getGridDimensions, onResize });
+    });
+  }
 }
 
 function initSlotsRegistry({ slotsCount = MAX_SLOTS, bgWebviewsContainer, onFetch, onResize, getGridDimensions }) {

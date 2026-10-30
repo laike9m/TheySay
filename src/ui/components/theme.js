@@ -68,6 +68,7 @@ export const mantineTheme = createTheme({
 });
 
 export const HEADER_PRESETS = [
+  '#f8f9fd',
   '#ffffff',
   '#1e293b',
   '#2563eb',
@@ -75,6 +76,26 @@ export const HEADER_PRESETS = [
   '#dff2ea',
   '#eae6f9',
   '#faeed4'
+];
+
+export const CHAT_BG_PRESETS = [
+  '#f8f9fd',
+  '#ffffff',
+  '#eef2f6',
+  '#f3ede2',
+  '#e8f3ee',
+  '#0f1723',
+  '#131722'
+];
+
+export const BUBBLE_BG_PRESETS = [
+  '#ffffff',
+  '#f1f4f9',
+  '#fef9e7',
+  '#ecf7f1',
+  '#f3effb',
+  '#172332',
+  '#1e222d'
 ];
 
 export const TICKER_PRESETS = [

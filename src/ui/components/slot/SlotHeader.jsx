@@ -1,18 +1,11 @@
 import React from 'react';
 import { Box, Badge, ActionIcon, CloseButton, Paper } from '@mantine/core';
-import { IconGripVertical, IconPencil } from '@tabler/icons-react';
-import { SlotMuteIcon, SlotExpandIcon } from './SlotIcons';
+import { IconPencil } from '@tabler/icons-react';
+import { SlotMuteIcon } from './SlotIcons';
 
 export function SlotHeader({ index, labels = {} }) {
   return (
     <Box className="slot-header slot-drag-handle">
-      <span
-        className="slot-drag-indicator"
-        title={labels.dragHandleTitle || '拖拽移动卡片'}
-      >
-        <IconGripVertical size={13} stroke={2.2} />
-      </span>
-
       {/* User Profile Avatar in Header */}
       <Box
         className="slot-avatar"
@@ -34,7 +27,7 @@ export function SlotHeader({ index, labels = {} }) {
         </span>
       </Box>
 
-      {/* Identity Area: Displays Author Name / Handle next to Avatar, or Input Field */}
+      {/* Identity Area: Displays Author Name · @Handle · Source next to Avatar, or Input Field */}
       <Box className="slot-identity-area" id={`slot-identity-${index}`}>
         <Box
           className="slot-author-header"
@@ -99,8 +92,8 @@ export function SlotHeader({ index, labels = {} }) {
         type="button"
         variant="subtle"
         color="gray"
-        size={22}
-        radius={6}
+        size={20}
+        radius="xl"
         className="slot-btn-mute is-muted"
         id={`btn-mute-${index}`}
         title={labels.mutedTitle || '已静音通知（点击开启此频道新消息提醒）'}
@@ -112,36 +105,10 @@ export function SlotHeader({ index, labels = {} }) {
         </span>
       </ActionIcon>
 
-      <ActionIcon
-        component="button"
-        type="button"
-        variant="subtle"
-        color="gray"
-        size={22}
-        radius={6}
-        className="slot-btn-expand"
-        id={`btn-expand-${index}`}
-        title={labels.expandBtnTitle || '调整卡片占用空间'}
-      >
-        <span className="expand-icon" id={`expand-icon-${index}`}>
-          <SlotExpandIcon r={1} c={1} />
-        </span>
-      </ActionIcon>
-
       {/* Platform Source Picker Dropdown */}
       <Paper
         className="slot-source-dropdown"
         id={`slot-source-dropdown-${index}`}
-        shadow="md"
-        radius="md"
-        withBorder
-        style={{ display: 'none' }}
-      />
-
-      {/* Size Options Dropdown Popover Menu */}
-      <Paper
-        className="slot-size-menu"
-        id={`size-menu-${index}`}
         shadow="md"
         radius="md"
         withBorder

@@ -31,6 +31,8 @@ const {
   STORAGE_TICKER_REMOTE_CACHE_KEY,
   STORAGE_URL_TITLES_CACHE_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
+  STORAGE_CHAT_BG_COLOR_KEY,
+  STORAGE_BUBBLE_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
   STORAGE_FILTER_KEYWORDS_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
@@ -43,6 +45,10 @@ const {
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_CHAT_BG_COLOR,
+  DEFAULT_DARK_CHAT_BG_COLOR,
+  DEFAULT_BUBBLE_BG_COLOR,
+  DEFAULT_DARK_BUBBLE_BG_COLOR,
   DEFAULT_FILTER_KEYWORDS
 } = require('./constants');
 const { detectSourceType, getCanonicalTargetKey } = require('./source');
@@ -552,6 +558,40 @@ const [getHeaderBgColor, saveHeaderBgColor] = createColorStorage(
   DEFAULT_HEADER_BG_COLOR
 );
 
+function getChatBgColor() {
+  const raw = (readStorage(STORAGE_CHAT_BG_COLOR_KEY) || '').trim();
+  const parsed = raw ? colord(raw) : null;
+  if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+    return parsed.toHex();
+  }
+  return getStoredTheme() === 'light' ? DEFAULT_CHAT_BG_COLOR : DEFAULT_DARK_CHAT_BG_COLOR;
+}
+
+function saveChatBgColor(color) {
+  const raw = String(color || '').trim();
+  const parsed = raw ? colord(raw) : null;
+  if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+    writeStorage(STORAGE_CHAT_BG_COLOR_KEY, parsed.toHex());
+  }
+}
+
+function getBubbleBgColor() {
+  const raw = (readStorage(STORAGE_BUBBLE_BG_COLOR_KEY) || '').trim();
+  const parsed = raw ? colord(raw) : null;
+  if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+    return parsed.toHex();
+  }
+  return getStoredTheme() === 'light' ? DEFAULT_BUBBLE_BG_COLOR : DEFAULT_DARK_BUBBLE_BG_COLOR;
+}
+
+function saveBubbleBgColor(color) {
+  const raw = String(color || '').trim();
+  const parsed = raw ? colord(raw) : null;
+  if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+    writeStorage(STORAGE_BUBBLE_BG_COLOR_KEY, parsed.toHex());
+  }
+}
+
 function getTickerRemoteCache() {
   try {
     const raw = readStorage(STORAGE_TICKER_REMOTE_CACHE_KEY);
@@ -759,6 +799,12 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     headerBgColor: settingsOverrides.headerBgColor !== undefined
       ? settingsOverrides.headerBgColor
       : getHeaderBgColor(),
+    chatBgColor: settingsOverrides.chatBgColor !== undefined
+      ? settingsOverrides.chatBgColor
+      : getChatBgColor(),
+    bubbleBgColor: settingsOverrides.bubbleBgColor !== undefined
+      ? settingsOverrides.bubbleBgColor
+      : getBubbleBgColor(),
     tickerFgColor: settingsOverrides.tickerFgColor !== undefined
       ? settingsOverrides.tickerFgColor
       : getTickerFgColor(),
@@ -855,6 +901,10 @@ module.exports = {
   saveUrlTitlesCache,
   getHeaderBgColor,
   saveHeaderBgColor,
+  getChatBgColor,
+  saveChatBgColor,
+  getBubbleBgColor,
+  saveBubbleBgColor,
   getLanguage,
   saveLanguage,
   clearStoredLanguage,

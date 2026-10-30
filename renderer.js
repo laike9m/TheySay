@@ -16,6 +16,8 @@ const {
   saveDiscordSoundEnabled,
   saveAppBadgeEnabled,
   saveHeaderBgColor,
+  saveChatBgColor,
+  saveBubbleBgColor,
   saveTickerFgColor,
   saveTickerBgColor,
   getTickerFgColor,
@@ -24,7 +26,13 @@ const {
   saveLanguage,
   buildProfileData
 } = require('./src/core/storage');
-const { initTheme, applyTheme, applyHeaderColor } = require('./src/ui/theme');
+const {
+  initTheme,
+  applyTheme,
+  applyHeaderColor,
+  applyChatBgColor,
+  applyBubbleColor
+} = require('./src/ui/theme');
 const { initAuth, refreshAuthLocaleUI, syncAuthStateFromCache } = require('./src/ui/auth');
 const { initBackgroundWebviews } = require('./src/data/webview');
 const {
@@ -206,6 +214,14 @@ async function handleImportProfile() {
     if (typeof settings.headerBgColor === 'string' && settings.headerBgColor.trim()) {
       saveHeaderBgColor(settings.headerBgColor.trim());
       applyHeaderColor(settings.headerBgColor.trim());
+    }
+    if (typeof settings.chatBgColor === 'string' && settings.chatBgColor.trim()) {
+      saveChatBgColor(settings.chatBgColor.trim());
+      applyChatBgColor(settings.chatBgColor.trim());
+    }
+    if (typeof settings.bubbleBgColor === 'string' && settings.bubbleBgColor.trim()) {
+      saveBubbleBgColor(settings.bubbleBgColor.trim());
+      applyBubbleColor(settings.bubbleBgColor.trim());
     }
     // (legacy profiles may contain `tickerHighlightEnabled`; highlighting is always on now, so it is ignored)
     if (typeof settings.tickerFgColor === 'string' && settings.tickerFgColor.trim()) {

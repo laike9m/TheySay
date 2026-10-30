@@ -9,7 +9,11 @@ const {
   DEFAULT_APP_BADGE_ENABLED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
-  DEFAULT_HEADER_BG_COLOR
+  DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_CHAT_BG_COLOR,
+  DEFAULT_DARK_CHAT_BG_COLOR,
+  DEFAULT_BUBBLE_BG_COLOR,
+  DEFAULT_DARK_BUBBLE_BG_COLOR
 } = require('../core/constants');
 const {
   getTwitterIntervalMinutes,
@@ -32,6 +36,11 @@ const {
   saveTickerBgColor,
   getHeaderBgColor,
   saveHeaderBgColor,
+  getChatBgColor,
+  saveChatBgColor,
+  getBubbleBgColor,
+  saveBubbleBgColor,
+  getStoredTheme,
   getLanguage,
   saveLanguage,
   clearStoredLanguage
@@ -44,6 +53,10 @@ const {
 const {
   applyHeaderColor,
   resolveHeaderPalette,
+  applyChatBgColor,
+  resolveChatBgPalette,
+  applyBubbleColor,
+  resolveBubblePalette,
   normalizeHexColor
 } = require('./theme');
 const { showToast } = require('../core/utils');
@@ -131,6 +144,8 @@ function notifySaved() {
       discordSoundEnabled: getDiscordSoundEnabled(),
       appBadgeEnabled: getAppBadgeEnabled(),
       headerBgColor: getHeaderBgColor(),
+      chatBgColor: getChatBgColor(),
+      bubbleBgColor: getBubbleBgColor(),
       tickerFgColor: getTickerFgColor(),
       tickerBgColor: getTickerBgColor()
     });
@@ -183,7 +198,7 @@ function updateHeaderPreviewUI(bgColor, { liveApply = false } = {}) {
 
   if (barEl) {
     barEl.style.backgroundColor = palette.bg;
-    barEl.style.borderBottomColor = palette.border;
+    barEl.style.borderBottomColor = 'transparent';
   }
   if (nameEl) nameEl.style.color = palette.text;
   if (handleEl) handleEl.style.color = palette.subtext;
@@ -209,6 +224,84 @@ function setHeaderColorInputs(bgColor, { liveApply = false } = {}) {
   if (bgHex) bgHex.value = bg;
 
   updateHeaderPreviewUI(bg, { liveApply });
+}
+
+function updateChatBgPreviewUI(bgColor, { liveApply = false } = {}) {
+  const palette = resolveChatBgPalette(bgColor);
+
+  const cardEl = document.getElementById('setting-header-preview');
+  const bodyEl = document.getElementById('setting-ticker-preview');
+  const barEl = document.getElementById('setting-header-preview-bar');
+  const nameEl = document.getElementById('setting-header-preview-name');
+  const handleEl = document.getElementById('setting-header-preview-handle');
+  const iconEl = document.getElementById('setting-header-preview-icon');
+
+  if (cardEl) cardEl.style.backgroundColor = palette.bg;
+  if (bodyEl) bodyEl.style.backgroundColor = palette.bg;
+  if (barEl) barEl.style.backgroundColor = palette.bg;
+  if (nameEl) nameEl.style.color = palette.text;
+  if (handleEl) handleEl.style.color = palette.subtext;
+  if (iconEl) iconEl.style.color = palette.subtext;
+
+  document.querySelectorAll('#setting-chat-bg-presets .chat-bg-preset-chip').forEach(btn => {
+    const pBg = (btn.getAttribute('data-bg') || '').toLowerCase();
+    btn.classList.toggle('active', pBg === palette.bg);
+  });
+
+  if (liveApply) {
+    applyChatBgColor(palette.bg);
+  }
+}
+
+function setChatBgColorInputs(bgColor, { liveApply = false } = {}) {
+  const fallback = getStoredTheme() === 'light' ? DEFAULT_CHAT_BG_COLOR : DEFAULT_DARK_CHAT_BG_COLOR;
+  const bg = normalizeHexColor(bgColor, fallback);
+  const bgInput = document.getElementById('setting-chat-bg-color');
+  const bgHex = document.getElementById('setting-chat-bg-hex');
+
+  if (bgInput) bgInput.value = bg;
+  if (bgHex) bgHex.value = bg;
+
+  updateChatBgPreviewUI(bg, { liveApply });
+}
+
+function updateBubbleBgPreviewUI(bgColor, { liveApply = false } = {}) {
+  const palette = resolveBubblePalette(bgColor);
+
+  const bubbleEl =
+    document.getElementById('setting-bubble-preview-item') ||
+    document.querySelector('#setting-ticker-preview .header-preview-bubble');
+  const timeEl = document.querySelector('#setting-ticker-preview .header-preview-time');
+
+  if (bubbleEl) {
+    bubbleEl.style.backgroundColor = palette.bg;
+    bubbleEl.style.borderColor = palette.border;
+    bubbleEl.style.color = palette.text;
+  }
+  if (timeEl) {
+    timeEl.style.color = palette.timeText;
+  }
+
+  document.querySelectorAll('#setting-bubble-bg-presets .bubble-bg-preset-chip').forEach(btn => {
+    const pBg = (btn.getAttribute('data-bg') || '').toLowerCase();
+    btn.classList.toggle('active', pBg === palette.bg);
+  });
+
+  if (liveApply) {
+    applyBubbleColor(palette.bg);
+  }
+}
+
+function setBubbleBgColorInputs(bgColor, { liveApply = false } = {}) {
+  const fallback = getStoredTheme() === 'light' ? DEFAULT_BUBBLE_BG_COLOR : DEFAULT_DARK_BUBBLE_BG_COLOR;
+  const bg = normalizeHexColor(bgColor, fallback);
+  const bgInput = document.getElementById('setting-bubble-bg-color');
+  const bgHex = document.getElementById('setting-bubble-bg-hex');
+
+  if (bgInput) bgInput.value = bg;
+  if (bgHex) bgHex.value = bg;
+
+  updateBubbleBgPreviewUI(bg, { liveApply });
 }
 
 function updateTickerPreviewUI(fgColor, bgColor) {
@@ -276,6 +369,8 @@ function loadCurrentSettings() {
 
   syncFilterKeywordsControl(getFilterKeywords());
   setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
+  setChatBgColorInputs(getChatBgColor(), { liveApply: false });
+  setBubbleBgColorInputs(getBubbleBgColor(), { liveApply: false });
   setTickerColorInputs(getTickerFgColor(), getTickerBgColor());
   refreshTickerStatsLabel();
 }
@@ -350,6 +445,16 @@ function getFormSettingsOverrides() {
     'setting-header-bg-color',
     'setting-header-bg-hex',
     getHeaderBgColor()
+  );
+  overrides.chatBgColor = readColorFromInputs(
+    'setting-chat-bg-color',
+    'setting-chat-bg-hex',
+    getChatBgColor()
+  );
+  overrides.bubbleBgColor = readColorFromInputs(
+    'setting-bubble-bg-color',
+    'setting-bubble-bg-hex',
+    getBubbleBgColor()
   );
   overrides.tickerFgColor = readColorFromInputs(
     'setting-ticker-fg-color',
@@ -539,6 +644,48 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     });
   });
 
+  const commitChatBg = (bg) => {
+    const norm = normalizeHexColor(bg, DEFAULT_CHAT_BG_COLOR);
+    saveChatBgColor(norm);
+    updateChatBgPreviewUI(norm, { liveApply: true });
+  };
+
+  bindColorPair(
+    document.getElementById('setting-chat-bg-color'),
+    document.getElementById('setting-chat-bg-hex'),
+    DEFAULT_CHAT_BG_COLOR,
+    commitChatBg
+  );
+
+  document.querySelectorAll('#setting-chat-bg-presets .chat-bg-preset-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bg = btn.getAttribute('data-bg') || DEFAULT_CHAT_BG_COLOR;
+      setChatBgColorInputs(bg, { liveApply: true });
+      saveChatBgColor(normalizeHexColor(bg, DEFAULT_CHAT_BG_COLOR));
+    });
+  });
+
+  const commitBubbleBg = (bg) => {
+    const norm = normalizeHexColor(bg, DEFAULT_BUBBLE_BG_COLOR);
+    saveBubbleBgColor(norm);
+    updateBubbleBgPreviewUI(norm, { liveApply: true });
+  };
+
+  bindColorPair(
+    document.getElementById('setting-bubble-bg-color'),
+    document.getElementById('setting-bubble-bg-hex'),
+    DEFAULT_BUBBLE_BG_COLOR,
+    commitBubbleBg
+  );
+
+  document.querySelectorAll('#setting-bubble-bg-presets .bubble-bg-preset-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bg = btn.getAttribute('data-bg') || DEFAULT_BUBBLE_BG_COLOR;
+      setBubbleBgColorInputs(bg, { liveApply: true });
+      saveBubbleBgColor(normalizeHexColor(bg, DEFAULT_BUBBLE_BG_COLOR));
+    });
+  });
+
   const commitTickerState = () => {
     const fg = readColorFromInputs('setting-ticker-fg-color', 'setting-ticker-fg-hex', DEFAULT_TICKER_FG_COLOR);
     const bg = readColorFromInputs('setting-ticker-bg-color', 'setting-ticker-bg-hex', DEFAULT_TICKER_BG_COLOR);
@@ -637,13 +784,23 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       saveFilterKeywords(DEFAULT_FILTER_KEYWORDS);
       syncFilterKeywordsControl(DEFAULT_FILTER_KEYWORDS);
 
+      const isDark = getStoredTheme() === 'dark';
+      const defaultChatBg = isDark ? DEFAULT_DARK_CHAT_BG_COLOR : DEFAULT_CHAT_BG_COLOR;
+      const defaultBubbleBg = isDark ? DEFAULT_DARK_BUBBLE_BG_COLOR : DEFAULT_BUBBLE_BG_COLOR;
+
       saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
       applyHeaderColor(DEFAULT_HEADER_BG_COLOR);
+      saveChatBgColor(defaultChatBg);
+      applyChatBgColor(defaultChatBg);
+      saveBubbleBgColor(defaultBubbleBg);
+      applyBubbleColor(defaultBubbleBg);
       saveTickerFgColor(DEFAULT_TICKER_FG_COLOR);
       saveTickerBgColor(DEFAULT_TICKER_BG_COLOR);
       applyTickerColors(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 
       setHeaderColorInputs(DEFAULT_HEADER_BG_COLOR, { liveApply: true });
+      setChatBgColorInputs(defaultChatBg, { liveApply: true });
+      setBubbleBgColorInputs(defaultBubbleBg, { liveApply: true });
       setTickerColorInputs(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 
       if (typeof onLanguageChangeCallback === 'function') {

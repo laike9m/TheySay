@@ -10,6 +10,8 @@ const {
   STORAGE_THREADS_INTERVAL_KEY,
   STORAGE_MUTED_SLOTS_KEY,
   STORAGE_HEADER_BG_COLOR_KEY,
+  STORAGE_CHAT_BG_COLOR_KEY,
+  STORAGE_BUBBLE_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY
 } = require('../src/core/constants');
 const { isChineseLocale, resolveLanguageCode } = require('../src/core/i18n');
@@ -95,7 +97,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(page.locator('#btn-login-menu')).toHaveClass(/mantine-Button-root/);
   });
 
-  test('2. Grid layout presets, slot mute toggle & slot resize menu', async () => {
+  test('2. Grid layout presets, slot mute toggle & borderless TradingView header', async () => {
     // Default preset is 2x2 (4 visible slots)
     await expect(page.locator('#layout-select')).toHaveValue('2x2');
     await expect(page.locator('#grid-stack-container > .grid-stack-item')).toHaveCount(4);
@@ -129,27 +131,25 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     );
     expect(mutedArray[0]).toBe(false);
 
-    // Clear adjacent slot 2 (row 2, col 1) so 2x1 vertical expansion on slot 0 has free space
+    // Clear adjacent slot 2 (row 2, col 1)
     await page.locator('#handle-input-2').fill('');
     await page.locator('#handle-input-2').dispatchEvent('input');
 
-    // Open slot 0 expand/size menu and resize to 2 rows x 1 col (gs-h="2")
-    await expect(page.locator('#btn-expand-0')).toHaveClass(/mantine-ActionIcon-root/);
-    await page.locator('#btn-expand-0').click();
-    const sizeMenu0 = page.locator('#size-menu-0');
-    await expect(sizeMenu0).toBeVisible();
-    await expect(sizeMenu0).toHaveClass(/mantine-Paper-root/);
-    await expect(sizeMenu0.locator('.size-menu-item[data-r="2"][data-c="1"]')).toHaveClass(
-      /mantine-UnstyledButton-root/
-    );
-    await sizeMenu0.locator('.size-menu-item[data-r="2"][data-c="1"]').click();
-    await expect(page.locator('.grid-stack-item[gs-id="slot-0"]')).toHaveAttribute('gs-h', '2');
-    await expect(page.locator('#slot-card-0')).toHaveClass(/is-priority/);
+    // Verify legacy expand/size menu button (⤢) and drag indicator (⋮⋮) are removed
+    // and the slot header uses the borderless TradingView inline layout
+    await expect(page.locator('#btn-expand-0')).toHaveCount(0);
+    await expect(page.locator('#size-menu-0')).toHaveCount(0);
+    await expect(page.locator('#slot-card-0 .slot-drag-indicator')).toHaveCount(0);
 
-    // Reset back to 1x1
-    await page.locator('#btn-expand-0').click();
-    await sizeMenu0.locator('.size-menu-item[data-r="1"][data-c="1"]').click();
-    await expect(page.locator('#slot-card-0')).not.toHaveClass(/is-priority/);
+    const headerStyle = await page.locator('#slot-card-0 .slot-header').evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        borderBottomStyle: cs.borderBottomStyle,
+        justifyContent: cs.justifyContent
+      };
+    });
+    expect(headerStyle.borderBottomStyle).toBe('none');
+    expect(headerStyle.justifyContent).toBe('flex-start');
   });
 
   test('3. Theme switching, Settings modal & Windows/macOS global Escape handling', async () => {
@@ -185,24 +185,43 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     const bluePresetChip = page.locator('#setting-header-presets .header-preset-chip[data-bg="#2563eb"]');
     await expect(bluePresetChip).toHaveClass(/mantine-ColorSwatch-root/);
     await bluePresetChip.click();
+
+    const chatBgPresetChip = page.locator('#setting-chat-bg-presets .chat-bg-preset-chip[data-bg="#eef2f6"]');
+    await expect(chatBgPresetChip).toHaveClass(/mantine-ColorSwatch-root/);
+    await chatBgPresetChip.click();
+
+    const bubbleBgPresetChip = page.locator('#setting-bubble-bg-presets .bubble-bg-preset-chip[data-bg="#f1f4f9"]');
+    await expect(bubbleBgPresetChip).toHaveClass(/mantine-ColorSwatch-root/);
+    await bubbleBgPresetChip.click();
+
     await page.locator('#btn-settings-close').click();
     await expect(settingsOverlay).toHaveClass(/is-closed/);
 
     const savedSettings = await page.evaluate(
-      ({ intervalKey, headerBgKey }) => ({
+      ({ intervalKey, headerBgKey, chatBgKey, bubbleBgKey }) => ({
         twitterInterval: localStorage.getItem(intervalKey),
         headerBg: localStorage.getItem(headerBgKey),
-        cssHeaderBg: document.documentElement.style.getPropertyValue('--slot-header-bg')
+        chatBg: localStorage.getItem(chatBgKey),
+        bubbleBg: localStorage.getItem(bubbleBgKey),
+        cssHeaderBg: document.documentElement.style.getPropertyValue('--slot-header-bg'),
+        cssChatBg: document.documentElement.style.getPropertyValue('--bg-card'),
+        cssBubbleBg: document.documentElement.style.getPropertyValue('--bg-bubble')
       }),
       {
         intervalKey: STORAGE_TWITTER_INTERVAL_KEY,
-        headerBgKey: STORAGE_HEADER_BG_COLOR_KEY
+        headerBgKey: STORAGE_HEADER_BG_COLOR_KEY,
+        chatBgKey: STORAGE_CHAT_BG_COLOR_KEY,
+        bubbleBgKey: STORAGE_BUBBLE_BG_COLOR_KEY
       }
     );
 
     expect(savedSettings.twitterInterval).toBe('15');
     expect(savedSettings.headerBg).toBe('#2563eb');
+    expect(savedSettings.chatBg).toBe('#eef2f6');
+    expect(savedSettings.bubbleBg).toBe('#f1f4f9');
     expect(savedSettings.cssHeaderBg).toBe('#2563eb');
+    expect(savedSettings.cssChatBg).toBe('#eef2f6');
+    expect(savedSettings.cssBubbleBg).toBe('#f1f4f9');
   });
 
   test('4. Cached feed rendering, Ticker highlighting & Mark All Read', async () => {
@@ -339,6 +358,8 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     expect(exportedJson.app).toBe('TheySay');
     expect(exportedJson.settings.gridPreset).toBe('2x2');
     expect(exportedJson.settings.headerBgColor).toBe('#2563eb');
+    expect(exportedJson.settings.chatBgColor).toBe('#eef2f6');
+    expect(exportedJson.settings.bubbleBgColor).toBe('#f1f4f9');
     expect(exportedJson.settings.appBadgeEnabled).toBe(true);
     expect(exportedJson.handles[0]).toBe('elonmusk');
 
@@ -591,9 +612,11 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     const box0 = await handle0.boundingBox();
     const box6 = await slot6.boundingBox();
 
-    await page.mouse.move(box0.x + box0.width / 2, box0.y + box0.height / 2);
+    const dragStartX0 = box0.x + box0.width - 24;
+    const dragStartY0 = box0.y + box0.height / 2;
+    await page.mouse.move(dragStartX0, dragStartY0);
     await page.mouse.down();
-    await page.mouse.move(box0.x + box0.width / 2, box0.y + box0.height / 2 + 12, { steps: 3 });
+    await page.mouse.move(dragStartX0, dragStartY0 + 12, { steps: 3 });
     await page.mouse.move(box6.x + box6.width / 2, box6.y + box6.height / 2, { steps: 15 });
     await page.waitForTimeout(300);
     await page.mouse.up();

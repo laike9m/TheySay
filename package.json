@@ -65,14 +65,11 @@
           "arch": [
             "arm64"
           ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64"
-          ]
         }
       ]
+    },
+    "dmg": {
+      "writeUpdateInfo": false
     },
     "win": {
       "icon": "assets/icon.png",
@@ -96,7 +93,8 @@
       "artifactName": "${productName}-Setup-${version}.${ext}",
       "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false
+      "allowToChangeInstallationDirectory": false,
+      "differentialPackage": false
     },
     "portable": {
       "artifactName": "${productName}-Portable-${version}.${ext}"

@@ -1,29 +1,51 @@
 # TheySay
 
-**TheySay** is a multi-column desktop dashboard for monitoring multiple Twitter / X accounts, Threads profiles, and Discord channels side by side in real time.  
-**TheySay** 是一款多栏桌面监控看板，支持在网格布局中同时实时追踪多个 Twitter / X 账号、Threads 账号与 Discord 频道。
+**All the voices you follow—on one screen, in real time.**  
+Stop jumping between endless browser tabs and apps. **TheySay** brings your favorite **X (Twitter)** accounts, **Threads** creators, and **Discord** channels together into a single, customizable desktop dashboard.
+
+**在一个界面，实时追踪你关注的所有声音。**  
+告别在无数浏览器标签页与软件之间来回切换。**TheySay** 将你关注的 **X (Twitter)** 博主、**Threads** 创作者与 **Discord** 频道汇聚在同一块桌面看板上，重要动态一目了然。
 
 ![TheySay Dashboard Screenshot](docs/screenshot.png)
 
-## Features / 功能介绍
+## Download / 下载安装
 
-- **Multi-Platform Grid Dashboard & Smart Handle Search**: Monitor Twitter / X accounts, Threads profiles, and Discord channels (public or private) side by side in a drag-and-drop, resizable grid. Enter any handle to automatically search both Twitter / X and Threads—if the handle exists on both platforms, a dropdown lets you choose which one to track; if it exists on only one, scraping starts automatically.  
-  **多平台网格看板与智能账号检索**：支持在可自由拖拽、调整尺寸的网格中并排监控多个 Twitter / X 博主、Threads 账号与 Discord 频道（含私有频道）。输入普通用户名时会自动检索 Twitter / X 与 Threads：若两边均有该账号则弹出下拉框供选择，若仅一侧存在则自动开始抓取。
+Download the latest installer for **macOS**, **Windows**, or **Linux** from **[GitHub Releases](https://github.com/laike9m/TheySay/releases/latest)**.
 
-- **Telegram-Style Feed & Popup Reader**: Read updates in clean chronological chat bubbles (web links automatically resolve and display their webpage title instead of raw URLs; consecutive Discord messages from the same sender within the same minute are automatically merged into a single bubble separated by `.` or `。` and shown in full without truncation, while Twitter and Threads posts remain individual bubbles with 100-character truncation; posts with images expand to full slot width with text on the left and compact height-matched thumbnails on the right; hovering over a card's feed area automatically hides its header bar to reveal any obscured content at the top, and moving to the top header area brings it right back), and click any post to expand the current section in the background while viewing the full text, quoted posts, or high-resolution images in a centered popup.  
-  **Telegram 风格对话流与弹窗阅读**：以清爽的对话气泡按时间流展示最新消息（消息中的网页长链接会自动解析并展示网页标题而非原始 URL；Discord 同一发送者在同一分钟内的连续消息会自动按中英文以 `。` 或 `.` 分隔合并为一条气泡并完整展示全文，而 Twitter 与 Threads 帖子保持独立气泡展示并按 100 字截断；含图消息自动占满卡片宽度，左侧显示文字、右侧显示与气泡等高的小缩略图；光标移入板块下方消息内容区时会自动隐藏顶部标题栏以展示被遮挡的内容，移至顶部标题栏区域即刻恢复显示），点击任意气泡即可在后台自动展开当前板块的同时居中弹出详情卡片阅读全文、引用内容或查看高清大图。
+前往 **[GitHub Releases](https://github.com/laike9m/TheySay/releases/latest)** 下载适用于 **macOS**、**Windows** 或 **Linux** 的最新安装包。
 
-- **Smart Stock & ETF Ticker Highlighting & Keyword / Multi-Word Phrase Filtering**: Automatically detects and highlights US stock, ETF, and crypto tickers (with or without `$`) with customizable badge colors and NASDAQ symbol sync, and lets you configure filter keywords or multi-word phrases (e.g. `"crypto giveaway"`, `"limited time offer"`) in Settings so matching posts across Twitter / X, Threads, and Discord are directly discarded and never displayed, counted as unread, or notified.  
-  **股票与 ETF 代码智能高亮及关键词 / 多词短语屏蔽过滤**：自动识别并高亮消息中的美股、ETF 及加密货币代码（无论是否带 `$` 前缀），支持自定义配色与 NASDAQ 词库在线同步；同时支持在设置中添加屏蔽关键词或包含空格的多词短语（如 `"crypto giveaway"`、`"limited time offer"`），命中任意关键词或短语的帖子将被直接丢弃不显示，也不计入未读角标或触发通知。
+## Highlights / 核心亮点
 
-- **Unread Tracking & Per-Channel Notifications**: Highlights new messages with per-slot unread count badges, keeps the OS app / Dock icon badge synchronized with the total unread count across active slots (can be toggled on or off in Settings, and automatically clears when all messages are read), and lets you toggle desktop notifications independently for each account or channel.  
-  **未读提醒与按频道独立通知**：自动高亮新消息并显示栏目未读计数角标，同时支持在设置中控制是否将系统 Dock / 任务栏应用图标角标与当前看板的实际未读总数实时同步（全部已读或关闭该选项时自动清零消除），并支持为每个账号或频道单独开启桌面系统通知。
+- **One Screen for Every Account (`1×1` to `4×4` Layouts)**: Watch real-time updates from multiple followed accounts side by side in a single view. Choose any grid layout from `1×1` up to `4×4`, freely drag and resize cards to spotlight key feeds, and type any username to quickly add accounts across X and Threads—or paste a link to follow any public or private Discord channel.
 
-- **Custom Auto-Refresh, Login Expiration Alerts, Discord Session Self-Healing & Profile Backup**: Set independent background refresh intervals for Twitter, Threads, and Discord, receive prominent persistent top-banner and per-slot alerts when a previously logged-in session expires (strictly distinguished from initial unlogged-in use) with one-click re-login and instant resume, keep Discord sessions persistently protected against background WebView token eviction with automatic token backup and self-healing recovery, and export or import your entire layout, settings, and followed list as a `.json` profile anytime.  
-  **独立自动刷新、登录过期强提示、Discord 会话防掉线自愈与 Profile 备份**：支持分别为 Twitter、Threads 与 Discord 设置后台刷新频率；当已登录过的平台会话过期时，在页面顶部及对应卡片内展示持久醒目的过期警告与一键重登入口（严格区分初次使用的未登录状态，重登后提示自动消失并立即恢复抓取）；内置 Discord 会话防误删保护与 Token 持久化自愈恢复机制；同时可将全部排版、设置与关注列表一键导出/导入为 `.json` 备份文件。
+  **一屏纵览多账号动态（支持 `1×1` 至 `4×4` 布局）**：在一个界面内同时查看多个关注账号的实时更新。支持从 `1×1` 到 `4×4` 的灵活网格布局，卡片可自由拖拽与调整大小；直接输入用户名即可添加 X 或 Threads 账号，粘贴链接即可追踪任意公开或私有 Discord 频道。
 
-- **Bilingual Interface (English & Chinese)**: Automatically adapts to your system language (defaults to English unless your system is set to Simplified or Traditional Chinese), with instant language switching in Settings.  
-  **中英双语界面**：自动根据系统语言切换界面语言（系统为简/繁体中文时默认显示中文，其他语言环境默认显示英文），并支持在设置中随时手动切换。
+- **Distraction-Free Chat-Style Reading**: Updates appear in clean, chronological chat bubbles instead of cluttered social media timelines. Web links automatically display readable page titles, images sit neatly beside the text, and clicking any message opens the full post, quoted thread, or high-resolution media in a focused popup reader.
 
-- **Mantine UI + GridStack Desktop Architecture**: Built with Electron, React 19, [Mantine v8](https://mantine.dev/), Tabler Icons, and GridStack—combining a collapsible Mantine left sidebar, a TradingView-inspired borderless multi-panel layout with inline legend headers, customizable header, chat background, and message bubble colors, a unified dark/light theme (`Paper`, `Button`, `ActionIcon`, `CloseButton`, `Badge`, `ThemeIcon`, `Avatar`, `TextInput`, `NativeSelect`, `Tooltip`, and `Notifications`), slot cards, timeline bubbles, and popup reader modals with smooth drag-and-drop grid resizing and background Twitter widget pre-rendering.  
-  **Mantine UI + GridStack 桌面架构**：基于 Electron、React 19、[Mantine v8](https://mantine.dev/)、Tabler Icons 与 GridStack 构建，提供支持一键展开/收起的可折叠 Mantine 左侧导航栏、TradingView 风格的无边框内联图例标题栏与多面板网格布局、可自由定制的标题栏/聊天背景/消息气泡配色，并将统一风格的 Mantine 原生组件体系与深浅色主题（`Paper`、`Button`、`ActionIcon`、`CloseButton`、`Badge`、`ThemeIcon`、`Avatar`、`TextInput`、`NativeSelect`、`Tooltip` 与 `Notifications`）、监控槽位卡片、消息气泡流及详情弹窗组件同丝滑的网格拖拽缩放与 Twitter 嵌入卡片后台预渲染深度融合。
+  **清爽的对话流阅读体验**：告别杂乱的信息流广告与算法干扰，所有动态均以清爽的时间流对话气泡呈现。网页链接自动显示文章标题，配图与文字紧凑排布；点击任意气泡即可弹出阅读卡片，随时查看完整长文、引用内容或高清大图。
+
+- **Built for Market & Tech Watchers**: Automatically recognizes and highlights US stock, ETF, and crypto tickers (such as `$NVDA`, `$TSLA`, `$BTC`) with customizable badge colors so market-moving mentions stand out at a glance. Want less noise? Add mute keywords or phrases in Settings to hide unwanted topics automatically.
+
+  **为市场与科技追踪打造**：自动识别并高亮消息中的美股、ETF 与加密货币代码（如 `$NVDA`、`$TSLA`、`$BTC`），支持自定义高亮配色，让你一眼捕捉关键标的；同时支持在设置中添加屏蔽词或短语，自动过滤噪音信息。
+
+- **Never Miss an Update**: Unread counters on each card and on your system Dock / taskbar icon show exactly where new posts have arrived. Enable desktop notifications only for your highest-priority accounts while keeping the rest silent, or clear everything with a single click.
+
+  **重要消息不再遗漏**：每张卡片与系统 Dock / 任务栏图标均会实时显示未读消息数量。你可以只为最核心的账号开启桌面弹窗通知、将其他频道保持静默，也可以随时一键全部标为已读。
+
+- **Personalized & Portable**: Switch effortlessly between Light and Dark themes, customize card and bubble colors, set independent auto-refresh intervals for each platform, and export or import your entire dashboard layout and followed list as a `.json` backup file anytime.
+
+  **个性化外观与一键备份**：支持浅色与深色模式一键切换，可自由定制卡片背景与气泡配色，并为不同平台单独设置自动刷新频率；支持将所有关注列表、排版与偏好设置一键导出为 `.json` 文件，跨设备迁移轻而易举。
+
+## Quick Start / 快速上手
+
+1. **Connect Your Accounts**: Use the left sidebar to sign in to X, Threads, or Discord (your session stays local on your device).
+
+   **登录平台账号**：在左侧边栏点击对应图标登录 X、Threads 或 Discord（登录状态仅保存在本地设备）。
+
+2. **Set Up Your Grid**: Pick a layout from `1×1` to `4×4` in the sidebar, then click any card header to enter an `@handle` or Discord channel link.
+
+   **配置监控面板**：在左侧切换 `1×1` 至 `4×4` 网格布局，点击任意卡片顶部输入 `@用户名` 或粘贴 Discord 频道链接。
+
+3. **Customize Your Workflow**: Click the bell icon on any card to toggle desktop notifications, or open **Settings** to adjust refresh intervals, ticker colors, language (`English` / `中文`), and keyword filters.
+
+   **定制专属工作流**：点击卡片右上角铃铛图标单独开启桌面通知，或打开 **设置** 调整刷新频率、股票代码配色、界面语言（`中文` / `English`）与屏蔽词。

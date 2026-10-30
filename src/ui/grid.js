@@ -341,6 +341,21 @@ function clearHoverTimers() {
   hoverEffectState.pendingHeaderSlotIndex = null;
 }
 
+function isAnyOverlayOpen() {
+  if (typeof document === 'undefined') return false;
+  const postPopup = document.getElementById('tweet-popup-overlay');
+  if (postPopup && !postPopup.classList.contains('is-closed')) return true;
+  const settingsModal = document.getElementById('settings-modal-overlay');
+  if (settingsModal && !settingsModal.classList.contains('is-closed')) return true;
+  return false;
+}
+
+function isSettingsOverlayOpen() {
+  if (typeof document === 'undefined') return false;
+  const settingsModal = document.getElementById('settings-modal-overlay');
+  return Boolean(settingsModal && !settingsModal.classList.contains('is-closed'));
+}
+
 function restartSectionStayTimer(slots) {
   if (hoverEffectState.stayTimer) {
     clearTimeout(hoverEffectState.stayTimer);
@@ -352,7 +367,11 @@ function restartSectionStayTimer(slots) {
   hoverEffectState.stayTimer = setTimeout(() => {
     hoverEffectState.stayTimer = null;
     if (hoverEffectState.expandedSlotIndex !== null) {
-      restoreColumnHoverEffect(slots);
+      if (isAnyOverlayOpen()) {
+        restartSectionStayTimer(slots);
+      } else {
+        restoreColumnHoverEffect(slots);
+      }
     }
   }, SECTION_STAY_RESTORE_MS);
 }
@@ -526,14 +545,6 @@ function expandSlotInColumn(targetSlot, slots, getGridDimensions) {
 function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimensions }) {
   if (!gridContainer || !Array.isArray(slots)) return;
 
-  const isAnyOverlayOpen = () => {
-    const postPopup = document.getElementById('tweet-popup-overlay');
-    if (postPopup && !postPopup.classList.contains('is-closed')) return true;
-    const settingsModal = document.getElementById('settings-modal-overlay');
-    if (settingsModal && !settingsModal.classList.contains('is-closed')) return true;
-    return false;
-  };
-
   gridContainer.addEventListener('mouseleave', () => {
     clearHeaderHiddenState(slots);
     if (hoverEffectState.headerTimer) {
@@ -549,32 +560,41 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
       return;
     }
     const target = e.target;
-    const inBubbleOrControl = Boolean(
+    const inIgnoredControl = Boolean(
       target &&
       typeof target.closest === 'function' &&
-      target.closest('.im-bubble, .im-date-pill, .slot-header, a, button, input, textarea, select, label')
+      target.closest('.im-date-pill, .slot-header, .slot-size-menu, a, button, input, textarea, select, label')
     );
     hoverEffectState.pointerDownInfo = {
       x: e.clientX,
       y: e.clientY,
-      inBubbleOrControl,
+      inIgnoredControl,
+      wasOverlayOpen: isAnyOverlayOpen(),
       didDragOrResize: false
     };
   }, true);
 
-  // Clicking on blank space (outside message bubbles) or resize handle arrows in a section triggers height expansion
+  // Clicking on a post bubble, blank space, or resize handle arrows in a section triggers height expansion
   gridContainer.addEventListener('click', (e) => {
     const downInfo = hoverEffectState.pointerDownInfo;
     hoverEffectState.pointerDownInfo = null;
 
-    if (hoverEffectState.isInteractingWithGrid || isAnyOverlayOpen()) {
+    const target = e.target;
+    if (!target || typeof target.closest !== 'function') return;
+
+    const inBubble = Boolean(target.closest('.im-bubble'));
+    const overlayWasOpen = downInfo
+      ? downInfo.wasOverlayOpen
+      : (isSettingsOverlayOpen() || (!inBubble && isAnyOverlayOpen()));
+
+    if (hoverEffectState.isInteractingWithGrid || overlayWasOpen) {
       return;
     }
     if (e.button && e.button !== 0) {
       return;
     }
     if (downInfo) {
-      if (downInfo.inBubbleOrControl || downInfo.didDragOrResize) return;
+      if (downInfo.inIgnoredControl || downInfo.didDragOrResize) return;
       if (Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 6) return;
     }
     if (typeof window.getSelection === 'function') {
@@ -582,11 +602,8 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
       if (sel && String(sel).trim().length > 0) return;
     }
 
-    const target = e.target;
-    if (!target || typeof target.closest !== 'function') return;
-
-    // Ignore clicks on message bubbles, date pills, headers, or interactive controls
-    if (target.closest('.im-bubble, .im-date-pill, .slot-header, .slot-size-menu, a, button, input, textarea, select, label')) {
+    // Ignore clicks on date pills, headers, or interactive controls
+    if (target.closest('.im-date-pill, .slot-header, .slot-size-menu, a, button, input, textarea, select, label')) {
       return;
     }
 
@@ -594,7 +611,7 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     const resizeHandleEl = target.closest('.ui-resizable-handle');
     if (!contentEl && !resizeHandleEl) return;
 
-    if (contentEl) {
+    if (contentEl && !inBubble) {
       // Ignore clicks on the scrollbar area of the content container
       const contentRect = contentEl.getBoundingClientRect();
       if (
@@ -612,7 +629,7 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
     if (!Number.isFinite(slotIndex) || !slots[slotIndex]) return;
     const slot = slots[slotIndex];
 
-    if (hoverEffectState.expandedSlotIndex === slot.index) {
+    if (!inBubble && hoverEffectState.expandedSlotIndex === slot.index) {
       restoreColumnHoverEffect(slots);
       return;
     }

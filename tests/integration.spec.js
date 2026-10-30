@@ -1270,15 +1270,19 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
 
     const chineseText = await mergedChineseBubble.locator('.im-text-content').textContent();
     expect(chineseText).toBe(
-      'add了 igv + panw put。igv 110左右是上周五大阴线的起点。这里今天拉回去就被抛售是很bearish的。做空，盈亏比很高，拉过去我们就止损。很多 igv 的估值比半导体还高，而且当前软件板块整体面临非常明显的估值压缩压力，长线资金也在持续撤出高估值SaaS标的，反弹就是很好的加仓做空机会'
+      'add了 igv + panw put。 igv 110左右是上周五大阴线的起点。这里今天拉回去就被抛售是很bearish的。做空，盈亏比很高，拉过去我们就止损。很多 igv 的估值比半导体还高，而且当前软件板块整体面临非常明显的估值压缩压力，长线资金也在持续撤出高估值SaaS标的，反弹就是很好的加仓做空机会'
     );
 
     // Tickers (igv x3, panw x1) are highlighted inside the merged Chinese bubble
     await expect(mergedChineseBubble.locator('.ticker-highlight')).toHaveCount(4);
 
-    // Clicking the merged bubble marks all 5 underlying messages as read and opens popup with full merged text
+    // Clicking the merged bubble marks all 5 underlying messages as read, expands the section in the background, and opens popup with full merged text
+    const item0 = page.locator('.grid-stack-item[data-slot-index="0"]');
+    const squeezedItems = page.locator('.grid-stack-item.is-hover-squeezed');
     await mergedChineseBubble.click();
     await expect(page.locator('#slot-unread-badge-0')).toBeHidden();
+    await expect(item0).toHaveClass(/is-hover-expanded/);
+    await expect(squeezedItems).toHaveCount(1);
     const popupOverlay = page.locator('#tweet-popup-overlay');
     await expect(popupOverlay).not.toHaveClass(/is-closed/);
     await expect(popupOverlay.locator('.discord-embed-slot .discord-popup-card')).toHaveClass(
@@ -1287,6 +1291,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await expect(popupOverlay.locator('.discord-popup-text')).toHaveText(chineseText);
     await page.keyboard.press('Escape');
     await expect(popupOverlay).toHaveClass(/is-closed/);
+    await expect(item0).toHaveClass(/is-hover-expanded/);
 
     // Second Discord bubble: 2 English messages in the same minute merge into 1 bubble separated by ". " and are not truncated
     const mergedEnglishBubble = discordBubbles.nth(1);
@@ -1314,6 +1319,16 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     const header0 = card0.locator('.slot-header');
     const content0 = page.locator('#slot-content-0');
     const header1 = page.locator('#slot-card-1 .slot-header');
+
+    // Move cursor onto slot 0's header first to restore any background section expansion from the previous test
+    const initialHeaderBox = await header0.boundingBox();
+    await page.mouse.move(
+      initialHeaderBox.x + initialHeaderBox.width / 2,
+      initialHeaderBox.y + initialHeaderBox.height / 2
+    );
+    await expect(page.locator('.grid-stack-item[data-slot-index="0"]')).not.toHaveClass(
+      /is-hover-expanded/
+    );
 
     // Verify content container spans full card height behind overlay header
     const geometry = await page.evaluate(() => {
@@ -1717,6 +1732,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
               'https://en.wikipedia.org/wiki/Apple_(company)': 'Apple Inc. - Wikipedia'
             }
           }),
+          spacedMid: formatTextWithTickers('我intc的 call 废了'),
+          spacedStart: formatTextWithTickers('amzn也跟着去了'),
+          alreadySpaced: formatTextWithTickers('哈哈 intc 看不明白了'),
           canonicalHit,
           normalizedHex: normalizeHexColor('1E293B'),
           darkPalette: resolveHeaderPalette('#1e293b'),
@@ -1731,6 +1749,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       expect(linkifyCheck.html).toContain('<span class="ticker-highlight">$NVDA</span>');
       // 'coin' inside bare domain 'coin.market' must not be highlighted as a ticker
       expect(linkifyCheck.html).not.toContain('<span class="ticker-highlight">coin</span>');
+      expect(linkifyCheck.spacedMid).toBe('我 <span class="ticker-highlight">intc</span> 的 call 废了');
+      expect(linkifyCheck.spacedStart).toBe('<span class="ticker-highlight">amzn</span> 也跟着去了');
+      expect(linkifyCheck.alreadySpaced).toBe('哈哈 <span class="ticker-highlight">intc</span> 看不明白了');
       expect(linkifyCheck.canonicalHit).toBe('Normalized Report Title');
       expect(linkifyCheck.normalizedHex).toBe('#1e293b');
       expect(linkifyCheck.darkPalette.text).toBe('#f8fafc');
@@ -1783,6 +1804,9 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
   });
 
   test('16. Filter Keywords: multi-word phrases & single keywords directly discard matching posts', async () => {
+    // Move cursor outside slot 0 so hovering does not auto-mark newly rendered bubbles as read
+    await page.mouse.move(10, 10);
+
     // Seed slot 0 with 4 posts:
     // 1) Normal post
     // 2) Post matching multi-word phrase "crypto giveaway" (with extra whitespace/newline)

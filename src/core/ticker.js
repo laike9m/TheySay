@@ -575,6 +575,10 @@ function formatTextWithTickers(rawText, contextText, options = {}) {
       result += escapeHtml(str.slice(lastIndex, token.index));
     }
 
+    const isTicker =
+      token.type === 'cashtag' ||
+      (token.type === 'word' && isWordTicker(token.raw, str, token.index, hasTradingContext));
+
     if (token.type === 'url') {
       const { cleanUrl, href } = token;
       const resolvedTitle = getCachedUrlTitle(cleanUrl, extraTitlesMap);
@@ -584,10 +588,12 @@ function formatTextWithTickers(rawText, contextText, options = {}) {
       } else {
         result += `<span class="im-inline-link" data-url="${escapeHtml(href)}" data-raw-url="${escapeHtml(cleanUrl)}" title="${escapeHtml(href)}">${escapeHtml(displayLabel)}</span>`;
       }
-    } else if (token.type === 'cashtag') {
-      result += `<span class="ticker-highlight">${escapeHtml(token.raw)}</span>`;
-    } else if (token.type === 'word' && isWordTicker(token.raw, str, token.index, hasTradingContext)) {
-      result += `<span class="ticker-highlight">${escapeHtml(token.raw)}</span>`;
+    } else if (isTicker) {
+      const needLeadingSpace =
+        token.index > 0 && !/\s/.test(str[token.index - 1]) && !/\s$/.test(result);
+      const needTrailingSpace =
+        token.lastIndex < str.length && !/\s/.test(str[token.lastIndex]);
+      result += `${needLeadingSpace ? ' ' : ''}<span class="ticker-highlight">${escapeHtml(token.raw)}</span>${needTrailingSpace ? ' ' : ''}`;
     } else {
       result += escapeHtml(token.raw);
     }

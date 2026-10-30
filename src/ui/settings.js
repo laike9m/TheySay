@@ -14,7 +14,8 @@ const {
   DEFAULT_CHAT_BG_COLOR,
   DEFAULT_DARK_CHAT_BG_COLOR,
   DEFAULT_BUBBLE_BG_COLOR,
-  DEFAULT_DARK_BUBBLE_BG_COLOR
+  DEFAULT_DARK_BUBBLE_BG_COLOR,
+  DEFAULT_AUTO_CHECK_UPDATES
 } = require('../core/constants');
 const {
   getTwitterIntervalMinutes,
@@ -31,6 +32,8 @@ const {
   saveDiscordSoundEnabled,
   getAppBadgeEnabled,
   saveAppBadgeEnabled,
+  getAutoCheckUpdates,
+  saveAutoCheckUpdates,
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,
@@ -126,12 +129,27 @@ const BOOL_SELECT_CONTROLS = [
     get: getAppBadgeEnabled,
     save: saveAppBadgeEnabled,
     defaultVal: DEFAULT_APP_BADGE_ENABLED
+  },
+  {
+    key: 'autoCheckUpdates',
+    id: 'setting-auto-update',
+    get: getAutoCheckUpdates,
+    save: saveAutoCheckUpdates,
+    defaultVal: DEFAULT_AUTO_CHECK_UPDATES
   }
 ];
 
 let isInitialized = false;
 let onLanguageChangeCallback = null;
 let onSaveCallback = null;
+let autoUpdateIntervalId = null;
+let currentUpdateState = {
+  state: 'idle',
+  currentVersion: '1.0.0',
+  latestVersion: null,
+  updateAvailable: false,
+  progress: 0
+};
 
 function notifySaved() {
   if (typeof onSaveCallback === 'function') {
@@ -144,6 +162,7 @@ function notifySaved() {
       filterKeywords: getFilterKeywords(),
       discordSoundEnabled: getDiscordSoundEnabled(),
       appBadgeEnabled: getAppBadgeEnabled(),
+      autoCheckUpdates: getAutoCheckUpdates(),
       headerBgColor: getHeaderBgColor(),
       chatBgColor: getChatBgColor(),
       bubbleBgColor: getBubbleBgColor(),
@@ -347,12 +366,168 @@ function setTickerColorInputs(fgColor, bgColor) {
   updateTickerPreviewUI(fg, bg);
 }
 
+function setMantineBtnLabel(btnEl, text) {
+  if (!btnEl) return;
+  const labelEl =
+    btnEl.querySelector && btnEl.querySelector('.mantine-Button-label');
+  if (labelEl) labelEl.textContent = text;
+  else btnEl.textContent = text;
+}
+
 function refreshTickerStatsLabel() {
   const statsEl = document.getElementById('setting-ticker-stats-text');
   if (!statsEl) return;
   const stats = getTickerStats();
   const countStr = stats && stats.totalCount ? stats.totalCount.toLocaleString() : '9,600+';
   statsEl.textContent = t('settings.tickerStats', { count: countStr });
+}
+
+function refreshUpdateStatusUI(nextState = null) {
+  if (nextState && typeof nextState === 'object') {
+    currentUpdateState = {
+      ...currentUpdateState,
+      ...nextState
+    };
+  }
+
+  const statusEl = document.getElementById('setting-update-status-text');
+  const btnCheck = document.getElementById('btn-check-updates');
+  const btnSettings = document.getElementById('btn-settings');
+
+  const curVer = currentUpdateState.currentVersion || '1.0.0';
+  const latestVer = currentUpdateState.latestVersion || curVer;
+  const state = currentUpdateState.state || 'idle';
+  const hasUpdate = !!(currentUpdateState.updateAvailable || state === 'downloaded');
+
+  if (btnSettings) {
+    btnSettings.classList.toggle('has-update-badge', hasUpdate);
+  }
+
+  if (state === 'checking') {
+    if (statusEl) statusEl.textContent = t('settings.autoUpdateSubtitle', { version: curVer });
+    if (btnCheck) {
+      btnCheck.disabled = true;
+      btnCheck.classList.remove('is-update-available', 'is-update-ready');
+      setMantineBtnLabel(btnCheck, t('settings.checkingUpdatesBtn'));
+    }
+    return;
+  }
+
+  if (state === 'downloading') {
+    const rawPct =
+      typeof currentUpdateState.percent === 'number'
+        ? currentUpdateState.percent
+        : currentUpdateState.progress || 0;
+    const pct = Math.max(0, Math.min(100, Math.round(rawPct)));
+    if (statusEl) {
+      statusEl.textContent = t('settings.autoUpdateDownloadingSubtitle', {
+        version: latestVer,
+        percent: pct
+      });
+    }
+    if (btnCheck) {
+      btnCheck.disabled = true;
+      btnCheck.classList.add('is-update-available');
+      btnCheck.classList.remove('is-update-ready');
+      setMantineBtnLabel(btnCheck, t('settings.downloadingUpdateBtn', { percent: pct }));
+    }
+    return;
+  }
+
+  if (state === 'downloaded') {
+    if (statusEl) {
+      statusEl.textContent = t('settings.autoUpdateReadySubtitle', { version: latestVer });
+    }
+    if (btnCheck) {
+      btnCheck.disabled = false;
+      btnCheck.classList.remove('is-update-available');
+      btnCheck.classList.add('is-update-ready');
+      setMantineBtnLabel(btnCheck, t('settings.installUpdateBtn', { version: latestVer }));
+    }
+    return;
+  }
+
+  if (currentUpdateState.updateAvailable || state === 'available') {
+    if (statusEl) {
+      statusEl.textContent = t('settings.autoUpdateAvailableSubtitle', {
+        latest: latestVer,
+        current: curVer
+      });
+    }
+    if (btnCheck) {
+      btnCheck.disabled = false;
+      btnCheck.classList.add('is-update-available');
+      btnCheck.classList.remove('is-update-ready');
+      setMantineBtnLabel(btnCheck, t('settings.downloadUpdateBtn', { version: latestVer }));
+    }
+    return;
+  }
+
+  if (state === 'up-to-date') {
+    if (statusEl) {
+      statusEl.textContent = t('settings.autoUpdateUpToDateSubtitle', { version: curVer });
+    }
+    if (btnCheck) {
+      btnCheck.disabled = false;
+      btnCheck.classList.remove('is-update-available', 'is-update-ready');
+      setMantineBtnLabel(btnCheck, t('settings.checkUpdatesBtn'));
+    }
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = t('settings.autoUpdateSubtitle', { version: curVer });
+  }
+  if (btnCheck) {
+    btnCheck.disabled = false;
+    btnCheck.classList.remove('is-update-available', 'is-update-ready');
+    setMantineBtnLabel(btnCheck, t('settings.checkUpdatesBtn'));
+  }
+}
+
+async function runSilentUpdateCheck() {
+  if (!ipcRenderer || !getAutoCheckUpdates()) return;
+  try {
+    const res = await ipcRenderer.invoke('check-for-updates', { silent: true });
+    if (res && res.ok) {
+      refreshUpdateStatusUI(res);
+      if (res.updateAvailable && res.latestVersion) {
+        showToast(
+          t('settings.toastUpdateAvailable', { version: res.latestVersion }),
+          'info',
+          4500
+        );
+      }
+    }
+  } catch (e) {
+    // Ignore background update check network errors
+  }
+}
+
+function startAutoUpdateCheck() {
+  if (!ipcRenderer) return;
+  ipcRenderer
+    .invoke('get-update-state')
+    .then((state) => {
+      if (state && typeof state === 'object') {
+        refreshUpdateStatusUI(state);
+      }
+    })
+    .catch(() => {});
+
+  if (autoUpdateIntervalId) {
+    clearInterval(autoUpdateIntervalId);
+  }
+  // Check periodically every 4 hours when autoCheckUpdates is enabled
+  autoUpdateIntervalId = setInterval(() => {
+    runSilentUpdateCheck();
+  }, 4 * 60 * 60 * 1000);
+
+  if (process.env.THEYSAY_BACKGROUND_TEST !== '1') {
+    setTimeout(() => {
+      runSilentUpdateCheck();
+    }, 3500);
+  }
 }
 
 function loadCurrentSettings() {
@@ -383,6 +558,7 @@ function loadCurrentSettings() {
   setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
   setTickerColorInputs(getTickerFgColor(), getTickerBgColor());
   refreshTickerStatsLabel();
+  refreshUpdateStatusUI();
 }
 
 function openSettingsModal() {
@@ -528,6 +704,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   const btnReset = document.getElementById('btn-settings-reset');
   const languageSelect = document.getElementById('setting-language');
   const btnSyncTickers = document.getElementById('btn-sync-tickers');
+  const btnCheckUpdates = document.getElementById('btn-check-updates');
   const btnExportProfile = document.getElementById('btn-export-profile');
   const btnImportProfile = document.getElementById('btn-import-profile');
 
@@ -536,8 +713,117 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       const nextLang = languageSelect.value === 'zh' ? 'zh' : 'en';
       saveLanguage(nextLang);
       refreshTickerStatsLabel();
+      refreshUpdateStatusUI();
       if (typeof onLanguageChangeCallback === 'function') {
         onLanguageChangeCallback(nextLang);
+      }
+    });
+  }
+
+  if (btnCheckUpdates && ipcRenderer) {
+    btnCheckUpdates.addEventListener('click', async () => {
+      if (
+        btnCheckUpdates.disabled ||
+        currentUpdateState.state === 'checking' ||
+        currentUpdateState.state === 'downloading'
+      ) {
+        return;
+      }
+
+      if (currentUpdateState.state === 'downloaded') {
+        const targetVer =
+          currentUpdateState.latestVersion || currentUpdateState.currentVersion || '1.0.0';
+        showToast(t('settings.toastUpdateInstalling', { version: targetVer }), 'info', 3000);
+        try {
+          const res = await ipcRenderer.invoke('apply-downloaded-update');
+          if (res && !res.ok && res.error) {
+            showToast(t('settings.toastUpdateError', { error: res.error }), 'error', 3500);
+          }
+        } catch (err) {
+          showToast(
+            t('settings.toastUpdateError', { error: err.message || String(err) }),
+            'error',
+            3500
+          );
+        }
+        return;
+      }
+
+      if (currentUpdateState.updateAvailable || currentUpdateState.state === 'available') {
+        refreshUpdateStatusUI({ state: 'downloading', progress: 0 });
+        try {
+          const res = await ipcRenderer.invoke('download-update');
+          if (res && res.ok) {
+            refreshUpdateStatusUI({
+              state: 'downloaded',
+              latestVersion: res.version || currentUpdateState.latestVersion,
+              progress: 100
+            });
+            showToast(
+              t('settings.toastUpdateDownloaded', {
+                version: res.version || currentUpdateState.latestVersion || '1.0.0'
+              }),
+              'success',
+              3500
+            );
+          } else {
+            refreshUpdateStatusUI({ state: 'available' });
+            showToast(
+              t('settings.toastUpdateError', {
+                error: (res && res.error) || t('settings.networkErrorFallback')
+              }),
+              'error',
+              3500
+            );
+          }
+        } catch (err) {
+          refreshUpdateStatusUI({ state: 'available' });
+          showToast(
+            t('settings.toastUpdateError', { error: err.message || String(err) }),
+            'error',
+            3500
+          );
+        }
+        return;
+      }
+
+      refreshUpdateStatusUI({ state: 'checking' });
+      try {
+        const res = await ipcRenderer.invoke('check-for-updates', { silent: false });
+        if (res && res.ok) {
+          refreshUpdateStatusUI(res);
+          if (res.updateAvailable) {
+            showToast(
+              t('settings.toastUpdateAvailable', { version: res.latestVersion }),
+              'info',
+              4000
+            );
+          } else {
+            showToast(
+              t('settings.toastUpToDate', {
+                version: res.currentVersion || currentUpdateState.currentVersion
+              }),
+              'success',
+              2500
+            );
+          }
+        } else {
+          refreshUpdateStatusUI(res || { state: 'error' });
+          showToast(
+            t('settings.toastUpdateError', {
+              error: (res && res.error) || t('settings.networkErrorFallback')
+            }),
+            'warning',
+            3000
+          );
+        }
+      } catch (err) {
+        refreshUpdateStatusUI({ state: 'error' });
+        showToast(
+          t('settings.toastUpdateError', { error: err.message || String(err) }),
+          'warning',
+          3000
+        );
       }
     });
   }
@@ -728,17 +1014,10 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
   });
 
   if (btnSyncTickers) {
-    const setSyncBtnLabel = (text) => {
-      const labelEl =
-        btnSyncTickers.querySelector &&
-        btnSyncTickers.querySelector('.mantine-Button-label');
-      if (labelEl) labelEl.textContent = text;
-      else btnSyncTickers.textContent = text;
-    };
     btnSyncTickers.addEventListener('click', async () => {
       if (btnSyncTickers.disabled) return;
       btnSyncTickers.disabled = true;
-      setSyncBtnLabel(t('settings.syncing'));
+      setMantineBtnLabel(btnSyncTickers, t('settings.syncing'));
       try {
         const res = await syncOnlineTickers({ force: true });
         refreshTickerStatsLabel();
@@ -760,7 +1039,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         }
       } finally {
         btnSyncTickers.disabled = false;
-        setSyncBtnLabel(t('settings.syncOnlineBtn'));
+        setMantineBtnLabel(btnSyncTickers, t('settings.syncOnlineBtn'));
       }
     });
   }
@@ -818,6 +1097,7 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
         onLanguageChangeCallback(sysLang);
       }
       refreshTickerStatsLabel();
+      refreshUpdateStatusUI();
       notifySaved();
       showToast(t('settings.toastResetDefaults'), 'success', 2000);
     });
@@ -838,7 +1118,14 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
     ipcRenderer.on('global-escape', () => {
       if (isSettingsModalOpen()) closeSettingsModal();
     });
+    ipcRenderer.on('update-status', (event, status) => {
+      if (status && typeof status === 'object') {
+        refreshUpdateStatusUI(status);
+      }
+    });
   }
+
+  refreshUpdateStatusUI();
 }
 
 module.exports = {
@@ -848,5 +1135,7 @@ module.exports = {
   isSettingsModalOpen,
   loadCurrentSettings,
   getFormSettingsOverrides,
-  refreshTickerStatsLabel
+  refreshTickerStatsLabel,
+  refreshUpdateStatusUI,
+  startAutoUpdateCheck
 };

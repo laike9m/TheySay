@@ -24,10 +24,10 @@ let popupRenderSeq = 0;
 const elementRoots = new WeakMap();
 
 function getCurrentScheme() {
-  if (typeof document === 'undefined') return 'dark';
-  return document.documentElement.getAttribute('data-theme') === 'light'
-    ? 'light'
-    : 'dark';
+  if (typeof document === 'undefined') return 'light';
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+    ? 'dark'
+    : 'light';
 }
 
 function getOrCreateRoot(el) {

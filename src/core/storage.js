@@ -35,12 +35,14 @@ const {
   STORAGE_BUBBLE_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
   STORAGE_FILTER_KEYWORDS_KEY,
+  STORAGE_AUTO_CHECK_UPDATES_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_THREADS_INTERVAL_MINUTES,
   DEFAULT_SHOW_MEMBER_ONLY,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_APP_BADGE_ENABLED,
+  DEFAULT_AUTO_CHECK_UPDATES,
   DEFAULT_SLOT_MUTED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
@@ -448,7 +450,7 @@ function saveGridLayout(grid) {
 const getStoredPreset = () => readStorage(STORAGE_PRESET_KEY) || '2x2';
 const saveStoredPreset = (preset) => writeStorage(STORAGE_PRESET_KEY, preset);
 
-const getStoredTheme = () => readStorage(STORAGE_THEME_KEY) || 'dark';
+const getStoredTheme = () => readStorage(STORAGE_THEME_KEY) || 'light';
 const saveStoredTheme = (theme) => writeStorage(STORAGE_THEME_KEY, theme);
 
 const getLastFetchTime = () => readStorage(STORAGE_LAST_FETCH_KEY);
@@ -544,6 +546,10 @@ const [getDiscordSoundEnabled, saveDiscordSoundEnabled] = createBoolStorage(
 const [getAppBadgeEnabled, saveAppBadgeEnabled] = createBoolStorage(
   STORAGE_APP_BADGE_ENABLED_KEY,
   DEFAULT_APP_BADGE_ENABLED
+);
+const [getAutoCheckUpdates, saveAutoCheckUpdates] = createBoolStorage(
+  STORAGE_AUTO_CHECK_UPDATES_KEY,
+  DEFAULT_AUTO_CHECK_UPDATES
 );
 
 const [getTickerFgColor, saveTickerFgColor] = createColorStorage(
@@ -809,6 +815,9 @@ function buildProfileData({ slots = [], grid = null, settingsOverrides = {} } = 
     appBadgeEnabled: settingsOverrides.appBadgeEnabled !== undefined
       ? settingsOverrides.appBadgeEnabled
       : getAppBadgeEnabled(),
+    autoCheckUpdates: settingsOverrides.autoCheckUpdates !== undefined
+      ? settingsOverrides.autoCheckUpdates
+      : getAutoCheckUpdates(),
     headerBgColor: settingsOverrides.headerBgColor !== undefined
       ? settingsOverrides.headerBgColor
       : getHeaderBgColor(),
@@ -904,6 +913,8 @@ module.exports = {
   saveDiscordSoundEnabled,
   getAppBadgeEnabled,
   saveAppBadgeEnabled,
+  getAutoCheckUpdates,
+  saveAutoCheckUpdates,
   getTickerFgColor,
   saveTickerFgColor,
   getTickerBgColor,

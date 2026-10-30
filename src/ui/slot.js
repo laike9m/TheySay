@@ -563,10 +563,11 @@ function expandBubbleLastLine(bubble) {
   }
 
   // If there are no more newlines after BASE_PREVIEW_CHARS, check if the entire remaining
-  // text fits on this last line without needing an ellipsis at all.
+  // text fits on this last line without needing an ellipsis at all, or if the remaining
+  // tail is so short (<= 10 chars) that replacing it with "..." is pointless.
   if (maxLineIdx === chars.length) {
     textContentEl.innerHTML = formatTextWithTickers(effectiveText, effectiveText, { linkTitles });
-    if (fitsOnSameLastLine()) {
+    if (chars.length - BASE_PREVIEW_CHARS <= 10 || fitsOnSameLastLine()) {
       return;
     }
   }

@@ -46,7 +46,7 @@ function getLoadingEl() {
 }
 
 function getCurrentTheme() {
-  return document.documentElement.getAttribute('data-theme') || 'dark';
+  return document.documentElement.getAttribute('data-theme') || 'light';
 }
 
 function isPostPopupOpen() {

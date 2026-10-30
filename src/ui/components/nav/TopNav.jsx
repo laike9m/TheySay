@@ -42,8 +42,8 @@ function getLangIsEn() {
 }
 
 function getThemeIsLight() {
-  if (typeof document === 'undefined') return false;
-  return document.documentElement.getAttribute('data-theme') === 'light';
+  if (typeof document === 'undefined') return true;
+  return document.documentElement.getAttribute('data-theme') !== 'dark';
 }
 
 export function TopNav() {

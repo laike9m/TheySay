@@ -3608,12 +3608,54 @@ body {
   background-color: rgba(220, 38, 38, 0.08);
 }
 
+.mantine-ActionIcon-root.btn-settings.has-update-badge {
+  position: relative;
+}
+
+.mantine-ActionIcon-root.btn-settings.has-update-badge::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #22b8cf;
+  box-shadow: 0 0 0 1.5px var(--bg-sidebar);
+  pointer-events: none;
+}
+
 .mantine-Button-root.btn-sync-tickers,
+.mantine-Button-root.btn-check-updates,
 .mantine-Button-root.btn-export-profile {
   height: 24px;
   min-height: 24px;
   padding: 0 9px;
   font-size: 11px;
+}
+
+.mantine-Button-root.btn-check-updates.is-update-available {
+  background-color: rgba(34, 184, 207, 0.18);
+  color: #3bc9db;
+  border: 1px solid rgba(34, 184, 207, 0.4);
+}
+
+[data-theme="light"] .mantine-Button-root.btn-check-updates.is-update-available {
+  background-color: rgba(12, 133, 153, 0.12);
+  color: #0b7285;
+  border: 1px solid rgba(12, 133, 153, 0.35);
+}
+
+.mantine-Button-root.btn-check-updates.is-update-ready {
+  background-color: rgba(43, 138, 62, 0.22);
+  color: #51cf66;
+  border: 1px solid rgba(81, 207, 102, 0.45);
+}
+
+[data-theme="light"] .mantine-Button-root.btn-check-updates.is-update-ready {
+  background-color: rgba(43, 138, 62, 0.12);
+  color: #2b8a3e;
+  border: 1px solid rgba(43, 138, 62, 0.35);
 }
 
 .mantine-Button-root.btn-settings-reset {

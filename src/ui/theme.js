@@ -244,7 +244,7 @@ function initTheme(btnThemeToggle) {
 
   if (btnThemeToggle) {
     btnThemeToggle.addEventListener('click', () => {
-      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      const cur = document.documentElement.getAttribute('data-theme') || 'light';
       const next = cur === 'dark' ? 'light' : 'dark';
       applyTheme(next, btnThemeToggle);
     });

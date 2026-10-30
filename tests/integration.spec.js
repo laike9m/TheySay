@@ -61,6 +61,8 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
         platform: process.platform,
         windowCount: BrowserWindow.getAllWindows().length,
         isVisible: win ? win.isVisible() : false,
+        isMaximized: win ? win.isMaximized() : false,
+        isFullScreen: win ? win.isFullScreen() : false,
         dockVisible: process.platform === 'darwin' && app.dock ? app.dock.isVisible() : null,
         bounds
       };
@@ -70,7 +72,11 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     expect(path.resolve(appInfo.userData)).toBe(path.resolve(userDataDir));
     expect(appInfo.windowCount).toBeGreaterThanOrEqual(1);
     expect(appInfo.bounds.width).toBeGreaterThanOrEqual(850);
+    expect(appInfo.bounds.width).toBeLessThanOrEqual(1140);
     expect(appInfo.bounds.height).toBeGreaterThanOrEqual(650);
+    expect(appInfo.bounds.height).toBeLessThanOrEqual(740);
+    expect(appInfo.isMaximized).toBe(false);
+    expect(appInfo.isFullScreen).toBe(false);
     if (process.platform === 'darwin') {
       expect(appInfo.isVisible).toBe(false);
       expect(appInfo.dockVisible).toBe(false);
@@ -153,17 +159,20 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
   });
 
   test('3. Theme switching, Settings modal & Windows/macOS global Escape handling', async () => {
-    const initialTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute('data-theme')
-    );
+    const initialThemeState = await page.evaluate(() => ({
+      dataTheme: document.documentElement.getAttribute('data-theme'),
+      mantineScheme: document.documentElement.getAttribute('data-mantine-color-scheme')
+    }));
+    expect(initialThemeState.dataTheme).toBe('light');
+    expect(initialThemeState.mantineScheme).toBe('light');
+
     await page.locator('#btn-theme-toggle').click();
     const toggledTheme = await page.evaluate(() => ({
       dataTheme: document.documentElement.getAttribute('data-theme'),
       mantineScheme: document.documentElement.getAttribute('data-mantine-color-scheme')
     }));
-    const expectedTheme = initialTheme === 'dark' ? 'light' : 'dark';
-    expect(toggledTheme.dataTheme).toBe(expectedTheme);
-    expect(toggledTheme.mantineScheme).toBe(expectedTheme);
+    expect(toggledTheme.dataTheme).toBe('dark');
+    expect(toggledTheme.mantineScheme).toBe('dark');
 
     // Open Settings Modal
     const settingsOverlay = page.locator('#settings-modal-overlay');
@@ -1975,7 +1984,166 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     await page.locator('#btn-settings-close').click();
     await expect(settingsOverlay).toHaveClass(/is-closed/);
   });
+
+  test('17. Auto-update (GitHub Releases): cross-platform asset resolution, UI check/download/install flow, and settings persistence', async () => {
+    // 1. Verify cross-platform GitHub Release asset selection (macOS, Windows NSIS/Portable, Linux AppImage/deb)
+    const unitCheck = await page.evaluate(() => {
+      const {
+        isVersionNewer,
+        selectPlatformReleaseAsset
+      } = require('./src/core/updater');
+      const {
+        getAutoCheckUpdates,
+        saveAutoCheckUpdates,
+        buildProfileData
+      } = require('./src/core/storage');
+
+      const sampleAssets = [
+        {
+          name: 'TheySay-1.2.0-arm64.dmg',
+          browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-1.2.0-arm64.dmg',
+          size: 102400
+        },
+        {
+          name: 'TheySay-Setup-1.2.0.exe',
+          browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-Setup-1.2.0.exe',
+          size: 204800
+        },
+        {
+          name: 'TheySay-Portable-1.2.0.exe',
+          browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-Portable-1.2.0.exe',
+          size: 198000
+        },
+        {
+          name: 'TheySay-1.2.0-x86_64.AppImage',
+          browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-1.2.0-x86_64.AppImage',
+          size: 307200
+        }
+      ];
+
+      const macAsset = selectPlatformReleaseAsset(sampleAssets, {
+        platform: 'darwin',
+        arch: 'arm64'
+      });
+      const winNsisAsset = selectPlatformReleaseAsset(sampleAssets, {
+        platform: 'win32',
+        arch: 'x64',
+        env: {}
+      });
+      const winPortableAsset = selectPlatformReleaseAsset(sampleAssets, {
+        platform: 'win32',
+        arch: 'x64',
+        env: { PORTABLE_EXECUTABLE_FILE: 'C:\\TheySay-Portable.exe' }
+      });
+      const linuxAsset = selectPlatformReleaseAsset(sampleAssets, {
+        platform: 'linux',
+        arch: 'x64'
+      });
+
+      saveAutoCheckUpdates(false);
+      const savedFalse = getAutoCheckUpdates();
+      const exportedProfile = buildProfileData({ slots: [], grid: null });
+      saveAutoCheckUpdates(true);
+
+      return {
+        newerPatch: isVersionNewer('1.0.1', '1.0.0'),
+        sameVer: isVersionNewer('1.0.0', 'v1.0.0'),
+        olderVer: isVersionNewer('0.9.9', '1.0.0'),
+        macAssetName: macAsset && macAsset.name,
+        winNsisAssetName: winNsisAsset && winNsisAsset.name,
+        winPortableAssetName: winPortableAsset && winPortableAsset.name,
+        linuxAssetName: linuxAsset && linuxAsset.name,
+        savedFalse,
+        exportedAutoCheck: exportedProfile.settings.autoCheckUpdates
+      };
+    });
+
+    expect(unitCheck.newerPatch).toBe(true);
+    expect(unitCheck.sameVer).toBe(false);
+    expect(unitCheck.olderVer).toBe(false);
+    expect(unitCheck.macAssetName).toBe('TheySay-1.2.0-arm64.dmg');
+    expect(unitCheck.winNsisAssetName).toBe('TheySay-Setup-1.2.0.exe');
+    expect(unitCheck.winPortableAssetName).toBe('TheySay-Portable-1.2.0.exe');
+    expect(unitCheck.linuxAssetName).toBe('TheySay-1.2.0-x86_64.AppImage');
+    expect(unitCheck.savedFalse).toBe(false);
+    expect(unitCheck.exportedAutoCheck).toBe(false);
+
+    // 2. Open Settings and test up-to-date check -> available update -> download -> ready to install
+    await page.locator('#btn-settings').click();
+    const settingsOverlay = page.locator('#settings-modal-overlay');
+    await expect(settingsOverlay).not.toHaveClass(/is-closed/);
+
+    const autoUpdateSelect = page.locator('#setting-auto-update');
+    await expect(autoUpdateSelect).toHaveValue('true');
+    await autoUpdateSelect.selectOption('false');
+    await expect(autoUpdateSelect).toHaveValue('false');
+
+    // Mock GitHub Release API returning current version v1.0.0 (up to date)
+    await page.evaluate(async () => {
+      const { ipcRenderer } = require('electron');
+      await ipcRenderer.invoke('set-mock-update-release', {
+        tag_name: 'v1.0.0',
+        html_url: 'https://github.com/laike9m/TheySay/releases/tag/v1.0.0',
+        assets: []
+      });
+    });
+
+    const btnCheckUpdates = page.locator('#btn-check-updates');
+    const statusText = page.locator('#setting-update-status-text');
+    await btnCheckUpdates.click();
+    await expect(statusText).toContainText('1.0.0');
+    await expect(btnCheckUpdates).not.toHaveClass(/is-update-available/);
+    await expect(page.locator('#btn-settings')).not.toHaveClass(/has-update-badge/);
+
+    // Now mock a newer GitHub Release v1.2.0 with assets for all platforms
+    await page.evaluate(async () => {
+      const { ipcRenderer } = require('electron');
+      await ipcRenderer.invoke('set-mock-update-release', {
+        tag_name: 'v1.2.0',
+        html_url: 'https://github.com/laike9m/TheySay/releases/tag/v1.2.0',
+        body: 'Cross-platform auto-update support',
+        assets: [
+          {
+            name: 'TheySay-1.2.0-arm64.dmg',
+            browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-1.2.0-arm64.dmg',
+            size: 102400
+          },
+          {
+            name: 'TheySay-Setup-1.2.0.exe',
+            browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-Setup-1.2.0.exe',
+            size: 204800
+          },
+          {
+            name: 'TheySay-1.2.0-x86_64.AppImage',
+            browser_download_url: 'https://github.com/laike9m/TheySay/releases/download/v1.2.0/TheySay-1.2.0-x86_64.AppImage',
+            size: 307200
+          }
+        ]
+      });
+    });
+
+    await btnCheckUpdates.click();
+    await expect(statusText).toContainText('v1.2.0');
+    await expect(btnCheckUpdates).toHaveClass(/is-update-available/);
+    await expect(btnCheckUpdates).toContainText('v1.2.0');
+    await expect(page.locator('#btn-settings')).toHaveClass(/has-update-badge/);
+
+    // Click #btn-check-updates again to download the update
+    await btnCheckUpdates.click();
+    await expect(btnCheckUpdates).toHaveClass(/is-update-ready/);
+    await expect(statusText).toContainText('v1.2.0');
+
+    // Restore Defaults resets autoCheckUpdates back to true
+    await page.locator('#btn-settings-reset').click();
+    await expect(autoUpdateSelect).toHaveValue('true');
+
+    // Clean up mock release state
+    await page.evaluate(async () => {
+      const { ipcRenderer } = require('electron');
+      await ipcRenderer.invoke('set-mock-update-release', null);
+    });
+
+    await page.locator('#btn-settings-close').click();
+    await expect(settingsOverlay).toHaveClass(/is-closed/);
+  });
 });
-
-
-

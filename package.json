@@ -11,10 +11,10 @@
     "start": "node scripts/build-ui.js && node scripts/brand-app.js && electron .",
     "postinstall": "node scripts/build-ui.js && node scripts/brand-app.js",
     "test": "node scripts/build-ui.js && playwright test",
-    "dist:mac": "node scripts/build-ui.js && electron-builder --mac --arm64",
-    "dist:mac:quick": "node scripts/build-ui.js && THEYSAY_SKIP_NOTARIZE=1 electron-builder --mac --arm64",
-    "dist:win": "node scripts/build-ui.js && electron-builder --win --x64",
-    "dist:linux": "node scripts/build-ui.js && electron-builder --linux --x64",
+    "dist:mac": "node scripts/build-ui.js && electron-builder --mac --arm64 --publish never",
+    "dist:mac:quick": "node scripts/build-ui.js && THEYSAY_SKIP_NOTARIZE=1 electron-builder --mac --arm64 --publish never",
+    "dist:win": "node scripts/build-ui.js && electron-builder --win --x64 --publish never",
+    "dist:linux": "node scripts/build-ui.js && electron-builder --linux --x64 --publish never",
     "dist:all": "npm run dist:mac && npm run dist:win && npm run dist:linux",
     "dist:all:quick": "npm run dist:mac:quick && npm run dist:win && npm run dist:linux"
   },
@@ -44,6 +44,13 @@
       "src/data/discord-preload.js"
     ],
     "afterAllArtifactBuild": "scripts/notarize-mac.js",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "laike9m",
+        "repo": "TheySay"
+      }
+    ],
     "mac": {
       "icon": "assets/icon.icns",
       "category": "public.app-category.social-networking",
@@ -69,6 +76,7 @@
     },
     "win": {
       "icon": "assets/icon.png",
+      "verifyUpdateCodeSignature": false,
       "target": [
         {
           "target": "nsis",
@@ -83,6 +91,15 @@
           ]
         }
       ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
     },
     "linux": {
       "icon": "assets/icon.png",
@@ -118,6 +135,7 @@
     "an-array-of-english-words": "^2.0.0",
     "colord": "^2.10.0",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.11",
     "gridstack": "^13.2.0",
     "link-preview-js": "^3.1.0",
     "linkify-it": "^4.0.0",
@@ -127,6 +145,7 @@
     "p-queue": "^6.6.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "semver": "^7.8.5",
     "tlds": "^1.259.0"
   }
 }

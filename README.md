@@ -32,9 +32,9 @@ Download the latest installer for **macOS**, **Windows**, or **Linux** from **[G
 
   **重要消息不再遗漏**：每张卡片与系统 Dock / 任务栏图标均会实时显示未读消息数量。你可以只为最核心的账号开启桌面弹窗通知、将其他频道保持静默，也可以随时一键全部标为已读。
 
-- **Personalized & Portable**: Switch effortlessly between Light and Dark themes, customize card and bubble colors, set independent auto-refresh intervals for each platform, and export or import your entire dashboard layout and followed list as a `.json` backup file anytime.
+- **Personalized & Portable**: Switch effortlessly between Light and Dark themes, customize card and bubble colors, set independent auto-refresh intervals for each platform, receive automatic cross-platform version updates from GitHub Releases, and export or import your entire dashboard layout and followed list as a `.json` backup file anytime.
 
-  **个性化外观与一键备份**：支持浅色与深色模式一键切换，可自由定制卡片背景与气泡配色，并为不同平台单独设置自动刷新频率；支持将所有关注列表、排版与偏好设置一键导出为 `.json` 文件，跨设备迁移轻而易举。
+  **个性化外观与一键备份**：支持浅色与深色模式一键切换，可自由定制卡片背景与气泡配色，并为不同平台单独设置自动刷新频率；支持基于 GitHub Releases 的全平台自动版本检测与一键更新，并可将所有关注列表、排版与偏好设置一键导出为 `.json` 文件，跨设备迁移轻而易举。
 
 ## Quick Start / 快速上手
 

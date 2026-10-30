@@ -8,10 +8,19 @@ const { getLinkPreview, getPreviewFromContent } = require('link-preview-js');
 const { DISCORD_PARTITION, THREADS_PARTITION, THREADS_LOGIN_URL } = require('./src/core/constants');
 const { TWEET_EMBED_ENHANCEMENT_SCRIPT } = require('./src/ui/tweet_embed');
 const { t, setActiveLanguageOverride } = require('./src/core/i18n');
+const {
+  setMockReleaseData,
+  getLastUpdateState,
+  checkForUpdates,
+  downloadUpdate,
+  applyDownloadedUpdate
+} = require('./src/core/updater');
 const TICKER_DATA_PATH = path
   .join(__dirname, 'data', 'ticker-data.json')
   .replace('app.asar', 'app.asar.unpacked');
 const tickerData = require('./data/ticker-data.json');
+const pkgJson = require('./package.json');
+const APP_VERSION = (pkgJson && pkgJson.version) || app.getVersion();
 
 app.name = 'TheySay';
 const IS_BACKGROUND_TEST =
@@ -34,8 +43,8 @@ if (typeof app.setAppUserModelId === 'function') {
 }
 
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
-const DEFAULT_WINDOW_WIDTH = 1360;
-const DEFAULT_WINDOW_HEIGHT = 900;
+const DEFAULT_WINDOW_WIDTH = 1140;
+const DEFAULT_WINDOW_HEIGHT = 740;
 const MIN_WINDOW_WIDTH = 850;
 const MIN_WINDOW_HEIGHT = 650;
 
@@ -73,11 +82,32 @@ function saveLanguagePreference(lang) {
   }
 }
 
-function loadWindowState() {
-  const defaultState = {
-    width: DEFAULT_WINDOW_WIDTH,
-    height: DEFAULT_WINDOW_HEIGHT
+function getDefaultWindowState() {
+  let width = DEFAULT_WINDOW_WIDTH;
+  let height = DEFAULT_WINDOW_HEIGHT;
+  try {
+    const primary =
+      screen && typeof screen.getPrimaryDisplay === 'function'
+        ? screen.getPrimaryDisplay()
+        : null;
+    const area = primary && (primary.workArea || primary.bounds);
+    if (area && area.width > 0 && area.height > 0) {
+      width = Math.min(DEFAULT_WINDOW_WIDTH, Math.round(area.width * 0.78));
+      height = Math.min(DEFAULT_WINDOW_HEIGHT, Math.round(area.height * 0.80));
+      width = Math.max(Math.min(MIN_WINDOW_WIDTH, area.width - 40), width);
+      height = Math.max(Math.min(MIN_WINDOW_HEIGHT, area.height - 40), height);
+    }
+  } catch (_) {}
+  return {
+    width,
+    height,
+    isMaximized: false,
+    isFullScreen: false
   };
+}
+
+function loadWindowState() {
+  const defaultState = getDefaultWindowState();
 
   try {
     const saved = windowStateStore.store;
@@ -87,10 +117,10 @@ function loadWindowState() {
 
     let width = Number.isFinite(saved.width)
       ? Math.max(MIN_WINDOW_WIDTH, Math.round(saved.width))
-      : DEFAULT_WINDOW_WIDTH;
+      : defaultState.width;
     let height = Number.isFinite(saved.height)
       ? Math.max(MIN_WINDOW_HEIGHT, Math.round(saved.height))
-      : DEFAULT_WINDOW_HEIGHT;
+      : defaultState.height;
     let x = Number.isFinite(saved.x) ? Math.round(saved.x) : undefined;
     let y = Number.isFinite(saved.y) ? Math.round(saved.y) : undefined;
 
@@ -197,6 +227,8 @@ function createWindow() {
     height: windowState.height,
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
+    center: !(typeof windowState.x === 'number' && typeof windowState.y === 'number'),
+    backgroundColor: '#f8f9fd',
     show: !IS_BACKGROUND_TEST,
     paintWhenInitiallyHidden: true,
     title: t('app.mainWindowTitle'),
@@ -1517,6 +1549,58 @@ ipcMain.on('set-app-badge', (event, count) => {
 });
 
 ipcMain.handle('get-app-badge-count', () => currentAppBadgeCount);
+
+function sendUpdateStatusToRenderer(statusPayload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.webContents.send('update-status', statusPayload);
+    } catch (_) {}
+  }
+}
+
+ipcMain.handle('get-update-state', () => {
+  const state = getLastUpdateState();
+  return {
+    ok: true,
+    ...state,
+    currentVersion: APP_VERSION
+  };
+});
+
+ipcMain.handle('set-mock-update-release', (event, mockData) => {
+  setMockReleaseData(mockData || null);
+  return { ok: true };
+});
+
+ipcMain.handle('check-for-updates', async (event, opts = {}) => {
+  return checkForUpdates({
+    currentVersion: APP_VERSION,
+    platform: (opts && opts.platform) || process.platform,
+    arch: (opts && opts.arch) || process.arch,
+    env: process.env,
+    isPackaged: Boolean(app.isPackaged),
+    userAgent: DISCORD_USER_AGENT,
+    onStatus: sendUpdateStatusToRenderer
+  });
+});
+
+ipcMain.handle('download-update', async () => {
+  return downloadUpdate({
+    app,
+    shell,
+    isPackaged: Boolean(app.isPackaged),
+    userAgent: DISCORD_USER_AGENT,
+    onStatus: sendUpdateStatusToRenderer
+  });
+});
+
+ipcMain.handle('apply-downloaded-update', async () => {
+  return applyDownloadedUpdate({
+    app,
+    shell,
+    onStatus: sendUpdateStatusToRenderer
+  });
+});
 
 const mainUrlTitleCache = new LRUCache({ max: 1000 });
 

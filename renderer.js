@@ -15,6 +15,7 @@ const {
   saveFilterKeywords,
   saveDiscordSoundEnabled,
   saveAppBadgeEnabled,
+  saveAutoCheckUpdates,
   saveHeaderBgColor,
   saveChatBgColor,
   saveBubbleBgColor,
@@ -70,7 +71,9 @@ const {
   isSettingsModalOpen,
   loadCurrentSettings,
   getFormSettingsOverrides,
-  refreshTickerStatsLabel
+  refreshTickerStatsLabel,
+  refreshUpdateStatusUI,
+  startAutoUpdateCheck
 } = require('./src/ui/settings');
 const { applyDiscordSoundSetting } = require('./src/data/discord');
 const { initNotifications } = require('./src/ui/notification');
@@ -79,6 +82,14 @@ const { getCanonicalTargetKey } = require('./src/core/source');
 const { showToast } = require('./src/core/utils');
 const { t, applyPageLocalization } = require('./src/core/i18n');
 const { mountMantineShell } = require('./src/ui/dist/mantine-shell');
+
+// Sync stored/default theme ('light' on first launch) before mounting Mantine outer shell
+const initialTheme = getStoredTheme();
+document.documentElement.setAttribute('data-theme', initialTheme);
+document.documentElement.setAttribute(
+  'data-mantine-color-scheme',
+  initialTheme === 'dark' ? 'dark' : 'light'
+);
 
 // Mount React + Mantine outer shell synchronously before binding global UI elements
 mountMantineShell();
@@ -100,6 +111,7 @@ function refreshLocalizedAppUI(lang) {
   applyTheme(getStoredTheme(), btnThemeToggle);
   refreshAuthLocaleUI();
   refreshTickerStatsLabel();
+  refreshUpdateStatusUI();
   localizeSlotsUI(slots);
   refreshSlotsContent(slots);
 }
@@ -210,6 +222,9 @@ async function handleImportProfile() {
     }
     if (typeof settings.appBadgeEnabled === 'boolean') {
       saveAppBadgeEnabled(settings.appBadgeEnabled);
+    }
+    if (typeof settings.autoCheckUpdates === 'boolean') {
+      saveAutoCheckUpdates(settings.autoCheckUpdates);
     }
     if (typeof settings.headerBgColor === 'string' && settings.headerBgColor.trim()) {
       saveHeaderBgColor(settings.headerBgColor.trim());
@@ -599,4 +614,7 @@ window.addEventListener('DOMContentLoaded', () => {
     bgWebviewsContainer,
     getActiveSlotCount
   });
+
+  // Start automatic GitHub Releases version check
+  startAutoUpdateCheck();
 });

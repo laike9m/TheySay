@@ -41,6 +41,7 @@ const STORAGE_CHAT_BG_COLOR_KEY = 'theysay_chat_bg_color';
 const STORAGE_BUBBLE_BG_COLOR_KEY = 'theysay_bubble_bg_color';
 const STORAGE_LANGUAGE_KEY = 'theysay_language';
 const STORAGE_FILTER_KEYWORDS_KEY = 'theysay_filter_keywords';
+const STORAGE_AUTO_CHECK_UPDATES_KEY = 'theysay_auto_check_updates';
 
 const DEFAULT_TWITTER_INTERVAL_MINUTES = 10;
 const DEFAULT_DISCORD_INTERVAL_MINUTES = 10;
@@ -51,6 +52,7 @@ const DEFAULT_FILTER_KEYWORDS = [];
 // ...). Kept on by default to match Discord itself; users can mute it in Settings.
 const DEFAULT_DISCORD_SOUND_ENABLED = true;
 const DEFAULT_APP_BADGE_ENABLED = true;
+const DEFAULT_AUTO_CHECK_UPDATES = true;
 // Per-slot system notifications default to muted (true) so users only get OS
 // notifications for channels they explicitly unmute.
 const DEFAULT_SLOT_MUTED = true;
@@ -226,6 +228,7 @@ module.exports = {
   STORAGE_BUBBLE_BG_COLOR_KEY,
   STORAGE_LANGUAGE_KEY,
   STORAGE_FILTER_KEYWORDS_KEY,
+  STORAGE_AUTO_CHECK_UPDATES_KEY,
   DEFAULT_TWITTER_INTERVAL_MINUTES,
   DEFAULT_DISCORD_INTERVAL_MINUTES,
   DEFAULT_THREADS_INTERVAL_MINUTES,
@@ -233,6 +236,7 @@ module.exports = {
   DEFAULT_FILTER_KEYWORDS,
   DEFAULT_DISCORD_SOUND_ENABLED,
   DEFAULT_APP_BADGE_ENABLED,
+  DEFAULT_AUTO_CHECK_UPDATES,
   DEFAULT_SLOT_MUTED,
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,

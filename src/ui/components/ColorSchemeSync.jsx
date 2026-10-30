@@ -7,7 +7,7 @@ export function ColorSchemeSync() {
   useEffect(() => {
     const syncFromDom = () => {
       const attr = document.documentElement.getAttribute('data-theme');
-      const scheme = attr === 'light' ? 'light' : 'dark';
+      const scheme = attr === 'dark' ? 'dark' : 'light';
       setColorScheme(scheme);
       if (document.documentElement.getAttribute('data-mantine-color-scheme') !== scheme) {
         document.documentElement.setAttribute('data-mantine-color-scheme', scheme);

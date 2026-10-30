@@ -1,10 +1,8 @@
-# TheySay
+# TheySay - All the Voices on One Screen
 
-**All the voices you follow—on one screen, in real time.**  
-Stop jumping between endless browser tabs and apps. **TheySay** brings your favorite **X (Twitter)** accounts, **Threads** creators, and **Discord** channels together into a single, customizable desktop dashboard.
+Stop jumping between endless browser tabs. **TheySay** brings your favorite **X/Twitter, Threads** accounts, and **Discord** channels together into a single, customizable desktop dashboard.
 
-**在一个界面，实时追踪你关注的所有声音。**  
-告别在无数浏览器标签页与软件之间来回切换。**TheySay** 将你关注的 **X (Twitter)** 博主、**Threads** 创作者与 **Discord** 频道汇聚在同一块桌面看板上，重要动态一目了然。
+告别在无数浏览器标签之间来回切换。**TheySay** 将你关注的 **X/Twitter, Threads** 账号与 **Discord** 频道汇聚在同一块桌面看板上，重要动态一目了然。
 
 ![TheySay Dashboard Screenshot](docs/screenshot.png)
 

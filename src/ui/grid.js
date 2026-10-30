@@ -671,7 +671,11 @@ function initColumnHoverEffect({ gridContainer, slots, getGrid, getGridDimension
 
     // Moving cursor onto a section's header (用户名那栏) shows the header and restores column heights
     const headerEl = target.closest('.slot-header');
-    if (headerEl) {
+    const cardRect = slot.card ? slot.card.getBoundingClientRect() : null;
+    const inHeaderZone = Boolean(
+      headerEl || (cardRect && e.clientY >= cardRect.top && e.clientY <= cardRect.top + 28)
+    );
+    if (inHeaderZone) {
       clearHeaderHiddenState(slots);
       if (hoverEffectState.expandedSlotIndex !== null) {
         const node = slot.element.gridstackNode;

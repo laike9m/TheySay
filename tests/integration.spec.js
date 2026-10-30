@@ -1330,6 +1330,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
     const header1 = page.locator('#slot-card-1 .slot-header');
 
     // Move cursor onto slot 0's header first to restore any background section expansion from the previous test
+    await page.waitForTimeout(260);
     const initialHeaderBox = await header0.boundingBox();
     await page.mouse.move(
       initialHeaderBox.x + initialHeaderBox.width / 2,
@@ -1775,7 +1776,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
         const widthDiff = Math.abs(rect.width - window.innerWidth);
         const heightDiff = Math.abs(rect.height - window.innerHeight);
 
-        const sampleToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GaBcDe.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-';
+        const sampleToken = 'dummy-discord-test-token-for-ipc-roundtrip';
         ipcRenderer.send('discord-auth-captured', {
           token: sampleToken,
           userId: '100000000000000001',
@@ -1803,7 +1804,7 @@ test.describe.serial('TheySay Electron Integration Tests', () => {
       expect(discordGuardCheck.widthDiff).toBeLessThanOrEqual(1);
       expect(discordGuardCheck.heightDiff).toBeLessThanOrEqual(1);
       expect(discordGuardCheck.backedUpToken).toBe(
-        'MTIzNDU2Nzg5MDEyMzQ1Njc4.GaBcDe.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-'
+        'dummy-discord-test-token-for-ipc-roundtrip'
       );
       expect(discordGuardCheck.backedUpStatus).toBe(2);
       expect(discordGuardCheck.afterClear).toBeNull();

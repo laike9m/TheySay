@@ -123,7 +123,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",
-    "electron": "^44.2.0",
+    "electron": "^44.9.1",
     "electron-builder": "^26.17.0",
     "esbuild": "^0.25.5"
   },
@@ -137,8 +137,8 @@
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.11",
     "gridstack": "^13.2.0",
-    "link-preview-js": "^3.1.0",
-    "linkify-it": "^4.0.0",
+    "link-preview-js": "^4.0.4",
+    "linkify-it": "^5.0.2",
     "lru-cache": "^10.4.3",
     "normalize-url": "^6.1.0",
     "p-limit": "^3.1.0",

@@ -112,10 +112,10 @@ export function TopNav() {
     >
       {/* Top Brand & Collapse/Expand Toggle */}
       <div className="sidebar-brand-section">
-        <Group className="nav-brand" gap={9} wrap="nowrap">
+        <Group className="nav-brand" gap={7} wrap="nowrap">
           <BrandLogoIcon />
           <div className="brand-text">
-            <Title order={1} className="brand-title" size="0.98rem">
+            <Title order={1} className="brand-title" size="0.94rem">
               TheySay
             </Title>
           </div>
@@ -125,7 +125,7 @@ export function TopNav() {
           <ActionIcon
             id="btn-sidebar-toggle"
             variant="subtle"
-            size={36}
+            size={30}
             radius="md"
             className="sidebar-nav-item btn-sidebar-toggle"
             data-i18n-title="nav.toggleSidebar"
@@ -134,9 +134,9 @@ export function TopNav() {
             onClick={handleToggleSidebar}
           >
             {collapsed ? (
-              <IconLayoutSidebarLeftExpand size={18} stroke={1.8} />
+              <IconLayoutSidebarLeftExpand size={17} stroke={1.8} />
             ) : (
-              <IconLayoutSidebarLeftCollapse size={18} stroke={1.8} />
+              <IconLayoutSidebarLeftCollapse size={17} stroke={1.8} />
             )}
           </ActionIcon>
         </Tooltip>
@@ -186,7 +186,7 @@ export function TopNav() {
           withArrow
           disabled={!collapsed}
         >
-          <Group className="sidebar-nav-item layout-control-group" gap={10} wrap="nowrap">
+          <Group className="sidebar-nav-item layout-control-group" gap={8} wrap="nowrap">
             <span className="sidebar-icon-wrap">
               <IconLayoutGrid
                 className="layout-grid-icon"

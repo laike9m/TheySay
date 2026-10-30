@@ -153,7 +153,7 @@ body {
 .top-nav {
   grid-column: 1;
   grid-row: 1 / -1;
-  width: 184px;
+  width: 147px;
   margin: 5px 0;
   height: calc(100vh - 10px);
   background-color: var(--bg-nav);
@@ -164,7 +164,7 @@ body {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  padding: 12px 8px;
+  padding: 10px 6px;
   gap: 8px;
   flex-shrink: 0;
   z-index: 30;
@@ -176,8 +176,8 @@ body {
 }
 
 .top-nav.is-collapsed {
-  width: 52px;
-  padding: 12px 8px;
+  width: 42px;
+  padding: 10px 6px;
 }
 
 .sidebar-brand-section {
@@ -185,8 +185,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  min-height: 36px;
-  padding: 0 2px 0 6px;
+  min-height: 30px;
+  padding: 0 2px 0 4px;
 }
 
 .top-nav.is-collapsed .sidebar-brand-section {
@@ -199,19 +199,19 @@ body {
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   min-width: 0;
 }
 
 .top-nav.is-collapsed .nav-brand {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   justify-content: center;
 }
 
 .logo-icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   color: var(--text-main);
   transition: color 0.2s ease;
   flex-shrink: 0;
@@ -225,7 +225,7 @@ body {
 }
 
 .brand-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.4px;
   color: var(--text-main);
@@ -249,29 +249,29 @@ body {
 /* Uniform Sidebar Nav Item (Mantine NavbarMinimal / NavLink style) */
 .sidebar-nav-item {
   position: relative;
-  height: 36px;
-  min-height: 36px;
+  height: 32px;
+  min-height: 32px;
   width: 100%;
   border-radius: 8px;
   background-color: transparent;
   border: 1px solid transparent;
   color: var(--text-secondary);
-  padding: 0 8px;
-  font-size: 12.5px;
+  padding: 0 6px;
+  font-size: 12px;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   box-sizing: border-box;
 }
 
 .top-nav.is-collapsed .sidebar-nav-item {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
   justify-content: center;
 }
@@ -294,7 +294,7 @@ body {
 }
 
 .sidebar-label-text {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: inherit;
   line-height: 1;
@@ -3541,14 +3541,14 @@ body {
 
 .mantine-Button-root.sidebar-nav-item,
 .mantine-ActionIcon-root.sidebar-nav-item {
-  height: 36px;
-  min-height: 36px;
+  height: 32px;
+  min-height: 32px;
   background-color: transparent;
   border: none;
   color: var(--text-secondary);
   border-radius: 8px;
-  padding: 0 8px;
-  font-size: 12.5px;
+  padding: 0 6px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
   transition: color 0.15s ease, background-color 0.15s ease;
@@ -3559,7 +3559,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 
@@ -3570,10 +3570,10 @@ body {
 .top-nav.is-collapsed .mantine-Button-root.sidebar-nav-item,
 .top-nav.is-collapsed .mantine-ActionIcon-root.sidebar-nav-item,
 .mantine-ActionIcon-root.btn-sidebar-toggle {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
 }
 

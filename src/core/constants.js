@@ -57,6 +57,7 @@ const DEFAULT_SLOT_MUTED = true;
 const DEFAULT_TICKER_FG_COLOR = '#fde047';
 const DEFAULT_TICKER_BG_COLOR = '#422006';
 const DEFAULT_HEADER_BG_COLOR = '#f8f9fd';
+const DEFAULT_DARK_HEADER_BG_COLOR = '#0f1723';
 const DEFAULT_CHAT_BG_COLOR = '#f8f9fd';
 const DEFAULT_DARK_CHAT_BG_COLOR = '#0f1723';
 const DEFAULT_BUBBLE_BG_COLOR = '#ffffff';
@@ -72,6 +73,18 @@ const TICKER_COLOR_PRESETS = [
 ];
 
 const HEADER_COLOR_PRESETS = [
+  {
+    id: 'default',
+    name: '默认底色',
+    bg: '#f8f9fd',
+    text: '#131722',
+    subtext: '#787b86',
+    border: 'transparent',
+    hoverBg: 'rgba(19, 23, 34, 0.06)',
+    activeIcon: '#2962ff',
+    activeBg: 'rgba(41, 98, 255, 0.12)',
+    badgeBorder: 'transparent'
+  },
   {
     id: 'white',
     name: '纯白极简',
@@ -224,6 +237,7 @@ module.exports = {
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_DARK_HEADER_BG_COLOR,
   DEFAULT_CHAT_BG_COLOR,
   DEFAULT_DARK_CHAT_BG_COLOR,
   DEFAULT_BUBBLE_BG_COLOR,

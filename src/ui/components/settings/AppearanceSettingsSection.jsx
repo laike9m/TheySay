@@ -12,7 +12,8 @@ import {
   IconMessageCircle,
   IconInfoCircle,
   IconBellOff,
-  IconRefresh
+  IconRefresh,
+  IconBrandX
 } from '@tabler/icons-react';
 import {
   HEADER_PRESETS,
@@ -360,7 +361,7 @@ export function AppearanceSettingsSection() {
                 className="header-preview-handle"
                 id="setting-header-preview-handle"
               >
-                · @example_user · X
+                <IconBrandX size={12.5} stroke={2} />
               </span>
               <span
                 className="header-preview-icon"

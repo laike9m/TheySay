@@ -2,13 +2,13 @@
   --bg-app: #090d14;
   --bg-nav: #0f1621;
   --bg-card: #0f1723;
-  --bg-card-header: #15202e;
+  --bg-card-header: #0f1723;
   --bg-card-subbar: #15202e;
-  --slot-header-bg: #ffffff;
-  --slot-header-text: #131722;
-  --slot-header-subtext: #787b86;
-  --slot-header-border: #eceff7;
-  --slot-header-hover-bg: rgba(19, 23, 34, 0.06);
+  --slot-header-bg: #0f1723;
+  --slot-header-text: #f4f7fa;
+  --slot-header-subtext: #8696a7;
+  --slot-header-border: transparent;
+  --slot-header-hover-bg: rgba(255, 255, 255, 0.08);
   --slot-header-active-icon: #2962ff;
   --slot-header-active-bg: rgba(41, 98, 255, 0.12);
   --slot-header-badge-border: transparent;
@@ -60,7 +60,8 @@
   --bg-app: #e0e3eb;
   --bg-nav: #ffffff;
   --bg-card: #f8f9fd;
-  --bg-card-header: #ffffff;
+  --bg-card-header: #f8f9fd;
+  --slot-header-bg: #f8f9fd;
   --bg-card-subbar: #f0f3fa;
   --bg-tweet-card: #ffffff;
   --bg-tweet-card-hover: #ffffff;
@@ -1377,28 +1378,45 @@ body {
   flex-shrink: 1;
 }
 
+.slot-card:not(.is-discord):not(.is-threads) .slot-author-handle {
+  display: none !important;
+}
+
+.slot-card.is-discord .slot-avatar {
+  display: none !important;
+}
+
 .slot-author-handle:not(:empty)::before {
   content: "·";
   margin-right: 4px;
   opacity: 0.55;
 }
 
-.slot-author-header::after {
-  content: "· X";
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--slot-header-subtext, var(--text-secondary));
-  opacity: 0.72;
-  letter-spacing: 0.3px;
+.slot-platform-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--slot-header-subtext, #787b86);
+  opacity: 0.78;
+  margin-left: 1px;
   flex-shrink: 0;
+  line-height: 1;
 }
 
-.slot-card.is-discord .slot-author-header::after {
-  content: "· DISCORD";
+.slot-platform-icon {
+  display: none;
 }
 
-.slot-card.is-threads .slot-author-header::after {
-  content: "· THREADS";
+.slot-card:not(.is-discord):not(.is-threads) .slot-platform-icon.is-x {
+  display: block;
+}
+
+.slot-card.is-discord .slot-platform-icon.is-discord {
+  display: block;
+}
+
+.slot-card.is-threads .slot-platform-icon.is-threads {
+  display: block;
 }
 
 .slot-author-edit-hint {
@@ -3228,8 +3246,11 @@ body {
 }
 
 .header-preview-handle {
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
-  color: var(--slot-header-subtext, #536471);
+  color: var(--slot-header-subtext, #64748b);
+  opacity: 0.78;
 }
 
 .header-preview-icon {

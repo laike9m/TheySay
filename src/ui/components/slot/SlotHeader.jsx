@@ -1,6 +1,11 @@
 import React from 'react';
 import { Box, Badge, ActionIcon, CloseButton, Paper } from '@mantine/core';
-import { IconPencil } from '@tabler/icons-react';
+import {
+  IconPencil,
+  IconBrandX,
+  IconBrandDiscord,
+  IconBrandThreads
+} from '@tabler/icons-react';
 import { SlotMuteIcon } from './SlotIcons';
 
 export function SlotHeader({ index, labels = {} }) {
@@ -27,7 +32,7 @@ export function SlotHeader({ index, labels = {} }) {
         </span>
       </Box>
 
-      {/* Identity Area: Displays Author Name · @Handle · Source next to Avatar, or Input Field */}
+      {/* Identity Area: Displays Author Name & Platform Icon next to Avatar, or Input Field */}
       <Box className="slot-identity-area" id={`slot-identity-${index}`}>
         <Box
           className="slot-author-header"
@@ -37,6 +42,23 @@ export function SlotHeader({ index, labels = {} }) {
         >
           <span className="slot-author-name" id={`author-name-${index}`} />
           <span className="slot-author-handle" id={`author-handle-${index}`} />
+          <span className="slot-platform-badge" aria-hidden="true">
+            <IconBrandX
+              className="slot-platform-icon is-x"
+              size={13}
+              stroke={2}
+            />
+            <IconBrandDiscord
+              className="slot-platform-icon is-discord"
+              size={14}
+              stroke={1.9}
+            />
+            <IconBrandThreads
+              className="slot-platform-icon is-threads"
+              size={13}
+              stroke={1.9}
+            />
+          </span>
           <span
             className="slot-author-edit-hint"
             title={labels.editHint || '编辑'}

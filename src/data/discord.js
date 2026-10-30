@@ -1499,8 +1499,8 @@ async function fetchDiscordSlot(slotIndex, { isBackground = false } = {}, { slot
         .replace(/[:：\s]+$/, '')
         .trim();
       const channelLabel = cleanChan
-        ? `#${cleanChan}`
-        : normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel'));
+        ? cleanChan
+        : normalizeDiscordChannelFallback(slot.sourceTitle || t('slot.defaultDiscordChannel')).replace(/^#+/, '');
 
       let guildLabel = String(meta.guildName || '')
         .split(/[\r\n]+/)[0]

@@ -177,7 +177,7 @@ function toggleSlotMute(slot, slots = []) {
     persistSlot(slot, {
       handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
       displayName: slot.authorName ? slot.authorName.innerText : '',
-      userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+      userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : '',
       posts: slot.loadedPosts,
       avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
     }, slots);
@@ -245,7 +245,7 @@ function persistSlot(slot, payloadOrSlots = {}, maybeSlots = []) {
     : (slot.authorName ? slot.authorName.innerText : '');
   const userHandle = payload.userHandle !== undefined
     ? payload.userHandle
-    : (slot.authorHandle ? slot.authorHandle.innerText : '');
+    : (slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : '');
   const posts = Array.isArray(payload.posts)
     ? payload.posts
     : (Array.isArray(slot.loadedPosts) ? slot.loadedPosts : []);
@@ -304,7 +304,7 @@ function updateSlotHeaderMeta(slot, meta = {}) {
   if (!slot || !meta) return;
   if (meta.source === SOURCE_DISCORD || isDiscordSlot(slot)) {
     let rawTitle = meta.title ? meta.title : (slot.sourceTitle || t('slot.defaultDiscordChannel'));
-    if (rawTitle === '#频道' || rawTitle === '#channel') {
+    if (rawTitle === '#频道' || rawTitle === '#channel' || rawTitle === '频道' || rawTitle === 'channel') {
       rawTitle = '';
     }
     const rawSubtitle = meta.subtitle !== undefined ? meta.subtitle : (slot.sourceSubtitle || '');
@@ -319,11 +319,11 @@ function updateSlotHeaderMeta(slot, meta = {}) {
     if (cleanGuild && cleanChan && cleanGuild.toLowerCase() === cleanChan.toLowerCase()) {
       cleanGuild = '';
     }
-    const displayName = cleanChan ? `#${cleanChan}` : t('slot.defaultDiscordChannel');
+    const displayName = cleanChan ? cleanChan : t('slot.defaultDiscordChannel').replace(/^#+/, '');
     slot.sourceTitle = displayName;
     slot.sourceSubtitle = cleanGuild;
     if (slot.authorName) slot.authorName.innerText = displayName;
-    if (slot.authorHandle) slot.authorHandle.innerText = cleanGuild;
+    if (slot.authorHandle) slot.authorHandle.textContent = cleanGuild;
     updateSlotFetchTimeUI(slot, slot.lastFetchedAt);
   }
 }
@@ -448,7 +448,7 @@ function markSlotPostsAsRead(slot, slots = []) {
     persistSlot(slot, {
       handle: slot.monitoredHandle || (slot.handleInput ? slot.handleInput.value.trim() : ''),
       displayName: slot.authorName ? slot.authorName.innerText : '',
-      userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+      userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : '',
       posts: slot.loadedPosts,
       avatarUrl: (slot.avatarImg && slot.avatarImg.src) || ''
     }, slots);
@@ -863,7 +863,7 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
 
   if (isDiscord) {
     let rawTitle = meta && meta.title ? meta.title : (slot.sourceTitle || t('slot.defaultDiscordChannel'));
-    if (rawTitle === '#频道' || rawTitle === '#channel') {
+    if (rawTitle === '#频道' || rawTitle === '#channel' || rawTitle === '频道' || rawTitle === 'channel') {
       rawTitle = '';
     }
     let rawSubtitle = meta && meta.subtitle !== undefined ? meta.subtitle : (slot.sourceSubtitle || '');
@@ -908,13 +908,13 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
       }
     }
 
-    displayName = cleanChan ? `#${cleanChan}` : t('slot.defaultDiscordChannel');
+    displayName = cleanChan ? cleanChan : t('slot.defaultDiscordChannel').replace(/^#+/, '');
     userHandle = cleanGuild;
 
     slot.sourceTitle = displayName;
     slot.sourceSubtitle = userHandle;
     slot.authorName.innerText = displayName;
-    slot.authorHandle.innerText = userHandle;
+    slot.authorHandle.textContent = userHandle;
   } else {
     let rawName = sanitizeSingleLine(meta && meta.displayName ? meta.displayName : '');
     let rawHandle = sanitizeSingleLine(meta && meta.userHandle ? meta.userHandle : '');
@@ -975,12 +975,14 @@ function renderSlotPosts(slot, posts, handle, avatarUrl = null, slots = [], meta
       displayName = rawName;
       userHandle = rawHandle;
       slot.authorName.innerText = displayName;
-      slot.authorHandle.innerText = userHandle;
+      slot.authorHandle.textContent = userHandle;
     } else {
-      displayName = rawHandle || (isThreads ? `threads:@${handle}` : `@${handle}`);
-      userHandle = '';
+      displayName = isThreads
+        ? (rawHandle || `threads:@${handle}`)
+        : (rawName || handle.replace(/^@/, ''));
+      userHandle = isThreads ? '' : (rawHandle || `@${handle.replace(/^@/, '')}`);
       slot.authorName.innerText = displayName;
-      slot.authorHandle.innerText = '';
+      slot.authorHandle.textContent = userHandle;
     }
   }
 
@@ -1288,7 +1290,7 @@ async function resolveSlotUrlTitles(slot, slots = []) {
               ? {
                   source: SOURCE_THREADS,
                   displayName: slot.authorName ? slot.authorName.innerText : '',
-                  userHandle: slot.authorHandle ? slot.authorHandle.innerText : ''
+                  userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : ''
                 }
               : null);
         renderSlotPosts(slot, filterPostsByKeywords(slot.loadedPosts, activeKeywords), handle, avatarUrl, slots, meta);
@@ -1298,7 +1300,7 @@ async function resolveSlotUrlTitles(slot, slots = []) {
       persistSlot(slot, {
         handle,
         displayName: slot.authorName ? slot.authorName.innerText : '',
-        userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+        userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : '',
         posts: slot.loadedPosts,
         avatarUrl
       }, slots);
@@ -1371,7 +1373,7 @@ async function backfillTwitterSlotImages(slot, slots = []) {
       const meta = {
         source: 'twitter',
         displayName: slot.authorName ? slot.authorName.innerText : '',
-        userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`
+        userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : `@${handle}`
       };
       renderSlotPosts(slot, slot.loadedPosts, handle, avatarUrl, slots, meta);
       archiveSlotScrapedData(slot);
@@ -1381,7 +1383,7 @@ async function backfillTwitterSlotImages(slot, slots = []) {
       persistSlot(slot, {
         handle,
         displayName: slot.authorName ? slot.authorName.innerText : '',
-        userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`,
+        userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : `@${handle}`,
         posts: slot.loadedPosts,
         avatarUrl
       }, slots);
@@ -1403,7 +1405,7 @@ function archiveSlotScrapedData(slot) {
   saveTargetCacheEntry(handle, {
     handle,
     displayName: slot.authorName ? slot.authorName.innerText : '',
-    userHandle: slot.authorHandle ? slot.authorHandle.innerText : '',
+    userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : '',
     posts: slot.loadedPosts,
     avatarUrl: (slot.avatarImg && slot.avatarImg.src) || '',
     isMuted: slot.isMuted !== false,
@@ -1454,7 +1456,7 @@ function restoreSlotFromTargetCache(slot, rawInput, slots = [], sourceOverride =
   const meta = isDiscord
     ? {
         source: SOURCE_DISCORD,
-        title: cached.sourceTitle || cached.displayName || '#频道',
+        title: cached.sourceTitle || cached.displayName || '频道',
         subtitle: cached.sourceSubtitle || cached.userHandle || ''
       }
     : {
@@ -1496,7 +1498,7 @@ function resetSlotForNewTarget(slot, newRawInput = '', slots = []) {
   slot.error.style.display = 'none';
   slot.placeholder.style.display = 'flex';
   slot.authorName.innerText = '';
-  slot.authorHandle.innerText = '';
+  slot.authorHandle.textContent = '';
   if (slot.authorHeader) slot.authorHeader.style.display = 'none';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
   updateSlotUnreadBadge(slot);
@@ -1528,7 +1530,7 @@ function clearSlot(slot, { slots } = {}) {
   slot.error.style.display = 'none';
   slot.placeholder.style.display = 'flex';
   slot.authorName.innerText = '';
-  slot.authorHandle.innerText = '';
+  slot.authorHandle.textContent = '';
   if (slot.authorHeader) slot.authorHeader.style.display = 'none';
   if (slot.inputWrapper) slot.inputWrapper.style.display = 'flex';
   updateSlotUnreadBadge(slot);
@@ -2270,7 +2272,7 @@ function loadSlotCache(slots) {
                 persistSlot(slot, {
                   handle: slot.monitoredHandle || handle,
                   displayName: slot.authorName ? slot.authorName.innerText : '',
-                  userHandle: slot.authorHandle ? slot.authorHandle.innerText : `threads:@${cleanHandle}`,
+                  userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : `threads:@${cleanHandle}`,
                   posts: slot.loadedPosts || [],
                   avatarUrl: res.threads.avatarUrl
                 }, slots);
@@ -2294,7 +2296,7 @@ function loadSlotCache(slots) {
           const sorted = processAndSortPosts(posts);
           recordSlotReadPosts(slot, sorted);
           const meta = isDiscord
-            ? { source: SOURCE_DISCORD, title: sourceTitle || '#频道', subtitle: sourceSubtitle || '' }
+            ? { source: SOURCE_DISCORD, title: sourceTitle || '频道', subtitle: sourceSubtitle || '' }
             : {
                 source: isThreads ? SOURCE_THREADS : 'twitter',
                 displayName: sanitizeSingleLine(slotEntry.displayName || ''),
@@ -2328,7 +2330,7 @@ function refreshSlotsContent(slots) {
         : {
             source: isThreads ? SOURCE_THREADS : 'twitter',
             displayName: slot.authorName ? slot.authorName.innerText : '',
-            userHandle: slot.authorHandle ? slot.authorHandle.innerText : `@${handle}`
+            userHandle: slot.authorHandle ? (slot.authorHandle.textContent || slot.authorHandle.innerText) : `@${handle}`
           };
       renderSlotPosts(slot, slot.loadedPosts, handle, avatarUrl, slots, meta);
     }

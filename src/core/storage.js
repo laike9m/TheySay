@@ -45,6 +45,7 @@ const {
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_DARK_HEADER_BG_COLOR,
   DEFAULT_CHAT_BG_COLOR,
   DEFAULT_DARK_CHAT_BG_COLOR,
   DEFAULT_BUBBLE_BG_COLOR,
@@ -553,10 +554,22 @@ const [getTickerBgColor, saveTickerBgColor] = createColorStorage(
   STORAGE_TICKER_BG_COLOR_KEY,
   DEFAULT_TICKER_BG_COLOR
 );
-const [getHeaderBgColor, saveHeaderBgColor] = createColorStorage(
-  STORAGE_HEADER_BG_COLOR_KEY,
-  DEFAULT_HEADER_BG_COLOR
-);
+function getHeaderBgColor() {
+  const raw = (readStorage(STORAGE_HEADER_BG_COLOR_KEY) || '').trim();
+  const parsed = raw ? colord(raw) : null;
+  if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+    return parsed.toHex();
+  }
+  return getStoredTheme() === 'light' ? DEFAULT_HEADER_BG_COLOR : DEFAULT_DARK_HEADER_BG_COLOR;
+}
+
+function saveHeaderBgColor(color) {
+  const raw = String(color || '').trim();
+  const parsed = raw ? colord(raw) : null;
+  if (parsed && parsed.isValid() && /^#[0-9a-f]{6}$/i.test(raw)) {
+    writeStorage(STORAGE_HEADER_BG_COLOR_KEY, parsed.toHex());
+  }
+}
 
 function getChatBgColor() {
   const raw = (readStorage(STORAGE_CHAT_BG_COLOR_KEY) || '').trim();

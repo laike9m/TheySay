@@ -10,6 +10,7 @@ const {
   DEFAULT_TICKER_FG_COLOR,
   DEFAULT_TICKER_BG_COLOR,
   DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_DARK_HEADER_BG_COLOR,
   DEFAULT_CHAT_BG_COLOR,
   DEFAULT_DARK_CHAT_BG_COLOR,
   DEFAULT_BUBBLE_BG_COLOR,
@@ -216,7 +217,8 @@ function updateHeaderPreviewUI(bgColor, { liveApply = false } = {}) {
 }
 
 function setHeaderColorInputs(bgColor, { liveApply = false } = {}) {
-  const bg = normalizeHexColor(bgColor, DEFAULT_HEADER_BG_COLOR);
+  const fallback = getStoredTheme() === 'light' ? DEFAULT_HEADER_BG_COLOR : DEFAULT_DARK_HEADER_BG_COLOR;
+  const bg = normalizeHexColor(bgColor, fallback);
   const bgInput = document.getElementById('setting-header-bg-color');
   const bgHex = document.getElementById('setting-header-bg-hex');
 
@@ -238,10 +240,18 @@ function updateChatBgPreviewUI(bgColor, { liveApply = false } = {}) {
 
   if (cardEl) cardEl.style.backgroundColor = palette.bg;
   if (bodyEl) bodyEl.style.backgroundColor = palette.bg;
-  if (barEl) barEl.style.backgroundColor = palette.bg;
-  if (nameEl) nameEl.style.color = palette.text;
-  if (handleEl) handleEl.style.color = palette.subtext;
-  if (iconEl) iconEl.style.color = palette.subtext;
+
+  const curHeader = getHeaderBgColor();
+  if (
+    curHeader === palette.bg ||
+    curHeader === DEFAULT_HEADER_BG_COLOR ||
+    curHeader === DEFAULT_DARK_HEADER_BG_COLOR
+  ) {
+    if (barEl) barEl.style.backgroundColor = palette.bg;
+    if (nameEl) nameEl.style.color = palette.text;
+    if (handleEl) handleEl.style.color = palette.subtext;
+    if (iconEl) iconEl.style.color = palette.subtext;
+  }
 
   document.querySelectorAll('#setting-chat-bg-presets .chat-bg-preset-chip').forEach(btn => {
     const pBg = (btn.getAttribute('data-bg') || '').toLowerCase();
@@ -368,9 +378,9 @@ function loadCurrentSettings() {
   });
 
   syncFilterKeywordsControl(getFilterKeywords());
-  setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
   setChatBgColorInputs(getChatBgColor(), { liveApply: false });
   setBubbleBgColorInputs(getBubbleBgColor(), { liveApply: false });
+  setHeaderColorInputs(getHeaderBgColor(), { liveApply: false });
   setTickerColorInputs(getTickerFgColor(), getTickerBgColor());
   refreshTickerStatsLabel();
 }
@@ -785,11 +795,12 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       syncFilterKeywordsControl(DEFAULT_FILTER_KEYWORDS);
 
       const isDark = getStoredTheme() === 'dark';
+      const defaultHeaderBg = isDark ? DEFAULT_DARK_HEADER_BG_COLOR : DEFAULT_HEADER_BG_COLOR;
       const defaultChatBg = isDark ? DEFAULT_DARK_CHAT_BG_COLOR : DEFAULT_CHAT_BG_COLOR;
       const defaultBubbleBg = isDark ? DEFAULT_DARK_BUBBLE_BG_COLOR : DEFAULT_BUBBLE_BG_COLOR;
 
-      saveHeaderBgColor(DEFAULT_HEADER_BG_COLOR);
-      applyHeaderColor(DEFAULT_HEADER_BG_COLOR);
+      saveHeaderBgColor(defaultHeaderBg);
+      applyHeaderColor(defaultHeaderBg);
       saveChatBgColor(defaultChatBg);
       applyChatBgColor(defaultChatBg);
       saveBubbleBgColor(defaultBubbleBg);
@@ -798,9 +809,9 @@ function initSettings({ onSave, onExportProfile, onImportProfile, onLanguageChan
       saveTickerBgColor(DEFAULT_TICKER_BG_COLOR);
       applyTickerColors(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 
-      setHeaderColorInputs(DEFAULT_HEADER_BG_COLOR, { liveApply: true });
       setChatBgColorInputs(defaultChatBg, { liveApply: true });
       setBubbleBgColorInputs(defaultBubbleBg, { liveApply: true });
+      setHeaderColorInputs(defaultHeaderBg, { liveApply: true });
       setTickerColorInputs(DEFAULT_TICKER_FG_COLOR, DEFAULT_TICKER_BG_COLOR);
 
       if (typeof onLanguageChangeCallback === 'function') {

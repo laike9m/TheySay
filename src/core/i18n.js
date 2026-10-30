@@ -244,7 +244,7 @@ const MESSAGES = {
     'slot.loadingText': 'Fetching in background...',
     'slot.defaultChannelLabel': 'this channel',
     'slot.defaultChannelName': 'this channel',
-    'slot.defaultDiscordChannel': '#channel',
+    'slot.defaultDiscordChannel': 'channel',
     'slot.muteToastMuted': 'Muted notifications for {label}',
     'slot.toastMuted': 'Muted notifications for {label}',
     'slot.muteToastUnmuted': 'Enabled notifications for {label}',
@@ -633,7 +633,7 @@ const MESSAGES = {
     'slot.loadingText': '后台抓取中...',
     'slot.defaultChannelLabel': '此频道',
     'slot.defaultChannelName': '此频道',
-    'slot.defaultDiscordChannel': '#频道',
+    'slot.defaultDiscordChannel': '频道',
     'slot.muteToastMuted': '已静音 {label} 的系统通知',
     'slot.toastMuted': '已静音 {label} 的系统通知',
     'slot.muteToastUnmuted': '已开启 {label} 的系统通知',
@@ -944,8 +944,8 @@ function isImageAttachmentLabel(rawLabel) {
 }
 
 function normalizeDiscordChannelFallback(title) {
-  const s = String(title || '').trim();
-  if (!s || s === '#频道' || s === '#channel') {
+  const s = String(title || '').trim().replace(/^#+/, '').trim();
+  if (!s || s === '频道' || s === 'channel') {
     return t('slot.defaultDiscordChannel');
   }
   return s;

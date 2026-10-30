@@ -1,6 +1,7 @@
 const { colord } = require('colord');
 const {
   DEFAULT_HEADER_BG_COLOR,
+  DEFAULT_DARK_HEADER_BG_COLOR,
   DEFAULT_CHAT_BG_COLOR,
   DEFAULT_DARK_CHAT_BG_COLOR,
   DEFAULT_BUBBLE_BG_COLOR,
@@ -11,6 +12,7 @@ const {
   getStoredTheme,
   saveStoredTheme,
   getHeaderBgColor,
+  saveHeaderBgColor,
   getChatBgColor,
   saveChatBgColor,
   getBubbleBgColor,
@@ -69,15 +71,19 @@ function resolveHeaderPalette(bgHex) {
 
 function applyHeaderColor(bgHex) {
   if (typeof document === 'undefined' || !document.documentElement) return;
-  const norm = normalizeHexColor(bgHex, DEFAULT_HEADER_BG_COLOR);
+  const fallback = getStoredTheme() === 'light' ? DEFAULT_HEADER_BG_COLOR : DEFAULT_DARK_HEADER_BG_COLOR;
+  const norm = normalizeHexColor(bgHex, fallback);
   const root = document.documentElement;
   root.style.setProperty('--slot-header-bg', norm);
 
-  if (norm === DEFAULT_HEADER_BG_COLOR) {
-    const chatPalette = resolveChatBgPalette(getChatBgColor());
+  const currentChatBg = normalizeHexColor(getChatBgColor(), fallback);
+  if (norm === currentChatBg || norm === DEFAULT_HEADER_BG_COLOR || norm === DEFAULT_DARK_HEADER_BG_COLOR) {
+    const chatPalette = resolveChatBgPalette(norm);
     root.style.setProperty(
       '--slot-header-surface',
-      'linear-gradient(180deg, var(--bg-card) 82%, transparent 100%)'
+      norm === currentChatBg
+        ? 'linear-gradient(180deg, var(--bg-card) 82%, transparent 100%)'
+        : norm
     );
     root.style.setProperty('--slot-header-text', chatPalette.text);
     root.style.setProperty('--slot-header-subtext', chatPalette.subtext);
@@ -123,10 +129,17 @@ function applyChatBgColor(bgHex) {
   const root = document.documentElement;
   root.style.setProperty('--bg-card', palette.bg);
   root.style.setProperty('--slot-header-pill-bg', palette.pillBg);
-  if (normalizeHexColor(getHeaderBgColor(), DEFAULT_HEADER_BG_COLOR) === DEFAULT_HEADER_BG_COLOR) {
+  const headerBg = normalizeHexColor(getHeaderBgColor(), DEFAULT_HEADER_BG_COLOR);
+  if (
+    headerBg === palette.bg ||
+    headerBg === DEFAULT_HEADER_BG_COLOR ||
+    headerBg === DEFAULT_DARK_HEADER_BG_COLOR
+  ) {
     root.style.setProperty(
       '--slot-header-surface',
-      'linear-gradient(180deg, var(--bg-card) 82%, transparent 100%)'
+      headerBg === palette.bg
+        ? 'linear-gradient(180deg, var(--bg-card) 82%, transparent 100%)'
+        : headerBg
     );
     root.style.setProperty('--slot-header-text', palette.text);
     root.style.setProperty('--slot-header-subtext', palette.subtext);
@@ -201,6 +214,12 @@ function applyTheme(theme, btnThemeToggle) {
   }
 
   if (prevTheme && prevTheme !== theme) {
+    const curHeader = getHeaderBgColor();
+    if (curHeader === DEFAULT_HEADER_BG_COLOR || curHeader === DEFAULT_DARK_HEADER_BG_COLOR) {
+      const nextHeader = theme === 'light' ? DEFAULT_HEADER_BG_COLOR : DEFAULT_DARK_HEADER_BG_COLOR;
+      saveHeaderBgColor(nextHeader);
+      applyHeaderColor(nextHeader);
+    }
     const curChat = getChatBgColor();
     if (curChat === DEFAULT_CHAT_BG_COLOR || curChat === DEFAULT_DARK_CHAT_BG_COLOR) {
       const nextChat = theme === 'light' ? DEFAULT_CHAT_BG_COLOR : DEFAULT_DARK_CHAT_BG_COLOR;

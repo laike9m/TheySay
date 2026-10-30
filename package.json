@@ -21,7 +21,7 @@
   "keywords": [],
   "author": "laike9m <laike9m@gmail.com>",
   "homepage": "https://github.com/laike9m/TheySay",
-  "license": "ISC",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "commonjs",
   "build": {
     "appId": "com.laike9m.theysay",

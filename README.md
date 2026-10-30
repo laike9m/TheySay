@@ -49,3 +49,10 @@ Download the latest installer for **macOS**, **Windows**, or **Linux** from **[G
 3. **Customize Your Workflow**: Click the bell icon on any card to toggle desktop notifications, or open **Settings** to adjust refresh intervals, ticker colors, language (`English` / `中文`), and keyword filters.
 
    **定制专属工作流**：点击卡片右上角铃铛图标单独开启桌面通知，或打开 **设置** 调整刷新频率、股票代码配色、界面语言（`中文` / `English`）与屏蔽词。
+
+## License / 许可协议
+
+Licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+
+本项目采用 **[PolyForm Noncommercial License 1.0.0](LICENSE)** 许可协议。
+
